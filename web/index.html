@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Regional Trust Bank - Virtual Assistant Demo</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="24" height="24">
+          <path d="M16 3 3 9v8c0 7 5.6 10.9 13 12 7.4-1.1 13-5 13-12V9L16 3z"
+                fill="none" stroke="currentColor" stroke-width="2.4"
+                stroke-linejoin="round"/>
+          <path d="M11 16.2l3.4 3.4L21.5 12" fill="none" stroke="currentColor"
+                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <strong>Regional Trust Bank</strong>
+        <span class="sub">Hybrid virtual assistant</span>
+      </div>
+    </div>
+    <div class="modes">
+      <span id="mode-pill" class="pill">checking…</span>
+      <span id="kb-pill" class="pill muted"></span>
+      <span class="built-by">built by <b>CMC Global</b></span>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-view="customer">Customer chat</button>
+    <button class="tab" data-view="agent">
+      Agent console <span id="queue-count" class="badge zero">0</span>
+    </button>
+    <button class="tab" data-view="kb">Knowledge base</button>
+    <button class="tab" data-view="settings">Settings</button>
+  </nav>
+
+  <!-- ============ CUSTOMER ============ -->
+  <main id="view-customer" class="view">
+    <section class="chat-panel">
+      <div id="messages" class="messages"></div>
+
+      <div class="suggestions" id="suggestions">
+        <button>What are your fees for international transfers?</button>
+        <button>I lost my debit card</button>
+        <button>Check my balance</button>
+        <button>What's the status of my loan application?</button>
+        <button>Should I invest my savings in tech stocks?</button>
+        <button>Do you offer crop insurance for vineyards?</button>
+      </div>
+
+      <form id="composer" class="composer" autocomplete="off">
+        <input id="input" type="text"
+               placeholder="Ask about your accounts, cards, or our products…" />
+        <button type="submit" id="send">Send</button>
+      </form>
+    </section>
+
+    <aside class="panel inspector">
+      <h2>Routing inspector</h2>
+      <p class="hint">How the last turn was decided - the audit view a compliance
+        reviewer would see.</p>
+      <div id="inspector">
+        <p class="empty">Send a message to see the routing decision.</p>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ============ AGENT ============ -->
+  <main id="view-agent" class="view hidden">
+    <section class="panel">
+      <h2>Escalation queue</h2>
+      <p class="hint">Conversations handed off by the assistant.</p>
+      <div id="queue" class="queue"></div>
+    </section>
+
+    <section class="stack">
+      <div id="handover-empty" class="empty-state">
+        <h2>No conversation selected</h2>
+        <p>Pick a conversation from the queue to see the handover brief, the full
+          transcript, and the per-turn audit trail.</p>
+      </div>
+      <div id="handover" class="stack hidden">
+        <div class="row-between">
+          <h2 id="handover-title">-</h2>
+          <button id="regen" class="ghost">Regenerate brief</button>
+        </div>
+        <div class="panel">
+          <h3>Handover brief <span id="summary-source" class="tag"></span></h3>
+          <div id="summary" class="summary"></div>
+        </div>
+        <div class="panel">
+          <h3>Full transcript</h3>
+          <pre id="transcript" class="transcript"></pre>
+        </div>
+        <div class="panel">
+          <h3>Audit trail</h3>
+          <div id="audit" class="audit"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ KNOWLEDGE BASE ============ -->
+  <main id="view-kb" class="view hidden">
+    <section class="panel">
+      <div class="row-between">
+        <h2>Documents</h2>
+        <button id="kb-new" class="primary small">Add document</button>
+      </div>
+      <p class="hint" id="kb-stats">-</p>
+      <div id="kb-list" class="queue"></div>
+    </section>
+
+    <section class="stack">
+      <!-- viewer -->
+      <div id="kb-empty" class="empty-state">
+        <h2>No document selected</h2>
+        <p>Pick a document to review the passages the retriever extracted from it,
+          or add a new one. Uploads are indexed immediately - no restart.</p>
+      </div>
+
+      <div id="kb-view" class="stack hidden">
+        <div class="row-between">
+          <h2 id="kb-title">-</h2>
+          <div class="row-gap">
+            <button id="kb-edit" class="ghost small">Edit</button>
+            <button id="kb-delete" class="danger small">Delete</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Extracted passages <span id="kb-passage-count" class="tag"></span></h3>
+          <p class="hint">These are the retrieval units. A section the retriever
+            can't see is a question it can't answer.</p>
+          <div id="kb-passages" class="passages"></div>
+        </div>
+        <div class="panel">
+          <h3>Raw markdown</h3>
+          <pre id="kb-raw" class="transcript"></pre>
+        </div>
+      </div>
+
+      <!-- editor -->
+      <div id="kb-editor" class="panel hidden">
+        <div class="row-between">
+          <h3 id="kb-editor-title">Add document</h3>
+          <button id="kb-cancel" class="ghost small">Cancel</button>
+        </div>
+        <label class="field">
+          <span>Filename</span>
+          <input id="kb-filename" type="text" placeholder="travel-insurance.md" />
+        </label>
+        <label class="field">
+          <span>Markdown - each <code>## Section</code> becomes one retrievable passage</span>
+          <textarea id="kb-content" rows="18" spellcheck="false"></textarea>
+        </label>
+        <div id="kb-error" class="error hidden"></div>
+        <div class="row-gap">
+          <button id="kb-save" class="primary">Save &amp; reindex</button>
+          <button id="kb-template" class="ghost">Insert template</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ SETTINGS ============ -->
+  <main id="view-settings" class="view hidden">
+    <section class="panel">
+      <h2>LLM provider</h2>
+      <p class="hint">Applies immediately, to this running process only.</p>
+      <div id="provider-list" class="queue"></div>
+    </section>
+
+    <section class="stack">
+      <div class="panel">
+        <h3>Active configuration</h3>
+        <div id="active-config"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Configure</h3>
+        <label class="field">
+          <span>Provider</span>
+          <select id="cfg-provider">
+            <option value="auto">auto - first one configured</option>
+            <option value="anthropic">anthropic</option>
+            <option value="openai">openai</option>
+            <option value="gemini">gemini</option>
+            <option value="groq">groq - free tier, OpenAI-compatible</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>API key <em id="cfg-key-hint">- stored in memory only</em></span>
+          <div class="row-gap">
+            <input id="cfg-key" type="password" placeholder="paste key, or leave blank to keep" />
+            <button id="cfg-key-toggle" class="ghost small" type="button">Show</button>
+          </div>
+        </label>
+        <label class="field">
+          <span>Model <em>- blank uses the provider default</em></span>
+          <input id="cfg-model" type="text" placeholder="" />
+        </label>
+        <div class="grid-2">
+          <label class="field">
+            <span>Effort</span>
+            <select id="cfg-effort">
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Base URL <em>- openai adapter only</em></span>
+            <input id="cfg-base" type="text" placeholder="https://api.groq.com/openai/v1" />
+          </label>
+        </div>
+        <div id="cfg-error" class="error hidden"></div>
+        <div class="row-gap">
+          <button id="cfg-save" class="primary">Apply</button>
+          <button id="cfg-clear" class="ghost">Clear key</button>
+        </div>
+      </div>
+
+      <div class="panel warn">
+        <h3>About key handling</h3>
+        <p>A key entered here is held in this process's memory only - never written
+          to disk, and no endpoint returns it. The catalogue shows a mask
+          (<code>sk-a…4f2c</code>), never the value.</p>
+        <p>It is still plaintext in the process environment, readable by anything
+          that can read the process. The server also binds to localhost with no
+          authentication. That is fine for a demo and is <b>not</b> how to handle
+          credentials in production, where they belong in a secrets manager read
+          at start-up with no UI path to set them.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

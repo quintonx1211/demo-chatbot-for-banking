@@ -1,0 +1,16 @@
+# The demo runs with no dependencies at all - server, NLU, retrieval and the
+# extractive fallback are stdlib only. Install ONE of the lines below to switch
+# the generative layer on; the adapter picks it up automatically.
+#
+#   anthropic>=0.40        # LLM_PROVIDER=anthropic   ANTHROPIC_API_KEY
+#   openai>=1.40           # LLM_PROVIDER=openai      OPENAI_API_KEY
+#   openai>=1.40           # LLM_PROVIDER=groq        GROQ_API_KEY   (Groq speaks
+#                          #   the OpenAI wire format, so it needs no extra package)
+#   google-genai>=0.3      # LLM_PROVIDER=gemini      GEMINI_API_KEY
+#
+# Groq has the most usable free tier - see README § Running the demo for free.
+#
+# Installing more than one is fine - LLM_PROVIDER decides which is used, and
+# with LLM_PROVIDER=auto the first configured one in PROVIDER_ORDER wins.
+
+anthropic>=0.40

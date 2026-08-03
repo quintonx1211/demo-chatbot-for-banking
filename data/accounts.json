@@ -1,0 +1,101 @@
+{
+  "customers": [
+    {
+      "customer_id": "CUS-100294",
+      "name": "Maria Alvarez",
+      "dob": "1988-03-11",
+      "phone_last4": "4471",
+      "accounts": [
+        {
+          "account_id": "ACC-4471-0021",
+          "type": "Everyday Checking",
+          "mask": "****0021",
+          "balance": 2841.17,
+          "available": 2741.17,
+          "currency": "USD"
+        },
+        {
+          "account_id": "ACC-4471-0088",
+          "type": "Savings",
+          "mask": "****0088",
+          "balance": 15320.4,
+          "available": 15320.4,
+          "currency": "USD"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-8891",
+          "type": "Debit",
+          "mask": "****8891",
+          "status": "active",
+          "linked_account": "ACC-4471-0021"
+        },
+        {
+          "card_id": "CRD-2205",
+          "type": "Credit",
+          "mask": "****2205",
+          "status": "active",
+          "linked_account": "ACC-4471-0021"
+        }
+      ],
+      "loans": [
+        {
+          "application_id": "LN-2026-00841",
+          "product": "Auto Loan",
+          "amount": 24000,
+          "status": "In Review",
+          "submitted_on": "2026-07-29",
+          "note": "Underwriter has the file. Decision expected by 2026-08-05."
+        }
+      ],
+      "transactions": [
+        {"date": "2026-08-02", "description": "GREENLEAF GROCERY", "amount": -84.22},
+        {"date": "2026-08-01", "description": "PAYROLL DEPOSIT", "amount": 3120.0},
+        {"date": "2026-07-31", "description": "CITY TRANSIT AUTHORITY", "amount": -42.5},
+        {"date": "2026-07-30", "description": "NORTHSIDE PHARMACY", "amount": -19.87},
+        {"date": "2026-07-29", "description": "STREAMING SERVICE MONTHLY", "amount": -15.99}
+      ]
+    },
+    {
+      "customer_id": "CUS-100571",
+      "name": "Daniel Okafor",
+      "dob": "1975-11-02",
+      "phone_last4": "9032",
+      "accounts": [
+        {
+          "account_id": "ACC-9032-0140",
+          "type": "Premier Checking",
+          "mask": "****0140",
+          "balance": 48210.05,
+          "available": 47210.05,
+          "currency": "USD"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-7710",
+          "type": "Debit",
+          "mask": "****7710",
+          "status": "active",
+          "linked_account": "ACC-9032-0140"
+        }
+      ],
+      "loans": [
+        {
+          "application_id": "LN-2026-00612",
+          "product": "Residential Mortgage",
+          "amount": 410000,
+          "status": "Pending Documents",
+          "submitted_on": "2026-07-14",
+          "note": "Awaiting proof of homeowner's insurance and the property appraisal."
+        }
+      ],
+      "transactions": [
+        {"date": "2026-08-03", "description": "HARBOUR POINT DINER", "amount": -63.4},
+        {"date": "2026-08-02", "description": "WIRE TRANSFER OUT", "amount": -5000.0},
+        {"date": "2026-07-30", "description": "CONSULTING INVOICE 2291", "amount": 8400.0}
+      ]
+    }
+  ]
+}
