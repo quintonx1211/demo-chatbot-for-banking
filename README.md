@@ -307,7 +307,7 @@ uses TF-IDF rather than embeddings, which is adequate at this corpus size and
 keeps the demo dependency-free, but a production build would use a vector index
 with a reranker.
 
-The UI is styled with CMC Global's palette (`#1D99D6` / `#0056B3` / `#849CCD`),
+The UI is styled with quinton's palette (`#1D99D6` / `#0056B3` / `#849CCD`),
 taken from a brand aggregator rather than an official brand guideline. The three
 values sit at the top of `web/styles.css`; everything else derives from them, so
 swap them if you have the real spec.

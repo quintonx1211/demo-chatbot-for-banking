@@ -1,11 +1,11 @@
-/* CMC Global palette.
+/* quinton palette.
    #1D99D6 Curious Blue (primary) · #0056B3 Endeavour (deep) · #849CCD Polo Blue.
    Sourced from a brand aggregator rather than an official brand guideline -
    swap these three values if you have the real spec, the rest derives. */
 :root {
-  --cmc-blue: #1d99d6;
-  --cmc-deep: #0056b3;
-  --cmc-soft: #849ccd;
+  --blue: #1d99d6;
+  --deep: #0056b3;
+  --soft: #849ccd;
 
   --bg: #eef3f8;
   --panel: #ffffff;
@@ -42,7 +42,7 @@ body {
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand .mark {
   width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center;
-  background: linear-gradient(140deg, var(--cmc-blue), var(--cmc-deep));
+  background: linear-gradient(140deg, var(--blue), var(--deep));
   color: #fff;
 }
 .brand-text { display: flex; flex-direction: column; line-height: 1.25; }
@@ -59,7 +59,7 @@ body {
   font-size: 12px; color: var(--muted); padding-left: 12px;
   border-left: 1px solid var(--line);
 }
-.built-by b { color: var(--cmc-deep); }
+.built-by b { color: var(--deep); }
 
 /* ---------- tabs ---------- */
 .tabs {
@@ -72,7 +72,7 @@ body {
   cursor: pointer;
 }
 .tab:hover { color: var(--text); }
-.tab.active { color: var(--cmc-deep); border-bottom-color: var(--cmc-blue); }
+.tab.active { color: var(--deep); border-bottom-color: var(--blue); }
 .badge {
   display: inline-grid; place-items: center; min-width: 19px; height: 19px;
   padding: 0 5px; margin-left: 5px; border-radius: 999px;
@@ -130,7 +130,7 @@ code {
 .msg .bubble { padding: 11px 14px; border-radius: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg.customer { align-self: flex-end; }
 .msg.customer .bubble {
-  background: linear-gradient(140deg, var(--cmc-blue), var(--cmc-deep));
+  background: linear-gradient(140deg, var(--blue), var(--deep));
   color: #fff; border-bottom-right-radius: 3px;
 }
 .msg.customer .bubble code { background: rgba(255,255,255,.2); border-color: transparent; color: #fff; }
@@ -150,7 +150,7 @@ code {
   background: var(--panel-2); color: var(--muted);
 }
 .chip.deterministic { color: #0b6b3f; border-color: #b9e4cd; background: #eaf8f1; }
-.chip.rag { color: var(--cmc-deep); border-color: #bfe0f5; background: #eaf5fc; }
+.chip.rag { color: var(--deep); border-color: #bfe0f5; background: #eaf5fc; }
 .chip.guardrail { color: var(--amber); border-color: #f0dcb4; background: #fdf6e8; }
 .chip.escalation { color: var(--red); border-color: #f3c9c6; background: #fdeeed; }
 
@@ -164,7 +164,7 @@ code {
   background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
   padding: 6px 12px; border-radius: 999px; font: inherit; font-size: 12.5px; cursor: pointer;
 }
-.suggestions button:hover { color: var(--cmc-deep); border-color: var(--cmc-blue); background: #eaf5fc; }
+.suggestions button:hover { color: var(--deep); border-color: var(--blue); background: #eaf5fc; }
 
 .composer { display: flex; gap: 9px; padding: 13px 18px; border-top: 1px solid var(--line); }
 .composer input { flex: 1; }
@@ -176,7 +176,7 @@ input[type=text], input[type=password], textarea, select {
 }
 textarea { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; resize: vertical; }
 input:focus, textarea:focus, select:focus {
-  outline: none; border-color: var(--cmc-blue);
+  outline: none; border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(29, 153, 214, .15);
 }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 13px; }
@@ -188,13 +188,13 @@ button.primary, button.danger, button.ghost, .composer button[type=submit] {
   padding: 10px 18px; border: 1px solid transparent; white-space: nowrap;
 }
 button.primary, .composer button[type=submit] {
-  background: linear-gradient(140deg, var(--cmc-blue), var(--cmc-deep)); color: #fff;
+  background: linear-gradient(140deg, var(--blue), var(--deep)); color: #fff;
 }
 button.primary:hover, .composer button[type=submit]:hover { filter: brightness(1.07); }
 button.danger { background: #fdeeed; border-color: #f3c9c6; color: var(--red); }
 button.danger:hover { background: var(--red); color: #fff; border-color: var(--red); }
 button.ghost { background: var(--panel-2); border-color: var(--line); color: var(--text); }
-button.ghost:hover { border-color: var(--cmc-blue); color: var(--cmc-deep); }
+button.ghost:hover { border-color: var(--blue); color: var(--deep); }
 button.small { padding: 7px 13px; font-size: 13px; }
 button:disabled { opacity: .5; cursor: default; filter: none; }
 
@@ -212,19 +212,19 @@ button:disabled { opacity: .5; cursor: default; filter: none; }
 .kv span:first-child { color: var(--muted); }
 .kv span:last-child { text-align: right; overflow-wrap: anywhere; font-weight: 500; }
 .meter { height: 5px; border-radius: 3px; background: var(--line-soft); overflow: hidden; margin-top: 8px; }
-.meter > i { display: block; height: 100%; background: linear-gradient(90deg, var(--cmc-blue), var(--cmc-deep)); }
+.meter > i { display: block; height: 100%; background: linear-gradient(90deg, var(--blue), var(--deep)); }
 
 /* ---------- lists (queue, kb, providers) ---------- */
 .queue { display: flex; flex-direction: column; gap: 8px; }
 .queue-item {
   text-align: left; width: 100%; background: var(--panel-2);
-  border: 1px solid var(--line); border-left: 3px solid var(--cmc-soft);
+  border: 1px solid var(--line); border-left: 3px solid var(--soft);
   border-radius: 9px; padding: 11px 12px; color: var(--text); font: inherit;
   cursor: pointer;
 }
-.queue-item:hover { border-color: var(--cmc-blue); border-left-color: var(--cmc-blue); }
+.queue-item:hover { border-color: var(--blue); border-left-color: var(--blue); }
 .queue-item.active {
-  background: #eaf5fc; border-color: var(--cmc-blue); border-left-color: var(--cmc-deep);
+  background: #eaf5fc; border-color: var(--blue); border-left-color: var(--deep);
 }
 .queue-item.alert { border-left-color: var(--red); }
 .queue-item strong { display: block; font-size: 13.5px; }
@@ -257,9 +257,9 @@ button:disabled { opacity: .5; cursor: default; filter: none; }
 /* ---------- knowledge base ---------- */
 .passages { display: flex; flex-direction: column; gap: 9px; }
 .passage {
-  border: 1px solid var(--line-soft); border-left: 3px solid var(--cmc-blue);
+  border: 1px solid var(--line-soft); border-left: 3px solid var(--blue);
   border-radius: 8px; padding: 11px 12px; background: var(--panel-2);
 }
 .passage h4 { margin: 0 0 5px; font-size: 13.5px; }
 .passage p { margin: 0; font-size: 12.5px; color: var(--muted); }
-.passage .cite { font-size: 11.5px; color: var(--cmc-deep); font-weight: 600; }
+.passage .cite { font-size: 11.5px; color: var(--deep); font-weight: 600; }
