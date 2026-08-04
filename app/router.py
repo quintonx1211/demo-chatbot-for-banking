@@ -110,6 +110,24 @@ class Router:
         self.trace = Trace()
         session.add_message("customer", text)
 
+        # Demo lever, checked before anything else the router does. Everyone
+        # below this line - guardrails, NLU, flows, retrieval, grounding -
+        # exists to improve on what a bare LLM call over the transcript would
+        # do; this path is that call, unmodified, so the difference can be
+        # shown rather than described.
+        if session.raw_mode:
+            result = self._raw_turn(session, text)
+            result.latency_ms = int((time.perf_counter() - started) * 1000)
+            result.trace = self.trace.to_list()
+            session.add_message("assistant", result.text)
+            session.record(
+                utterance=text, route=result.route, intent=result.intent,
+                confidence=result.confidence, generated=result.generated,
+                latency_ms=result.latency_ms,
+                note="raw mode: no routing, guardrails, retrieval or grounding check",
+            )
+            return result
+
         mention, body = split_mention(text)
 
         # Leaving a conversation that went to a human. Available from the
@@ -221,6 +239,35 @@ class Router:
         )
         return result
 
+    def _raw_turn(self, session: Session, text: str) -> TurnResult:
+        """Answer with nothing but the model and the conversation so far.
+
+        No guardrail, no intent classifier, no retrieval, no grounding check -
+        this is the baseline the rest of the router exists to improve on. It
+        exists to be switched on live next to the grounded path, not to be a
+        second production mode: it has no PII redaction and no compliance
+        gate, so a raw-mode answer to a regulated question or a customer's
+        pasted card number goes to the model exactly as typed.
+        """
+        history = session.transcript(limit=12)
+        result = llm.raw_chat(text, history=history)
+        self.trace.decide(
+            "raw_mode", "architecture disabled for this conversation",
+            "sent directly to the model with conversation history as the only "
+            "context - no guardrail, retrieval, or grounding check ran",
+        )
+        return TurnResult(
+            text=result.text,
+            route="raw_llm",
+            intent="raw_llm",
+            confidence=0.0,
+            generated=result.generated,
+            debug={
+                "note": result.error or ("llm" if result.generated else "offline"),
+                "tokens": {"in": result.input_tokens, "out": result.output_tokens},
+            },
+        )
+
     def _remember(self, session: Session, text: str, result: TurnResult) -> None:
         """Carry a topic, never a sentence, into the customer's next conversation.
 
@@ -274,7 +321,7 @@ class Router:
             # it is the right reading: they moved on.
 
         # 1. A flow already in progress usually owns the turn, because slot
-        #    answers ("4471", "yes") carry no intent signal and classifying
+        #    answers ("4471 0512", "yes") carry no intent signal and classifying
         #    them would misroute. But "usually" needs an escape hatch: without
         #    one the customer is trapped repeating themselves at a prompt they
         #    are not trying to answer, which is precisely the rule-based
@@ -325,14 +372,22 @@ class Router:
         if flows.wants_out(text):
             return "explicit-cancel"
 
-        if session.flow_misses >= flows.MAX_FLOW_MISSES:
-            return f"no-progress-after-{session.flow_misses}"
-
-        # A clearly different request. Verification is exempt: it is a gate in
-        # front of something the customer asked for, so abandoning it on the
-        # intent that triggered it would loop forever.
+        # Verification owns its own retry ceiling: `_handle_verification`
+        # escalates with "Identity verification failed three times" on the
+        # third wrong attempt. That check has to run *before* the generic
+        # no-progress rule below, because MAX_FLOW_MISSES (2) is reached one
+        # turn earlier than verification's own three strikes - the generic
+        # rule fired first, silently abandoning the identity check and
+        # answering the third bad guess as if it were a fresh question,
+        # which drops the security-relevant escalation on the floor instead
+        # of raising it. The exemption is checked first for the same reason
+        # the flow itself is exempt from the "different intent" rule further
+        # down: it is a gate in front of something the customer asked for.
         if session.pending_flow == "verify":
             return None
+
+        if session.flow_misses >= flows.MAX_FLOW_MISSES:
+            return f"no-progress-after-{session.flow_misses}"
 
         # LOW_CONFIDENCE, not HIGH: the bar for *leaving* a flow should be far
         # lower than the bar for entering one. Slot answers ("2205", "yes",

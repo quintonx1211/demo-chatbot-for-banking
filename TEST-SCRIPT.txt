@@ -94,33 +94,39 @@ SECTION 2 - ACCOUNT ACTIONS (route: deterministic)
 No model is involved. Answers are assembled from the customer record.
 ================================================================================
 
-     TEST CUSTOMERS
-       4471 = Maria Alvarez  - 2 accounts, 2 cards, auto loan In Review
-       9032 = Daniel Okafor  - 1 account, 1 card, mortgage Pending Documents
+     TEST CUSTOMERS  (phone last 4 + national ID / CCCD last 4)
+       4471 0512 = Maria Alvarez  - 2 accounts, 2 cards, auto loan In Review
+       9032 8847 = Daniel Okafor  - 1 account, 1 card, mortgage Pending Documents
+
+     Verification is two factors, both required, checked together (added
+     after the single-factor phone check was flagged as brute-forceable - see
+     app/flows.py `_verification_prompt`). A wrong pair gets a generic "those
+     details don't match" reply that does not say which factor was wrong.
 
 2.1  INPUT   Check my balance
-     EXPECT  Asks for the last 4 digits of the phone number. route=deterministic.
-     ->      4471
+     EXPECT  Asks for the last 4 digits of the phone number AND the last 4 of
+             the national ID (CCCD). route=deterministic.
+     ->      4471 0512
      EXPECT  "Thanks, Maria" then both balances. No "LLM" chip - this path
              never calls a model.
-     FAIL IF Any balance is shown before verification.
+     FAIL IF Any balance is shown before verification, or with only one factor.
 
 2.2  INPUT   What's the status of my loan application?
-     ->      9032
+     ->      9032 8847
      EXPECT  Mortgage LN-2026-00612, status Pending Documents, with the note
              about awaiting insurance and appraisal.
 
 2.3  INPUT   Can you tell me who am I?
-     ->      4471
+     ->      4471 0512
      EXPECT  Name, customer ID, and a list of accounts, cards and applications.
      WHY     This used to escalate. It is data the system already holds.
 
 2.4  INPUT   Show me my recent transactions
-     ->      4471
+     ->      4471 0512
      EXPECT  Five transactions with dates, descriptions and signed amounts.
 
 2.5  INPUT   I lost my debit card
-     ->      4471
+     ->      4471 0512
      EXPECT  Verification, then asks WHICH card (Maria has two).
      ->      8891
      EXPECT  Asks for explicit confirmation, warns it cannot be undone.
@@ -130,11 +136,19 @@ No model is involved. Answers are assembled from the customer record.
      FAIL IF The card is blocked without the confirmation step.
 
 2.6  INPUT   Check my balance
-     ->      1111
-     ->      2222
-     ->      3333
+     ->      1111 2222
+     ->      3333 4444
+     ->      5555 6666
      EXPECT  Three failed attempts, then escalation WITHOUT asking - a
              security failure is not something to consult the customer about.
+
+2.7  INPUT   Check my balance
+     ->      4471 9999
+     EXPECT  "Those details don't match our records (attempt 1 of 3)" - NOT a
+             message saying the phone was right but the ID was wrong.
+     WHY     A factor-specific error turns two secrets into one, guessable
+             separately. Correct phone + wrong ID must look identical to
+             wrong phone + wrong ID.
 
 
 ================================================================================
@@ -224,7 +238,7 @@ This is the failure the whole architecture claims to fix. Test it properly.
 ================================================================================
 
 6.1  INPUT   I lost my debit card
-     ->      4471
+     ->      4471 0512
      EXPECT  Asks which card to block.
      ->      Do you offer crop insurance for vineyards?
      EXPECT  Flow ABANDONED. Reply opens with "No problem - I've stopped the
@@ -233,12 +247,12 @@ This is the failure the whole architecture claims to fix. Test it properly.
      CHECK   Inspector "Note" contains abandoned:block_card
 
 6.2  INPUT   I lost my debit card
-     ->      4471
+     ->      4471 0512
      ->      actually never mind
      EXPECT  Flow stopped. Note contains abandoned:block_card(explicit-cancel)
 
 6.3  INPUT   I lost my debit card
-     ->      4471
+     ->      4471 0512
      ->      2205
      ->      yes
      EXPECT  The flow completes normally. Slot answers must NOT trigger the
@@ -246,9 +260,20 @@ This is the failure the whole architecture claims to fix. Test it properly.
      FAIL IF "2205" or "yes" abandons the flow.
 
 6.4  INPUT   Check my balance
-     ->      4471
+     ->      4471 0512
      EXPECT  Verification completes and the balance is shown. Verification
              must NOT be abandoned by the very intent that started it.
+
+6.5  INPUT   Check my balance
+     ->      4471 9999
+     ->      4471 8888
+     ->      What are your branch hours?
+     EXPECT  route=escalation on the third turn, NOT an abandoned-flow answer
+             to the branch-hours question. Verification's own three-strikes
+             escalation must win the race against the generic "no progress
+             after 2 misses" abandonment - both would otherwise fire on the
+             same turn. Inspector should NOT show abandoned:verify anywhere
+             in this sequence.
 
 
 ================================================================================
@@ -359,7 +384,7 @@ OTP, a card number, or a CVV. If it ever does, that is a defect, not a feature.
 
 9.1  Card activation
      Type: How do I activate my new card?
-     Then: 3390
+     Then: 3390 2266
      EXPECT - verification first, then Linh's inactive card ****3390 named
               explicitly, and a redirect to the app / IVR / branch.
      EXPECT - NO request for an OTP or full card number at any point.
@@ -367,19 +392,19 @@ OTP, a card number, or a CVV. If it ever does, that is a defect, not a feature.
 
 9.2  Same thing, customer's own words
      Type: My new card arrived, how do I start using it?
-     Then: 3390
+     Then: 3390 2266
      EXPECT - same flow. Tests that the intent is recognised from wording the
               script did not anticipate.
 
 9.3  Dormant reactivation
      Type: My card hasn't been used in ages, is it still ok?
-     Then: 9032
+     Then: 9032 8847
      EXPECT - the dormant card is named, with what happens next. No pressure,
               no invented reactivation deadline.
 
 9.4  Cross-sell
      Type: Do you have any offers for me?
-     Then: 4471
+     Then: 4471 0512
      EXPECT - only offers present in data/campaigns.json for that customer.
      CHECK  - the offer must exist in the batch file. An offer the assistant
               invented for a plausible-sounding customer is the failure mode
@@ -388,7 +413,7 @@ OTP, a card number, or a CVV. If it ever does, that is a defect, not a feature.
 9.5  Eligibility that is NOT in the batch
      Log in as agent, open data/campaigns.json, note who is NOT targeted.
      Type: Am I eligible for an upgrade?
-     Then: 9032   (a customer with no cross-sell offer)
+     Then: 9032 8847   (a customer with no cross-sell offer)
      EXPECT - a clear "nothing available for you right now", NOT a guess.
               Eligibility is read from the batch, never inferred.
 
@@ -439,13 +464,13 @@ SECTION 11 - CROSS-SESSION MEMORY
      never verified, so there was nobody to remember.
 
 11.2 Memory after verification
-     Type: check my balance   ->   4471
+     Type: check my balance   ->   4471 0512
      Then: Do you offer safe deposit boxes?   ->   no thanks
      Dashboard EXPECT - Customers remembered 1, Notes held 1.
 
 11.3 Recall in a NEW conversation
      Clear your browser session (or open a private window).
-     Type: check my balance   ->   4471
+     Type: check my balance   ->   4471 0512
      EXPECT - the greeting recalls the unresolved topic from 11.2:
               "Last time we spoke you asked about ... and I passed it to a
               colleague."

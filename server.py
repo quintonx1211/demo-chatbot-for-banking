@@ -4,6 +4,9 @@ Endpoints
     GET  /                     customer chat, agent console, knowledge base, settings
     GET  /api/health           model mode and knowledge-base stats
     POST /api/chat             {session_id?, message} -> assistant turn
+    POST /api/session/raw-mode {session_id?, enabled} -> demo lever (staff):
+                               strips routing/guardrails/retrieval/grounding
+                               down to a plain LLM chat, scoped to one session
     GET  /api/session/<id>     transcript + audit trail
     GET  /api/queue            escalated sessions waiting for a human
     POST /api/summary          {session_id} -> regenerate the handover brief
@@ -377,6 +380,21 @@ class Handler(BaseHTTPRequestHandler):
                 "active": llm.describe(),
             })
 
+        elif path == "/api/session/raw-mode":
+            # Staff-gated: this switch bypasses every guardrail, so it belongs
+            # with the other controls that decide what the assistant may do,
+            # not with the public chat endpoint next to it. The UI only shows
+            # it once signed in, but - same rule as everywhere else in this
+            # server - the check lives here, not in whether the button is
+            # visible.
+            if not self._require_staff():
+                return
+            session = router.sessions.get_or_create(payload.get("session_id"))
+            session.raw_mode = bool(payload.get("enabled"))
+            self._send_json({
+                "session_id": session.session_id, "raw_mode": session.raw_mode,
+            })
+
         elif path == "/api/chat":
             message = (payload.get("message") or "").strip()
             if not message:
@@ -408,6 +426,7 @@ class Handler(BaseHTTPRequestHandler):
                 "in_handoff": bool(session.escalated or session.handled_by),
                 "latency_ms": result.latency_ms,
                 "verified": session.verified,
+                "raw_mode": session.raw_mode,
                 "debug": result.debug,
             })
 

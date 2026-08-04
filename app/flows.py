@@ -40,14 +40,25 @@ def _money(amount: float) -> str:
 # -- verification ---------------------------------------------------------
 
 def _verification_prompt(session: Session, intent: str) -> FlowResult:
-    """Start (or continue) the identity check before a protected flow runs."""
+    """Start (or continue) the identity check before a protected flow runs.
+
+    Two factors, asked for and checked together: the phone number alone was a
+    4-digit space with no lockout wider than one session - a customer (or an
+    attacker) could open a fresh session after every third guess and keep
+    dialling. A second, independent factor - the national ID (CCCD) - does
+    not fix that on its own, but it takes the search space from "guess one
+    4-digit code" to "guess two 4-digit codes for the same person at once",
+    which is the cheapest real improvement available without a true step-up
+    channel (OTP to the registered device) standing in for a demo.
+    """
     session.pending_flow = "verify"
     session.slots["target_intent"] = intent
     return FlowResult(
         text=(
             "Before I can look at account details I need to verify your identity. "
-            "Please give me the **last 4 digits of your registered phone number**.\n\n"
-            "_Demo hint: `4471` Maria (travel card offer) · `9032` Daniel (dormant card) · `3390` Linh (card not activated)._"
+            "Please give me the **last 4 digits of your registered phone number** "
+            "and the **last 4 digits of your national ID (CCCD)**, separated by a space.\n\n"
+            "_Demo hint: Maria `4471 0512` · Daniel `9032 8847` · Linh `3390 2266`_"
         ),
         note="verification_started",
     )
@@ -55,13 +66,24 @@ def _verification_prompt(session: Session, intent: str) -> FlowResult:
 
 def _handle_verification(session: Session, text: str) -> FlowResult:
     digits = re.findall(r"\b\d{4}\b", text)
-    if not digits:
+    if len(digits) < 2:
         return FlowResult(
-            text="I need exactly 4 digits - the last 4 of your registered phone number.",
+            text=("I need two 4-digit codes - the last 4 digits of your phone "
+                  "number, then the last 4 digits of your national ID (CCCD). "
+                  "For example: `4471 0512`."),
             note="verification_retry",
         )
 
-    match = next((c for c in CUSTOMERS if c["phone_last4"] == digits[0]), None)
+    phone, national_id = digits[0], digits[1]
+    # Both factors have to match the same customer. The failure message below
+    # does not say which one was wrong - telling an attacker "the phone
+    # matched but the ID didn't" turns two independent secrets into one,
+    # guessed a factor at a time.
+    match = next(
+        (c for c in CUSTOMERS
+         if c["phone_last4"] == phone and c["national_id_last4"] == national_id),
+        None,
+    )
     if not match:
         attempts = int(session.slots.get("verify_attempts", "0")) + 1
         session.slots["verify_attempts"] = str(attempts)
@@ -74,8 +96,8 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
                 note="verification_failed",
             )
         return FlowResult(
-            text=(f"Those digits don't match our records (attempt {attempts} of 3). "
-                  "Please try again."),
+            text=(f"Those details don't match our records (attempt {attempts} of 3). "
+                  "Please try again with both codes."),
             note="verification_retry",
         )
 
@@ -418,7 +440,7 @@ def wants_out(text: str) -> bool:
 def continue_pending(session: Session, text: str) -> FlowResult | None:
     """Resume a mid-conversation flow before the classifier gets a say.
 
-    Slot answers like "4471" or "yes" carry no intent signal, so an in-progress
+    Slot answers like "4471 0512" or "yes" carry no intent signal, so an in-progress
     flow must take priority over classification.
     """
     if session.pending_flow == "verify":

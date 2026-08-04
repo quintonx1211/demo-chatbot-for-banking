@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import os
 
-from ..base import LLMRequest, LLMResult
+from ..base import LLMRequest, LLMResult, classify_provider_error
 
 NAME = "groq"
 # Groq speaks the OpenAI wire format, so the OpenAI SDK is the client.
@@ -78,7 +78,7 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
         )
     except Exception as exc:  # network, auth, rate limit - degrade, don't crash
         return LLMResult(text="", generated=False, provider=NAME, model=model,
-                         error=f"{type(exc).__name__}: {exc}")
+                         error=classify_provider_error(exc))
 
     choice = response.choices[0]
     text = (choice.message.content or "").strip()

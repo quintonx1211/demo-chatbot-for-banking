@@ -9,17 +9,17 @@ from app.router import Router
 SCENARIOS: list[tuple[str, list[str], str]] = [
     (
         "Deterministic flow with identity verification",
-        ["hi", "what's my balance?", "4471"],
+        ["hi", "what's my balance?", "4471 0512"],
         "deterministic",
     ),
     (
         "Card block - two-step confirmation, writes to the record",
-        ["I lost my debit card", "9032", "yes"],
+        ["I lost my debit card", "9032 8847", "yes"],
         "deterministic",
     ),
     (
         "Loan status lookup",
-        ["any update on my loan application?", "9032"],
+        ["any update on my loan application?", "9032 8847"],
         "deterministic",
     ),
     (

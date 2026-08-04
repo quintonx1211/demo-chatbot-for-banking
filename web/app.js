@@ -166,11 +166,14 @@ function addMessage(role, text, meta, author) {
 }
 
 function updateInspector(data) {
+  const source = data.route === "raw_llm"
+    ? "Plain LLM — no retrieval, no guardrails, no grounding check"
+    : data.generated ? "LLM over retrieved passages" : "Deterministic / extractive";
   const rows = [
     ["Route", data.route],
     ["Intent", data.intent],
     ["Confidence", data.confidence.toFixed(3)],
-    ["Answer source", data.generated ? "LLM over retrieved passages" : "Deterministic / extractive"],
+    ["Answer source", source],
     ["Identity verified", data.verified ? "yes" : "no"],
     ["Latency", `${data.latency_ms} ms`],
   ];
@@ -211,6 +214,29 @@ function renderTrace(steps) {
     </div>`).join("");
 }
 
+/* ---------- architecture toggle (demo lever) ---------- */
+
+function applyRawMode(enabled) {
+  $("raw-toggle").checked = enabled;
+  $("arch-toggle-box").classList.toggle("raw", enabled);
+  $("arch-toggle-title").textContent = enabled ? "Raw LLM mode" : "Full architecture";
+  $("arch-toggle-hint").textContent = enabled
+    ? "Routing, guardrails, retrieval and grounding are bypassed for this conversation."
+    : "Routing, guardrails, retrieval and the grounding check are all active.";
+  $("raw-banner").classList.toggle("hidden", !enabled);
+}
+
+async function toggleRawMode(enabled) {
+  try {
+    const data = await postJson("/api/session/raw-mode", { session_id: sessionId, enabled });
+    sessionId = data.session_id;
+    applyRawMode(data.raw_mode);
+  } catch (error) {
+    applyRawMode(!enabled); // revert the switch — the request didn't take
+    addMessage("system", `Could not change mode: ${error.message}`);
+  }
+}
+
 async function send(message) {
   if (!message.trim()) return;
   addMessage("customer", message);
@@ -219,6 +245,7 @@ async function send(message) {
   try {
     const data = await postJson("/api/chat", { session_id: sessionId, message });
     sessionId = data.session_id;
+    applyRawMode(Boolean(data.raw_mode));
     if (data.route === "agent") {
       addMessage("system", data.handled_by
         ? `Sent to ${data.handled_by}.`
@@ -747,6 +774,12 @@ function renderStaff() {
   $("staff-pill").classList.toggle("hidden", !staff);
   $("logout").classList.toggle("hidden", !staff);
   $("login-btn").classList.toggle("hidden", Boolean(staff));
+  // The raw-mode switch bypasses every guardrail, so it is an admin control,
+  // not a customer-facing one - it only exists in the DOM at all once staff
+  // has signed in, mirroring how the endpoint behind it is gated server-side.
+  $("view-customer-btn").classList.toggle("hidden", !staff);
+  $("view-console-btn").classList.toggle("hidden", !staff);
+  $("arch-toggle-box").classList.toggle("hidden", !staff);
   if (staff) $("staff-pill").textContent = `${staff.display_name} · ${staff.role}`;
 }
 
@@ -773,6 +806,9 @@ async function login(event) {
 }
 
 async function logout() {
+  // Leave no live conversation stuck in raw mode behind a sign-out - the
+  // endpoint that turns it off requires staff, so it has to happen first.
+  if ($("raw-toggle").checked) await toggleRawMode(false);
   await postJson("/api/auth/logout", {});
   staff = null;
   renderStaff();
@@ -791,6 +827,8 @@ async function refreshHealth() {
 
 /* ---------- wiring ---------- */
 
+$("raw-toggle").onchange = (e) => toggleRawMode(e.target.checked);
+
 $("composer").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
 $("suggestions").querySelectorAll("button").forEach((b) => {
   b.onclick = () => send(b.textContent);
@@ -800,6 +838,8 @@ $("login-btn").onclick = () => { showScreen("login"); $("login-pass").focus(); }
 $("login-cancel").onclick = () => showScreen("customer");
 $("login-form").onsubmit = login;
 $("logout").onclick = logout;
+$("view-customer-btn").onclick = () => showScreen("customer");
+$("view-console-btn").onclick = () => { showScreen("agent"); showPanel("dashboard"); };
 
 document.querySelectorAll(".subtab").forEach((t) => {
   t.onclick = () => showPanel(t.dataset.panel);

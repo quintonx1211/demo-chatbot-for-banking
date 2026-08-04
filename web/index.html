@@ -27,6 +27,8 @@
     <div class="modes">
       <span id="mode-pill" class="pill">checking…</span>
       <span id="staff-pill" class="pill hidden"></span>
+      <button id="view-customer-btn" class="ghost small hidden" type="button">Customer chat</button>
+      <button id="view-console-btn" class="ghost small hidden" type="button">Console</button>
       <button id="login-btn" class="ghost small">Staff sign-in</button>
       <button id="logout" class="ghost small hidden" type="button">Sign out</button>
     </div>
@@ -37,6 +39,16 @@
        ============================================================ -->
   <main id="screen-customer" class="screen">
     <section class="chat-panel">
+      <div class="arch-toggle hidden" id="arch-toggle-box">
+        <div class="arch-toggle-text">
+          <strong id="arch-toggle-title">Full architecture</strong>
+          <span class="hint" id="arch-toggle-hint">Routing, guardrails, retrieval and the grounding check are all active.</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="raw-toggle" />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </label>
+      </div>
       <div id="messages" class="messages"></div>
       <div class="suggestions" id="suggestions">
         <button>What are your fees for international transfers?</button>
@@ -45,6 +57,15 @@
         <button>How long do I have to dispute a transaction?</button>
         <button>Should I invest my savings in tech stocks?</button>
         <button>Do you offer crop insurance for vineyards?</button>
+      </div>
+      <div id="raw-banner" class="raw-banner hidden">
+        <div>
+          <strong>Raw LLM mode — demo only</strong>
+          <p>Everything below this line is bypassed: routing, guardrails, retrieval,
+            PII redaction, the grounding check. This is the model answering from the
+            conversation history alone — the baseline the rest of the assistant is
+            built to improve on.</p>
+        </div>
       </div>
       <div id="handoff-banner" class="handoff-banner hidden"></div>
       <div id="chat-actions" class="chat-actions hidden"></div>

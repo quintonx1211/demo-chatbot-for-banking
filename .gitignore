@@ -4,3 +4,5 @@ __pycache__/
 venv/
 .env
 note.txt
+venv-demo-chatbot-banking/
+CLIENT-DEMO-SCRIPT.md

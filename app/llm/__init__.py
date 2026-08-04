@@ -22,6 +22,7 @@ from .base import (
     LLMRequest,
     LLMResult,
     build_answer_request,
+    build_raw_request,
     build_summary_request,
     extractive_answer,
     extractive_summary,
@@ -156,6 +157,20 @@ def answer_from_kb(
     )
 
 
+def raw_chat(message: str, history: str = "") -> LLMResult:
+    """Answer with no routing, no knowledge base, no grounding check - just the
+    model and the conversation so far. The baseline the rest of the router
+    exists to improve on; see Router._raw_turn."""
+    return _run(
+        build_raw_request(message, history=history),
+        # Reused whether there is no provider at all or a configured one just
+        # failed (rate limit, timeout, ...) - the two aren't distinguished
+        # here, only in `error`, which the routing inspector shows separately.
+        fallback="(No answer came back - see the Note in the routing "
+                 "inspector for why, or check Settings for a provider.)",
+    )
+
+
 def summarize_for_agent(transcript: str, context_lines: list[str]) -> LLMResult:
     return _run(
         build_summary_request(transcript, context_lines),
@@ -164,6 +179,6 @@ def summarize_for_agent(transcript: str, context_lines: list[str]) -> LLMResult:
 
 
 __all__ = [
-    "LLMResult", "answer_from_kb", "summarize_for_agent",
+    "LLMResult", "answer_from_kb", "raw_chat", "summarize_for_agent",
     "is_live", "describe", "active_provider", "PROVIDERS",
 ]

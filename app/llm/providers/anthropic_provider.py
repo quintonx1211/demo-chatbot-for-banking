@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from ..base import LLMRequest, LLMResult
+from ..base import LLMRequest, LLMResult, classify_provider_error
 
 NAME = "anthropic"
 DEFAULT_MODEL = "claude-opus-5"
@@ -51,7 +51,7 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
         )
     except Exception as exc:  # network, auth, rate limit - degrade, don't crash
         return LLMResult(text="", generated=False, provider=NAME, model=model,
-                         error=f"{type(exc).__name__}: {exc}")
+                         error=classify_provider_error(exc))
 
     # Claude signals a safety decline with a stop_reason, not an exception, and
     # returns HTTP 200 - so this must be checked before reading content.

@@ -57,6 +57,15 @@ Be factual and compressed: an agent reads this in under fifteen seconds. State \
 only what the transcript supports - if something is unclear, write "not \
 established". Never include card numbers, passcodes, or other credentials."""
 
+# Used only in "raw mode" - the demo lever that strips away routing,
+# guardrails, retrieval and the grounding check, leaving a plain LLM call over
+# the conversation so far. Deliberately generic: no knowledge-base access, no
+# refusal rules beyond whatever the model brings on its own, because the point
+# of this path is to show what the assistant would be *without* the rest of
+# the architecture, not a weaker copy of the grounded prompt.
+RAW_SYSTEM_PROMPT = """You are a helpful virtual assistant for Regional Trust Bank. \
+Answer naturally from the conversation so far and your own general knowledge."""
+
 
 @dataclass
 class LLMRequest:
@@ -81,6 +90,32 @@ class LLMResult:
     def refused(self) -> bool:
         """A provider safety system declined. The router escalates on this."""
         return self.error == "model_refusal"
+
+
+def classify_provider_error(exc: Exception) -> str:
+    """A short, stable failure reason - never the raw exception text.
+
+    Every adapter's `except Exception` used to store `f"{type(exc).__name__}:
+    {exc}"` in `LLMResult.error`. That string reaches two places: the staff
+    audit trail, and the customer-visible routing inspector on `/api/chat` -
+    the whole point of that panel is to show *why* a turn was routed the way
+    it was, to anyone using the chat, not just staff. A provider's exception
+    text is not safe for that second audience: Groq's rate-limit body alone
+    carries an organisation id and a billing upsell link, and other SDKs are
+    no more disciplined about what they put in `str(exc)`. Classify instead of
+    quoting it.
+    """
+    name = type(exc).__name__.lower()
+    text = str(exc).lower()
+    if "ratelimit" in name or "rate limit" in text or "429" in text:
+        return "provider_rate_limited"
+    if "authentication" in name or "permission" in name or "401" in text or "403" in text:
+        return "provider_auth_error"
+    if "timeout" in name:
+        return "provider_timeout"
+    if "connection" in name or "unreachable" in text:
+        return "provider_unreachable"
+    return "provider_error"
 
 
 def format_context(passages: list[RetrievedPassage]) -> str:
@@ -109,6 +144,17 @@ def build_answer_request(
             f"---\nCustomer question: {question}\n\n"
             "Answer using only the passages above."
         ),
+        max_tokens=ANSWER_MAX_TOKENS,
+    )
+
+
+def build_raw_request(message: str, history: str = "") -> LLMRequest:
+    history_block = (
+        f"Conversation so far:\n{history}\n\n" if history.strip() else ""
+    )
+    return LLMRequest(
+        system=RAW_SYSTEM_PROMPT,
+        user=f"{history_block}Customer: {message}",
         max_tokens=ANSWER_MAX_TOKENS,
     )
 

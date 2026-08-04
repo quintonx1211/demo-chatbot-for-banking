@@ -94,6 +94,13 @@ class Session:
         # by a bot is the failure people actually remember.
         self.handled_by: str | None = None
 
+        # Demo lever: strips away routing, guardrails, retrieval and grounding
+        # and leaves a plain LLM call over the conversation history — the
+        # baseline the rest of the architecture is arguing against. Off by
+        # default and scoped to this session only, so flipping it for a
+        # demonstration never touches anyone else's conversation.
+        self.raw_mode = False
+
     # -- transcript -------------------------------------------------------
 
     def add_message(self, role: str, text: str, author: str | None = None) -> None:

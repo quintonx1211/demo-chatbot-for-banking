@@ -45,15 +45,15 @@ CONVERSATIONS: list[list[str]] = [
     ["What happens if I go overdrawn?", "And is there a cap on that?"],
 
     # --- account actions: verification then a scripted flow ---
-    ["Check my balance", "4471"],
-    ["Show me my recent transactions", "9032"],
-    ["What's the status of my loan application?", "4471"],
-    ["What's the status of my mortgage?", "9032"],
-    ["Can you tell me who am I?", "4471"],
-    ["I lost my debit card", "9032", "yes"],
+    ["Check my balance", "4471 0512"],
+    ["Show me my recent transactions", "9032 8847"],
+    ["What's the status of my loan application?", "4471 0512"],
+    ["What's the status of my mortgage?", "9032 8847"],
+    ["Can you tell me who am I?", "4471 0512"],
+    ["I lost my debit card", "9032 8847", "yes"],
 
     # --- customer changes their mind mid-flow (the escape path) ---
-    ["I lost my debit card", "4471", "actually never mind, what are your branch hours?"],
+    ["I lost my debit card", "4471 0512", "actually never mind, what are your branch hours?"],
 
     # --- regulated topics: blocked before any model runs ---
     ["Should I invest my savings in tech stocks?"],
@@ -80,12 +80,12 @@ CONVERSATIONS: list[list[str]] = [
     ["Does contactless work on foreign transit systems?"],
 
     # --- campaign scenarios (the client's three) ---
-    ["How do I activate my new card?", "3390"],
-    ["My new card arrived, how do I start using it?", "3390"],
-    ["Do you have any offers for me?", "4471"],
-    ["Am I eligible for an upgrade?", "4471"],
-    ["Any promotions for me?", "9032"],
-    ["My card hasn't been used in ages, is it still ok?", "9032"],
+    ["How do I activate my new card?", "3390 2266"],
+    ["My new card arrived, how do I start using it?", "3390 2266"],
+    ["Do you have any offers for me?", "4471 0512"],
+    ["Am I eligible for an upgrade?", "4471 0512"],
+    ["Any promotions for me?", "9032 8847"],
+    ["My card hasn't been used in ages, is it still ok?", "9032 8847"],
 
     # --- handoff offered, then accepted / declined ---
     ["Do you offer safe deposit boxes?", "yes"],
@@ -97,7 +97,7 @@ CONVERSATIONS: list[list[str]] = [
     ["Let me talk to a real person about a duplicate charge"],
 
     # --- verification failure, then handoff ---
-    ["Check my balance", "1111", "2222", "3333"],
+    ["Check my balance", "1111 2222", "3333 4444", "5555 6666"],
 ]
 
 

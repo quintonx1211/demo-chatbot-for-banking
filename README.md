@@ -79,15 +79,43 @@ This is the whole case for the architecture, demonstrated instead of asserted.
 It is not rigged: the ungrounded model sometimes declines to guess rather than
 inventing, and that outcome is shown as-is.
 
+## Raw mode — the whole architecture, on or off, in the same window
+
+The **Full architecture / Raw LLM mode** switch above the customer chat is a
+second version of the grounding-check argument, run live in the actual
+conversation rather than in a side panel. Flip it on and every gate the
+router normally applies — the compliance guardrail, intent classification and
+scripted flows, retrieval, PII redaction, the grounding check — is skipped for
+that conversation. What is left is a plain LLM call over the message and the
+conversation history, nothing else: `Router._raw_turn` in `app/router.py`.
+
+Ask the same question with the switch on and off and the contrast is the
+pitch: investment-advice questions get answered instead of refused, an
+account balance gets guessed instead of read from the record (or the model
+declines, correctly, because it has no account data - also worth showing),
+and knowledge questions get answered with no citation and no check that
+anything said is true. The routing inspector's "Answer source" row and the
+audit trail both say plainly that nothing was checked, so the failure mode is
+visible, not just asserted.
+
+Scoped to one session (`POST /api/session/raw-mode`) and off by default. The
+switch bypasses every guardrail, so it is gated exactly like the rest of the
+console: `_require_staff()` runs in the handler, and the UI only renders the
+control once signed in - sign in as `agent` / `demo1234`, then use the
+**Customer chat** button next to Sign out to reach the chat screen without
+losing the console. It changes nothing about what any other customer's
+conversation is doing, live or in memory - only the one session named in the
+request.
+
 ## What to try
 
 Open the **Customer chat** tab. Each suggestion below hits a different branch:
 
 | Try this | What happens |
 |---|---|
-| `Check my balance` → `4471` | High-confidence intent → identity verification → deterministic flow reading the mock core-banking record |
-| `I lost my debit card` → `4471` → `8891` → `yes` | Scripted flow with slot filling and an explicit confirmation before an irreversible action |
-| `What's the status of my loan application?` → `9032` | Deterministic lookup, no model involved |
+| `Check my balance` → `4471 0512` | High-confidence intent → identity verification (phone + national ID) → deterministic flow reading the mock core-banking record |
+| `I lost my debit card` → `4471 0512` → `8891` → `yes` | Scripted flow with slot filling and an explicit confirmation before an irreversible action |
+| `What's the status of my loan application?` → `9032 8847` | Deterministic lookup, no model involved |
 | `What are your fees for international transfers?` | No scripted flow matches → retrieval over the knowledge base → LLM answers strictly from the retrieved passages, with sources shown |
 | `Should I invest my savings in tech stocks?` | Compliance guardrail - refused before any model call |
 | `Do you offer crop insurance for vineyards?` | No supporting passage exists → escalation rather than a guess |
@@ -318,7 +346,7 @@ tab says so on screen rather than only here.
 ```
 customer message
       │
-      ├─ 1. pending flow?  ────────────►  deterministic  (slot answers like "4471" or "yes"
+      ├─ 1. pending flow?  ────────────►  deterministic  (slot answers like "4471 0512" or "yes"
       │                                                    carry no intent signal, so an
       │                                                    in-progress flow owns the turn)
       ├─ 2. restricted topic? ─────────►  guardrail      (investment / tax / legal - refused
@@ -345,6 +373,18 @@ Escalation triggers, all of which are recorded in the audit trail:
 status and card blocks are assembled from templates over the system of record.
 No model output reaches the customer on those paths, which is what makes them
 reproducible and auditable. `flows.py` contains no LLM call at all.
+
+**Identity verification is two independent factors, checked together.** Phone
+last-4 alone was a single 4-digit secret with no lockout wider than one
+session - a fresh session resets the 3-attempt counter, so it does not stop
+guessing, only slow it per session. Adding the national ID (CCCD) last-4 as a
+second factor, matched together against the same customer record, raises the
+search space from "guess one code" to "guess two codes for the same person at
+once" - the cheapest real improvement available without a true step-up
+channel. The failure message is deliberately generic ("those details don't
+match") rather than naming which factor was wrong, so a correct phone number
+can't be fished out one guess at a time. See `app/flows.py`
+`_verification_prompt` / `_handle_verification`.
 
 **The LLM is a rewriter, not a source.** The answering prompt supplies the
 retrieved passages and forbids any claim not present in them. If retrieval
@@ -462,7 +502,7 @@ demo (Llama 3.3 70B: 30 req/min, 1,000 req/day, 12K tokens/min):
 ```bash
 pip install openai            # Groq speaks the OpenAI wire format
 export LLM_PROVIDER=groq
-export GROQ_API_KEY=gsk...
+$env:GROQ_API_KEY = ""
 python server.py
 ```
 
@@ -517,8 +557,11 @@ faithfulness check instead.
 ## What this demo is not
 
 State is in memory and disappears on restart; the "core banking system" is a
-JSON file; identity verification is a 4-digit check standing in for real
-step-up auth; there is no authentication on the agent console; and the
+JSON file; identity verification is two 4-digit checks (phone + national ID)
+standing in for real step-up auth - not an OTP to a registered device, not a
+live check against a telco or government ID registry, and still brute-forceable
+across sessions since the 3-attempt lockout does not persist past one; there is
+no authentication on the agent console; and the
 knowledge base is four documents rather than a real content pipeline. Retrieval
 uses TF-IDF rather than embeddings, which is adequate at this corpus size and
 keeps the demo dependency-free, but a production build would use a vector index

@@ -73,4 +73,7 @@ STAGE_RULES = {
     "generation": "The model may only use the retrieved passages. Its answer is "
                   "then scored against them; below 0.55 it is discarded.",
     "escalation": "Handed to a human, with the full conversation attached.",
+    "raw_mode": "Demo lever, on for this conversation only: routing, "
+                "guardrails, retrieval and the grounding check are all "
+                "bypassed - the model answers from conversation history alone.",
 }

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import os
 
-from ..base import LLMRequest, LLMResult
+from ..base import LLMRequest, LLMResult, classify_provider_error
 
 NAME = "gemini"
 # Flash rather than Pro: Google's free tier covers the Flash line only, and the
@@ -69,7 +69,7 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
         )
     except Exception as exc:
         return LLMResult(text="", generated=False, provider=NAME, model=model,
-                         error=f"{type(exc).__name__}: {exc}")
+                         error=classify_provider_error(exc))
 
     # Block point 1: the prompt never reached the model.
     feedback = getattr(response, "prompt_feedback", None)
