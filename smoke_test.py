@@ -33,8 +33,24 @@ SCENARIOS: list[tuple[str, list[str], str]] = [
         "guardrail",
     ),
     (
-        "Escalation - no supporting passage in the knowledge base",
+        "Handoff offered - no supporting passage, customer decides",
         ["do you offer crop insurance for vineyards in Portugal?"],
+        "escalation_offered",
+    ),
+    (
+        "Handoff accepted - the offer is taken up",
+        ["do you offer crop insurance for vineyards in Portugal?", "yes"],
+        "escalation",
+    ),
+    (
+        "Handoff declined - assistant carries on",
+        ["do you offer crop insurance for vineyards in Portugal?", "no thanks",
+         "what are your branch hours?"],
+        "rag",
+    ),
+    (
+        "@agent goes straight to a human",
+        ["@agent I have a problem with a duplicate charge"],
         "escalation",
     ),
     (

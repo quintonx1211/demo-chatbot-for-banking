@@ -15,7 +15,9 @@ from .textmodel import TfidfIndex, tokenize
 
 # Confidence bands. Tuned against the utterance set below; the router treats
 # them as the only policy knob it needs.
-HIGH_CONFIDENCE = 0.55   # deterministic scripted flow
+from . import policy as _policy
+
+HIGH_CONFIDENCE = _policy.current.high_confidence   # deterministic scripted flow
 LOW_CONFIDENCE = 0.28    # below this the intent is not trusted at all
 
 
@@ -33,7 +35,15 @@ INTENTS: dict[str, dict] = {
             "balance on my checking account",
             "how much is in my savings",
         ],
-        "anchors": [r"\bbalance\b", r"how much .*(money|funds)"],
+        # Anchored on possession, not on the word "balance". A bare \bbalance\b
+        # also fires on "what counts as an average daily balance?", which is a
+        # policy question about how balances are calculated, not a request to
+        # see one — and routing it here sends the customer into an identity
+        # check for information that needs no identity at all.
+        "anchors": [r"\b(my|our)\b[^?.]{0,24}\bbalance",
+                    r"\bbalance\b[^?.]{0,20}\b(my|our)\b",
+                    r"^\s*(check|show|what.s)\b[^?.]{0,16}\bbalance",
+                    r"how much (money|funds) do i have"],
     },
     "block_card": {
         "utterances": [
@@ -71,6 +81,53 @@ INTENTS: dict[str, dict] = {
         ],
         "anchors": [r"\b(recent|last|latest)\b.*\btransaction", r"\bspend\b"],
     },
+    "account_summary": {
+        "utterances": [
+            "who am I",
+            "what are my details",
+            "what accounts and cards do I hold with you",
+            "what products do I hold",
+            "tell me about my profile",
+            "what is my customer number",
+        ],
+        "anchors": [r"(?<![a-z])who am i(?![a-z])", r"my (details|profile)(?![a-z])",
+                    r"what .*(accounts?|products?) do i (have|hold)"],
+    },
+    "activate_card": {
+        "utterances": [
+            "how do I activate my new card",
+            "my new card arrived how do I start using it",
+            "I need to activate my debit card",
+            "activate card",
+            "my card is not working yet",
+            "the card you sent me is inactive",
+        ],
+        "anchors": [r"activat(e|ing|ion)",
+                    r"new card[^?.]{0,24}(start|use|using|work)",
+                    r"card[^?.]{0,20}(not|isn.t) (working|active|activated)"],
+    },
+    "card_offers": {
+        "utterances": [
+            "do you have any offers for me",
+            "what deals are available on my card",
+            "can I get a better card",
+            "is there a card with no foreign fees",
+            "am I eligible for an upgrade",
+            "any promotions for me",
+        ],
+        # "offer" as a noun the customer wants to receive, never as the verb
+        # in "do you offer travel insurance?" - that asks what the bank sells
+        # and belongs in the knowledge base. Same mistake as matching
+        # "someone" for a handoff: the word is not the intent, the grammar
+        # around it is.
+        "anchors": [
+            r"(offers?|deals?|promotions?|rewards?)[^?.]{0,20}"
+            r"(for me|available|on my|i can get)",
+            r"any[^?.]{0,12}(offers?|deals?|promotions?)",
+            r"(upgrade|better card)",
+            r"(am i|i.m) eligible",
+        ],
+    },
     "human_agent": {
         "utterances": [
             "I want to speak to a human",
@@ -80,14 +137,35 @@ INTENTS: dict[str, dict] = {
             "this is not helping give me support",
             "I need a customer service officer",
         ],
-        "anchors": [r"\b(human|agent|representative|real person|someone)\b",
-                    r"\bspeak (to|with)\b"],
+        # A request for a person needs a verb of asking, not just a noun.
+        # "someone" on its own was catching "someone used my card without
+        # permission" — a fraud report, routed to the handoff queue because it
+        # contained a pronoun. Nouns alone are not intent.
+        "anchors": [
+            r"\b(speak|talk|chat)\b[^?.]{0,16}\b(to|with)\b[^?.]{0,16}"
+            r"\b(human|person|agent|advisor|someone|somebody|representative)\b",
+            r"\b(connect|transfer|put)\b[^?.]{0,12}\bme\b",
+            r"\b(get|give)\s+me\b[^?.]{0,12}\b(human|person|agent|advisor)\b",
+            r"\b(real|actual|live)\s+(person|human|agent)\b",
+            r"\bcustomer (service|support)\s+(officer|rep|agent|advisor)\b",
+        ],
     },
     "greeting": {
         "utterances": [
             "hello", "hi there", "good morning", "hey", "good evening",
         ],
         "anchors": [r"^\s*(hi|hello|hey|good (morning|afternoon|evening))\b"],
+    },
+    "smalltalk": {
+        "utterances": [
+            "ok thanks", "thank you", "got it", "understood", "great",
+            "are you still there", "hello are you there", "any update",
+            "sorry what", "never mind then", "cool",
+        ],
+        "anchors": [r"^\s*(ok(ay)?|thanks|thank you|got it|understood|great|"
+                    r"cool|nice|perfect|alright|sure)\s*[.!]?\s*$",
+                    r"are you (still )?(there|here)",
+                    r"^\s*(hmm+|uh+|erm+|\?+)\s*$"],
     },
     "goodbye": {
         "utterances": [
@@ -112,6 +190,38 @@ INTENTS: dict[str, dict] = {
         "anchors": [],
     },
 }
+
+
+# Intents that read a specific customer's record. They all require an identity
+# check, so misrouting into one costs the customer a verification step for
+# information that needed none.
+PERSONAL_INTENTS = frozenset({
+    "balance_inquiry", "transaction_history", "loan_status",
+    "account_summary", "block_card",
+})
+
+# Questions about how something *works*, as opposed to requests for a
+# customer's own data. The two share almost all their vocabulary — "how is
+# interest on my savings worked out?" and "what's my savings balance?" differ
+# by intent, not by nouns, and TF-IDF alone cannot tell them apart. Possession
+# does not separate them either: the first is possessive and still a policy
+# question. What separates them is that one asks for a mechanism.
+_MECHANISM_RE = re.compile(
+    r"(what counts as|what qualifies|how (is|are|do you|does the bank) [^?]*"
+    r"(calculat|work(ed)? out|determin|assess|appl(y|ied)|charged|waiv)"
+    r"|which [^?]*\b(gets|comes|is) (taken|paid|applied|charged) (first|last)"
+    r"|what happens (if|when)|what (is|are) the (policy|rule|criteria|conditions)"
+    r"|how does .* work"
+    r"|when (does|do|will) .*(reach|arrive|settle|clear|post)"
+    r"|how (long|much|many) (does|do|is|are) (a|an|the|it|they))",
+    re.IGNORECASE,
+)
+
+# How far a mechanism question's score is knocked down. Enough to drop it below
+# HIGH_CONFIDENCE and into the knowledge-base path, not so far that it becomes
+# "unknown" — the intent guess is still the best available signal for the
+# audit trail.
+_MECHANISM_PENALTY = 0.45
 
 
 @dataclass
@@ -165,6 +275,12 @@ class IntentClassifier:
         for name, patterns in self._anchors.items():
             if any(p.search(text) for p in patterns):
                 scores[name] = min(1.0, max(scores.get(name, 0.0), 0.62) + 0.15)
+
+        # A question about how something works is not a request to see an
+        # account, however much vocabulary the two share.
+        if _MECHANISM_RE.search(text or ""):
+            for name in PERSONAL_INTENTS & scores.keys():
+                scores[name] *= _MECHANISM_PENALTY
 
         if not scores:
             return IntentPrediction(intent="unknown", confidence=0.0)

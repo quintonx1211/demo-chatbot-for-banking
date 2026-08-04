@@ -98,4 +98,13 @@ def grounding_score(answer: str, context: str) -> float:
 
 
 # Below this the answer is not considered supported by the knowledge base.
-MIN_GROUNDING = 0.55
+# Read from the policy file so the strictness trade-off is a setting, not a
+# recompile - see app/policy.py and config.json.
+from . import policy as _policy
+
+
+def min_grounding() -> float:
+    return _policy.current.min_grounding
+
+
+MIN_GROUNDING = _policy.current.min_grounding

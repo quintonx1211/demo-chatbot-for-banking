@@ -1,0 +1,95 @@
+{
+  "_comment": [
+    "Overnight batch from the bank's CRM. This is the shape the client asked",
+    "for: no real-time core banking query, a daily push, and a tolerated",
+    "one-day lag. Every campaign decision the assistant makes is read from",
+    "this file, which is why those turns are deterministic and auditable —",
+    "the bot never decides who is eligible, it only reads who was selected.",
+    "",
+    "generated_at is shown to the customer-facing agent so the age of the data",
+    "is visible rather than assumed."
+  ],
+  "generated_at": "2026-08-04T02:00:00Z",
+  "source": "CRM daily extract v3",
+
+  "campaigns": {
+    "CARD-ACTIVATION": {
+      "name": "Card activation onboarding",
+      "type": "activation",
+      "segment": "MASS",
+      "cta": "Activate in the mobile app",
+      "deeplink": "https://app.example-bank.test/cards/activate",
+      "sms_alternative": "Text ACTIVATE to 2255 from your registered mobile"
+    },
+    "DORMANT-REACTIVATION": {
+      "name": "Dormant cardholder reactivation",
+      "type": "reactivation",
+      "segment": "MASS",
+      "offer": "5% cashback on your first three purchases within 30 days",
+      "cta": "Use your card once to re-enable it",
+      "deeplink": "https://app.example-bank.test/cards/reactivate"
+    },
+    "XS-TRAVEL-2026Q3": {
+      "name": "Premier Travel Card upgrade",
+      "type": "cross_sell",
+      "segment": "MASS",
+      "product": "Premier Travel Card",
+      "hook": "no foreign transaction fee",
+      "detail": "Your card charges 2.5% on purchases in another currency. The Premier Travel Card has no foreign transaction fee and a $95 annual fee.",
+      "cta": "See if you qualify",
+      "deeplink": "https://app.example-bank.test/cards/premier-travel"
+    },
+    "XS-CASHBACK-2026Q3": {
+      "name": "Everyday Cashback Card",
+      "type": "cross_sell",
+      "segment": "MASS",
+      "product": "Everyday Cashback Card",
+      "hook": "2% back on groceries and fuel",
+      "detail": "Based on your spending pattern, the Everyday Cashback Card would have returned around $18 a month. No annual fee.",
+      "cta": "See if you qualify",
+      "deeplink": "https://app.example-bank.test/cards/cashback"
+    },
+    "XS-CREDIT-LIMIT-2026Q3": {
+      "name": "Credit limit review",
+      "type": "cross_sell",
+      "segment": "MASS",
+      "product": "Credit limit increase",
+      "hook": "you may be eligible for a higher limit",
+      "detail": "Your account has been in good standing for 18 months. A limit review takes about two minutes and does not affect your credit score.",
+      "cta": "Start a limit review",
+      "deeplink": "https://app.example-bank.test/cards/limit-review"
+    }
+  },
+
+  "eligibility": [
+    {
+      "customer_id": "CUS-100294",
+      "segment": "MASS",
+      "campaigns": ["XS-TRAVEL-2026Q3"],
+      "context": {
+        "reason": "12 foreign-currency purchases in the last 90 days",
+        "fees_paid_last_90d": 41.6
+      }
+    },
+    {
+      "customer_id": "CUS-100571",
+      "segment": "MASS",
+      "campaigns": ["DORMANT-REACTIVATION", "XS-CASHBACK-2026Q3"],
+      "context": {
+        "reason": "no card activity for 214 days",
+        "dormant_since": "2026-01-02",
+        "card_mask": "****7710"
+      }
+    },
+    {
+      "customer_id": "CUS-100742",
+      "segment": "MASS",
+      "campaigns": ["CARD-ACTIVATION"],
+      "context": {
+        "reason": "card issued 11 days ago, never activated",
+        "issued_on": "2026-07-24",
+        "card_mask": "****3390"
+      }
+    }
+  ]
+}

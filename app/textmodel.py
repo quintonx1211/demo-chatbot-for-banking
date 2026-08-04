@@ -86,6 +86,50 @@ class TfidfIndex:
         self._default_idf = math.log(n_docs + 1) + 1.0
         self._doc_vectors = [self._vectorize(terms) for terms in self._doc_terms]
 
+        # BM25 state. Kept alongside the cosine vectors rather than in a second
+        # class because both score the same tokenisation of the same corpus;
+        # duplicating that would be two places to drift.
+        self._doc_lengths = [sum(terms.values()) for terms in self._doc_terms]
+        self._avg_length = (
+            sum(self._doc_lengths) / len(self._doc_lengths) if self._doc_lengths else 0.0
+        )
+        # BM25's idf is a different curve from the tf-idf one above: it is
+        # probabilistic, and goes slightly negative for terms in most documents,
+        # which is the behaviour that makes it discount near-stopwords properly.
+        self._bm25_idf = {
+            term: math.log(1.0 + (n_docs - freq + 0.5) / (freq + 0.5))
+            for term, freq in doc_freq.items()
+        }
+
+    def bm25_scores(self, text: str, k1: float = 1.2, b: float = 0.75) -> list[float]:
+        """Okapi BM25 over the corpus.
+
+        Complements cosine similarity rather than replacing it: BM25 saturates
+        term frequency and normalises by document length, so a long passage no
+        longer wins simply by containing a query term many times, and a short
+        passage that is squarely on topic can outrank a long one that mentions
+        the topic in passing. On this corpus, where chunk lengths vary from ~200
+        to ~700 characters, that length normalisation is the point.
+        """
+        query_terms = Counter(tokenize(text))
+        if not query_terms or not self._doc_lengths:
+            return [0.0] * len(self.documents)
+
+        scores = []
+        for terms, length in zip(self._doc_terms, self._doc_lengths):
+            score = 0.0
+            for term, query_count in query_terms.items():
+                frequency = terms.get(term, 0)
+                if not frequency:
+                    continue
+                idf = self._bm25_idf.get(term, 0.0)
+                denominator = frequency + k1 * (
+                    1.0 - b + b * length / (self._avg_length or 1.0)
+                )
+                score += idf * query_count * frequency * (k1 + 1.0) / denominator
+            scores.append(score)
+        return scores
+
     def _vectorize(self, terms: Counter[str]) -> dict[str, float]:
         vector = {
             term: (1.0 + math.log(count)) * self._idf.get(term, 0.0)
@@ -98,7 +142,31 @@ class TfidfIndex:
         return {term: w / norm for term, w in vector.items()}
 
     def vectorize_query(self, text: str) -> dict[str, float]:
-        return self._vectorize(Counter(featurize(text)))
+        """Vectorise a query, letting unknown terms dilute the match.
+
+        `_vectorize` drops out-of-vocabulary terms, which is right for indexing
+        a document but badly wrong for a query. It made a question of five
+        content words, four of them unknown, collapse to the single word the
+        corpus recognised — and then match an example containing only that word
+        at cosine 1.00. "Do you offer crop insurance for vineyards in Portugal"
+        scored a perfect match against "do you have any offers for me".
+
+        Unknown terms are kept here at the ceiling idf. They can never match
+        anything, so they contribute nothing to the numerator, but they do
+        contribute to the norm — which is exactly the intended effect: a query
+        mostly made of words the corpus has never seen should match weakly.
+        """
+        terms = Counter(featurize(text))
+        vector = {
+            term: (1.0 + math.log(count)) * self._idf.get(term, self._default_idf)
+            for term, count in terms.items()
+        }
+        norm = math.sqrt(sum(w * w for w in vector.values()))
+        if norm == 0.0:
+            return {}
+        # Only known terms can contribute to a dot product; the rest have done
+        # their job by inflating the norm above.
+        return {term: w / norm for term, w in vector.items() if term in self._idf}
 
     def coverages(self, text: str) -> list[float]:
         """Per-document share of the query's information that the document contains.

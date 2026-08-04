@@ -12,10 +12,16 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from . import memory
+from .campaigns import CampaignBook
 from .session import CUSTOMERS, Session
 
+CAMPAIGNS = CampaignBook()
+
 # Flows that must not run for an unverified caller.
-PROTECTED_FLOWS = {"balance_inquiry", "block_card", "loan_status", "transaction_history"}
+PROTECTED_FLOWS = {"balance_inquiry", "block_card", "loan_status",
+                   "transaction_history", "account_summary",
+                   "activate_card", "card_offers"}
 
 
 @dataclass
@@ -41,7 +47,7 @@ def _verification_prompt(session: Session, intent: str) -> FlowResult:
         text=(
             "Before I can look at account details I need to verify your identity. "
             "Please give me the **last 4 digits of your registered phone number**.\n\n"
-            "_Demo hint: try `4471` (Maria Alvarez) or `9032` (Daniel Okafor)._"
+            "_Demo hint: `4471` Maria (travel card offer) · `9032` Daniel (dormant card) · `3390` Linh (card not activated)._"
         ),
         note="verification_started",
     )
@@ -78,7 +84,12 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
     target = session.slots.get("target_intent")
     session.reset_flow()
 
+    # Cross-session recall lands here and nowhere earlier: before this line the
+    # session has no verified customer, so there is nobody to remember.
+    recalled = memory.store.summary(match["customer_id"])
     greeting = f"Thanks, {match['name'].split()[0]} - you're verified. "
+    if recalled:
+        greeting += recalled + " "
     if target:
         follow_up = handle(session, target, "")
         return FlowResult(text=greeting + follow_up.text,
@@ -100,6 +111,127 @@ def _balance(session: Session) -> FlowResult:
             f"available {_money(account['available'])}"
         )
     return FlowResult(text="\n".join(lines), note="balance_read_from_core")
+
+
+def _account_summary(session: Session) -> FlowResult:
+    """Answer "who am I" from the record, once identity is verified.
+
+    Previously this escalated: a reasonable question, asked by a customer the
+    system had already verified, handed to a human for data it was holding.
+    """
+    customer = session.customer
+    lines = [
+        f"You're **{customer['name']}** ({customer['customer_id']}), "
+        f"verified on this chat.",
+        "",
+        "Here's what you hold with us:",
+    ]
+    for account in customer["accounts"]:
+        lines.append(f"- **{account['type']}** {account['mask']}")
+    for card in customer["cards"]:
+        state = "" if card["status"] == "active" else f" — {card['status']}"
+        lines.append(f"- **{card['type']} card** {card['mask']}{state}")
+    for loan in customer.get("loans", []):
+        lines.append(f"- **{loan['product']}** application {loan['application_id']} "
+                     f"— {loan['status']}")
+    lines.append("")
+    lines.append("I can go into any of these in more detail.")
+    return FlowResult(text="\n".join(lines), note="account_summary_from_core")
+
+
+def _activate_card(session: Session) -> FlowResult:
+    """Card activation by redirection.
+
+    The client chose redirection over a real-time API call, so this hands over
+    a deeplink and an SMS fallback and stops. It deliberately does not collect
+    an OTP: a chat window asking for a one-time passcode is indistinguishable
+    from the phishing this bank warns its customers about, and teaching people
+    that it is normal undoes the security advice in the knowledge base.
+    """
+    customer = session.customer
+    inactive = [c for c in customer["cards"] if c["status"] == "inactive"]
+    campaign = CAMPAIGNS.campaigns.get("CARD-ACTIVATION", {})
+
+    if not inactive:
+        return FlowResult(
+            text=("All the cards on your profile are already active. If a "
+                  "payment was declined, that's a different issue and I can "
+                  "look into it."),
+            note="activation_none_pending",
+        )
+
+    card = inactive[0]
+    return FlowResult(
+        text=(
+            f"Your **{card['type']} card {card['mask']}** is issued but not yet "
+            f"activated.\n\n"
+            f"**{campaign.get('cta', 'Activate in the mobile app')}** — "
+            f"{campaign.get('deeplink', '')}\n\n"
+            f"Or: {campaign.get('sms_alternative', 'call the number on the card')}.\n\n"
+            "_I won't ever ask you for a one-time passcode in this chat. If "
+            "anything claiming to be us does, it isn't us._"
+        ),
+        note=f"activation_redirect:{card['card_id']}",
+    )
+
+
+def _card_offers(session: Session) -> FlowResult:
+    """Offers the CRM selected for this customer overnight.
+
+    Nothing here is inferred. The assistant reads the eligibility row and
+    presents it; deciding who is suitable for a financial product is the bank's
+    job, made against its own data, and keeping that boundary is what separates
+    a campaign assistant from an unlicensed adviser.
+    """
+    offers = CAMPAIGNS.offers_for(session.customer_id)
+    if not offers:
+        return FlowResult(
+            text=("You're not in any current campaigns, so I don't have an "
+                  "offer to show you today. Anything else I can help with?"),
+            note="offers_none",
+        )
+
+    lines = ["Here's what's available on your account today:", ""]
+    for offer in offers:
+        lines.append(f"**{offer.name}**")
+        lines.append(offer.body)
+        if offer.deeplink:
+            lines.append(f"→ {offer.cta}: {offer.deeplink}")
+        lines.append("")
+    lines.append(
+        f"_Selected by the bank's campaign system, last updated "
+        f"{CAMPAIGNS.age_hours:.0f} hours ago._" if CAMPAIGNS.age_hours is not None
+        else ""
+    )
+    return FlowResult(
+        text="\n".join(l for l in lines if l is not None).strip(),
+        note="offers:" + ",".join(o.campaign_id for o in offers),
+    )
+
+
+def proactive_offer(session: Session) -> FlowResult | None:
+    """An offer worth raising unprompted, once identity is established.
+
+    Only service-blocking situations qualify — a card that will not work
+    because it was never activated, or one that has gone dormant. Cross-sell is
+    never volunteered: a customer who came to ask about a fee has not asked to
+    be sold to, and interrupting them with an upgrade is how these systems get
+    switched off.
+    """
+    if session.slots.get("campaign_offered"):
+        return None
+    offers = [o for o in CAMPAIGNS.offers_for(session.customer_id)
+              if o.type in ("activation", "reactivation")]
+    if not offers:
+        return None
+
+    session.slots["campaign_offered"] = "1"
+    offer = offers[0]
+    return FlowResult(
+        text=(f"\n\n---\n**While you're here:** {offer.body}\n\n"
+              f"→ {offer.cta}: {offer.deeplink}"),
+        note=f"proactive:{offer.campaign_id}",
+    )
 
 
 def _transactions(session: Session) -> FlowResult:
@@ -224,6 +356,8 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
     if intent in PROTECTED_FLOWS and not session.verified:
         return _verification_prompt(session, intent)
 
+    if intent == "account_summary":
+        return _account_summary(session)
     if intent == "balance_inquiry":
         return _balance(session)
     if intent == "transaction_history":
@@ -240,6 +374,18 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
                   "fees. What do you need?"),
             note="greeting",
         )
+    if intent == "activate_card":
+        return _activate_card(session)
+    if intent == "card_offers":
+        return _card_offers(session)
+    if intent == "smalltalk":
+        # Acknowledgements and "are you there?" are not questions. Sending them
+        # through retrieval produced the worst turn in the demo: a customer
+        # typing "ok thanks" was offered a human agent.
+        return FlowResult(
+            text="I'm here. What else can I help you with?",
+            note="smalltalk",
+        )
     if intent == "goodbye":
         return FlowResult(
             text="Happy to help. Have a good day!", note="goodbye")
@@ -252,6 +398,21 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
         )
 
     return FlowResult(text="", handled=False)
+
+
+CANCEL_RE = re.compile(
+    r"\b(cancel|stop|never ?mind|nevermind|forget it|no thanks|"
+    r"skip|quit|exit|go back|start over|something else)\b",
+    re.IGNORECASE,
+)
+
+# A flow that re-prompts this many times in a row is not going to succeed. The
+# customer is answering a different question than the one being asked.
+MAX_FLOW_MISSES = 2
+
+
+def wants_out(text: str) -> bool:
+    return bool(CANCEL_RE.search(text))
 
 
 def continue_pending(session: Session, text: str) -> FlowResult | None:

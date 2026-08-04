@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Regional Trust Bank - Virtual Assistant Demo</title>
+  <title>Regional Trust Bank — Virtual Assistant</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -20,221 +20,378 @@
       </span>
       <div class="brand-text">
         <strong>Regional Trust Bank</strong>
-        <span class="sub">Hybrid virtual assistant</span>
+        <span class="sub" id="brand-sub">Virtual assistant</span>
       </div>
     </div>
+
     <div class="modes">
       <span id="mode-pill" class="pill">checking…</span>
-      <span id="kb-pill" class="pill muted"></span>
-      <span class="built-by">built by <b>quinton</b></span>
+      <span id="staff-pill" class="pill hidden"></span>
+      <button id="login-btn" class="ghost small">Staff sign-in</button>
+      <button id="logout" class="ghost small hidden" type="button">Sign out</button>
     </div>
   </header>
 
-  <nav class="tabs">
-    <button class="tab active" data-view="customer">Customer chat</button>
-    <button class="tab" data-view="agent">
-      Agent console <span id="queue-count" class="badge zero">0</span>
-    </button>
-    <button class="tab" data-view="kb">Knowledge base</button>
-    <button class="tab" data-view="settings">Settings</button>
-  </nav>
-
-  <!-- ============ CUSTOMER ============ -->
-  <main id="view-customer" class="view">
+  <!-- ============================================================
+       CUSTOMER — the default. No sign-in, no tabs, just the chat.
+       ============================================================ -->
+  <main id="screen-customer" class="screen">
     <section class="chat-panel">
       <div id="messages" class="messages"></div>
-
       <div class="suggestions" id="suggestions">
         <button>What are your fees for international transfers?</button>
         <button>I lost my debit card</button>
         <button>Check my balance</button>
-        <button>What's the status of my loan application?</button>
+        <button>How long do I have to dispute a transaction?</button>
         <button>Should I invest my savings in tech stocks?</button>
         <button>Do you offer crop insurance for vineyards?</button>
       </div>
-
+      <div id="handoff-banner" class="handoff-banner hidden"></div>
+      <div id="chat-actions" class="chat-actions hidden"></div>
       <form id="composer" class="composer" autocomplete="off">
         <input id="input" type="text"
-               placeholder="Ask about your accounts, cards, or our products…" />
+               placeholder="Ask a question, or use @agent / @bot to address one directly…" />
         <button type="submit" id="send">Send</button>
       </form>
     </section>
 
     <aside class="panel inspector">
       <h2>Routing inspector</h2>
-      <p class="hint">How the last turn was decided - the audit view a compliance
+      <p class="hint">How the last turn was decided — the audit view a compliance
         reviewer would see.</p>
       <div id="inspector">
         <p class="empty">Send a message to see the routing decision.</p>
       </div>
+      <h3 style="margin-top:18px">Decision path</h3>
+      <p class="hint">Every gate this turn passed through, and the rule applied
+        at each one.</p>
+      <div id="trace"><p class="empty">—</p></div>
     </aside>
   </main>
 
-  <!-- ============ AGENT ============ -->
-  <main id="view-agent" class="view hidden">
+  <!-- ============================================================
+       STAFF SIGN-IN
+       ============================================================ -->
+  <main id="screen-login" class="screen hidden">
     <section class="panel">
-      <h2>Escalation queue</h2>
-      <p class="hint">Conversations handed off by the assistant.</p>
-      <div id="queue" class="queue"></div>
+      <h2>Staff sign-in</h2>
+      <p class="hint">The customer chat needs no sign-in. This screen is for
+        contact-centre staff.</p>
+      <form id="login-form">
+        <label class="field">
+          <span>Username</span>
+          <input id="login-user" type="text" autocomplete="username" value="agent" />
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input id="login-pass" type="password" autocomplete="current-password" />
+        </label>
+        <div id="login-error" class="error hidden"></div>
+        <div class="row-gap">
+          <button class="primary" type="submit">Sign in</button>
+          <button id="login-cancel" class="ghost" type="button">Back to chat</button>
+        </div>
+      </form>
+      <p class="hint" style="margin-top:14px">
+        Demo account: <code>agent</code> / <code>demo1234</code>.
+      </p>
     </section>
-
-    <section class="stack">
-      <div id="handover-empty" class="empty-state">
-        <h2>No conversation selected</h2>
-        <p>Pick a conversation from the queue to see the handover brief, the full
-          transcript, and the per-turn audit trail.</p>
-      </div>
-      <div id="handover" class="stack hidden">
-        <div class="row-between">
-          <h2 id="handover-title">-</h2>
-          <button id="regen" class="ghost">Regenerate brief</button>
-        </div>
-        <div class="panel">
-          <h3>Handover brief <span id="summary-source" class="tag"></span></h3>
-          <div id="summary" class="summary"></div>
-        </div>
-        <div class="panel">
-          <h3>Full transcript</h3>
-          <pre id="transcript" class="transcript"></pre>
-        </div>
-        <div class="panel">
-          <h3>Audit trail</h3>
-          <div id="audit" class="audit"></div>
-        </div>
-      </div>
+    <section class="panel warn">
+      <h3>How this is enforced</h3>
+      <p>Every staff endpoint checks the session server-side before doing any
+        work. Hiding a screen in JavaScript is not a control — the routes answer
+        anyone who calls them directly, so the check lives in the handler.</p>
+      <p>Demo-grade: the account is PBKDF2-hashed in source, sessions are in
+        memory and clear on restart, and the cookie is HttpOnly + SameSite=Lax
+        but not Secure because this runs over plain HTTP on localhost. A real
+        deployment authenticates against the bank's identity provider.</p>
     </section>
   </main>
 
-  <!-- ============ KNOWLEDGE BASE ============ -->
-  <main id="view-kb" class="view hidden">
-    <section class="panel">
+  <!-- ============================================================
+       AGENT — a separate screen, not a tab on the customer view.
+       ============================================================ -->
+  <main id="screen-agent" class="screen hidden">
+    <nav class="subtabs">
+      <button class="subtab active" data-panel="dashboard">Dashboard</button>
+      <button class="subtab" data-panel="queue">
+        Queue <span id="queue-count" class="badge zero">0</span>
+      </button>
+      <button class="subtab" data-panel="compare">Grounding check</button>
+      <button class="subtab" data-panel="safeguards">Safeguards</button>
+      <button class="subtab" data-panel="kb">Knowledge base</button>
+      <button class="subtab" data-panel="settings">Settings</button>
+    </nav>
+
+    <!-- ---------- DASHBOARD ---------- -->
+    <section id="panel-dashboard" class="agent-panel">
       <div class="row-between">
-        <h2>Documents</h2>
-        <button id="kb-new" class="primary small">Add document</button>
+        <div>
+          <h2>Operations</h2>
+          <p class="hint" id="dash-scope">—</p>
+        </div>
+        <div class="row-gap">
+          <button id="seed-btn" class="ghost small">Seed demo traffic</button>
+          <button id="clear-btn" class="danger small">Clear all sessions</button>
+          <button id="dash-refresh" class="ghost small">Refresh</button>
+        </div>
       </div>
-      <p class="hint" id="kb-stats">-</p>
-      <div id="kb-list" class="queue"></div>
-    </section>
-
-    <section class="stack">
-      <!-- viewer -->
-      <div id="kb-empty" class="empty-state">
-        <h2>No document selected</h2>
-        <p>Pick a document to review the passages the retriever extracted from it,
-          or add a new one. Uploads are indexed immediately - no restart.</p>
+      <div id="stat-grid" class="stat-grid"></div>
+      <div class="panel" style="margin-top:16px">
+        <h3>Unresolved topics <span id="topic-count" class="tag"></span></h3>
+        <p class="hint">Questions the assistant could not answer, grouped. This is
+          a ranked list of what to write next, not just a failure count.</p>
+        <div id="topics"></div>
       </div>
-
-      <div id="kb-view" class="stack hidden">
-        <div class="row-between">
-          <h2 id="kb-title">-</h2>
-          <div class="row-gap">
-            <button id="kb-edit" class="ghost small">Edit</button>
-            <button id="kb-delete" class="danger small">Delete</button>
-          </div>
+      <div class="split" style="margin-top:16px">
+        <div class="panel">
+          <h3>Policy <span class="tag">config.json</span></h3>
+          <div id="policy-box"></div>
         </div>
         <div class="panel">
-          <h3>Extracted passages <span id="kb-passage-count" class="tag"></span></h3>
-          <p class="hint">These are the retrieval units. A section the retriever
-            can't see is a question it can't answer.</p>
-          <div id="kb-passages" class="passages"></div>
+          <h3>Campaign batch</h3>
+          <div id="campaign-box"></div>
+          <h3 style="margin-top:16px">Cross-session memory</h3>
+          <div id="memory-box"></div>
         </div>
+      </div>
+      <div class="panel" style="margin-top:16px">
+        <h3>Where turns went</h3>
+        <div id="route-bars"></div>
+      </div>
+      <div class="panel" style="margin-top:16px">
+        <h3>Recent conversations</h3>
+        <p class="hint">Every figure above is counted from these. Click any row
+          to open it.</p>
+        <div id="activity" class="queue"></div>
+      </div>
+    </section>
+
+    <!-- ---------- QUEUE ---------- -->
+    <section id="panel-queue" class="agent-panel hidden">
+      <div class="split">
         <div class="panel">
-          <h3>Raw markdown</h3>
-          <pre id="kb-raw" class="transcript"></pre>
+          <h2>Escalation queue</h2>
+          <p class="hint">Conversations the assistant handed off.</p>
+          <div id="queue" class="queue"></div>
         </div>
-      </div>
-
-      <!-- editor -->
-      <div id="kb-editor" class="panel hidden">
-        <div class="row-between">
-          <h3 id="kb-editor-title">Add document</h3>
-          <button id="kb-cancel" class="ghost small">Cancel</button>
-        </div>
-        <label class="field">
-          <span>Filename</span>
-          <input id="kb-filename" type="text" placeholder="travel-insurance.md" />
-        </label>
-        <label class="field">
-          <span>Markdown - each <code>## Section</code> becomes one retrievable passage</span>
-          <textarea id="kb-content" rows="18" spellcheck="false"></textarea>
-        </label>
-        <div id="kb-error" class="error hidden"></div>
-        <div class="row-gap">
-          <button id="kb-save" class="primary">Save &amp; reindex</button>
-          <button id="kb-template" class="ghost">Insert template</button>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- ============ SETTINGS ============ -->
-  <main id="view-settings" class="view hidden">
-    <section class="panel">
-      <h2>LLM provider</h2>
-      <p class="hint">Applies immediately, to this running process only.</p>
-      <div id="provider-list" class="queue"></div>
-    </section>
-
-    <section class="stack">
-      <div class="panel">
-        <h3>Active configuration</h3>
-        <div id="active-config"></div>
-      </div>
-
-      <div class="panel">
-        <h3>Configure</h3>
-        <label class="field">
-          <span>Provider</span>
-          <select id="cfg-provider">
-            <option value="auto">auto - first one configured</option>
-            <option value="anthropic">anthropic</option>
-            <option value="openai">openai</option>
-            <option value="gemini">gemini</option>
-            <option value="groq">groq - free tier, OpenAI-compatible</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>API key <em id="cfg-key-hint">- stored in memory only</em></span>
-          <div class="row-gap">
-            <input id="cfg-key" type="password" placeholder="paste key, or leave blank to keep" />
-            <button id="cfg-key-toggle" class="ghost small" type="button">Show</button>
+        <div class="stack">
+          <div id="handover-empty" class="empty-state">
+            <h2>No conversation selected</h2>
+            <p>Pick a conversation to see the handover brief, the transcript and
+              the audit trail — and to reply to the customer.</p>
           </div>
-        </label>
-        <label class="field">
-          <span>Model <em>- blank uses the provider default</em></span>
-          <input id="cfg-model" type="text" placeholder="" />
-        </label>
-        <div class="grid-2">
-          <label class="field">
-            <span>Effort</span>
-            <select id="cfg-effort">
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Base URL <em>- openai adapter only</em></span>
-            <input id="cfg-base" type="text" placeholder="https://api.groq.com/openai/v1" />
-          </label>
-        </div>
-        <div id="cfg-error" class="error hidden"></div>
-        <div class="row-gap">
-          <button id="cfg-save" class="primary">Apply</button>
-          <button id="cfg-clear" class="ghost">Clear key</button>
+          <div id="handover" class="stack hidden">
+            <div class="row-between">
+              <h2 id="handover-title">—</h2>
+              <button id="regen" class="ghost small">Regenerate brief</button>
+            </div>
+            <div class="panel">
+              <h3>Handover brief <span id="summary-source" class="tag"></span></h3>
+              <div id="summary" class="summary"></div>
+            </div>
+            <div class="panel">
+              <h3>Reply to the customer <span id="handled-by" class="tag"></span></h3>
+              <p class="hint">The assistant stops answering as soon as you reply —
+                the customer sees one voice, not two.</p>
+              <form id="reply-form" class="composer-inline" autocomplete="off">
+                <input id="reply-input" type="text"
+                       placeholder="Type your reply…" />
+                <button class="primary" type="submit">Send</button>
+              </form>
+              <div id="reply-error" class="error hidden"></div>
+            </div>
+            <div class="panel">
+              <h3>Full transcript</h3>
+              <pre id="transcript" class="transcript"></pre>
+            </div>
+            <div class="panel">
+              <h3>Audit trail</h3>
+              <div id="audit" class="audit"></div>
+            </div>
+          </div>
         </div>
       </div>
+    </section>
 
-      <div class="panel warn">
-        <h3>About key handling</h3>
-        <p>A key entered here is held in this process's memory only - never written
-          to disk, and no endpoint returns it. The catalogue shows a mask
-          (<code>sk-a…4f2c</code>), never the value.</p>
-        <p>It is still plaintext in the process environment, readable by anything
-          that can read the process. The server also binds to localhost with no
-          authentication. That is fine for a demo and is <b>not</b> how to handle
-          credentials in production, where they belong in a secrets manager read
-          at start-up with no UI path to set them.</p>
+    <!-- ---------- GROUNDING CHECK ---------- -->
+    <section id="panel-compare" class="agent-panel hidden">
+      <div class="panel">
+        <h2>Same model, same question — with and without the knowledge base</h2>
+        <p class="hint">The only difference between the two answers below is that
+          one was given the bank's verified passages and told to use nothing
+          else. This is the argument for the whole architecture, run live rather
+          than asserted.</p>
+        <form id="compare-form" class="composer-inline" autocomplete="off">
+          <input id="compare-input" type="text"
+                 placeholder="Ask a bank-policy question…" />
+          <button class="primary" type="submit">Run both</button>
+        </form>
+        <div id="compare-suggestions" class="suggestions" style="padding:12px 0 0"></div>
+        <div id="compare-error" class="error hidden"></div>
+      </div>
+      <div id="compare-result" class="hidden">
+        <div class="split-even">
+          <div class="panel compare-bad">
+            <h3>Ungrounded — no knowledge base</h3>
+            <div id="ungrounded-text" class="answer"></div>
+            <div id="ungrounded-meta" class="kv-block"></div>
+          </div>
+          <div class="panel compare-good">
+            <h3>Grounded — this assistant</h3>
+            <div id="grounded-text" class="answer"></div>
+            <div id="grounded-meta" class="kv-block"></div>
+          </div>
+        </div>
+        <p class="hint" id="compare-caveat" style="margin-top:12px"></p>
+      </div>
+    </section>
+
+    <!-- ---------- SAFEGUARDS ---------- -->
+    <section id="panel-safeguards" class="agent-panel hidden">
+      <div class="panel">
+        <h2>What happens when it's wrong</h2>
+        <p class="hint">Four failure modes and the mechanism that catches each.
+          Run any of them against the live system.</p>
+      </div>
+      <div id="safeguards" class="stack"></div>
+    </section>
+
+    <!-- ---------- KNOWLEDGE BASE ---------- -->
+    <section id="panel-kb" class="agent-panel hidden">
+      <div class="split">
+        <div class="panel">
+          <div class="row-between">
+            <h2>Documents</h2>
+            <div class="row-gap">
+              <button id="kb-upload-btn" class="ghost small">Upload</button>
+              <button id="kb-new" class="primary small">Write new</button>
+            </div>
+          </div>
+          <p class="hint" id="kb-stats">—</p>
+          <input id="kb-file" type="file" accept=".md,.txt,.docx" class="hidden" />
+          <div id="kb-drop" class="dropzone">
+            Drop a <b>.md</b>, <b>.txt</b> or <b>.docx</b> here
+            <small>Word files are unzipped and their headings, lists and tables
+              extracted — the review pane shows exactly what gets indexed.</small>
+          </div>
+          <div id="kb-upload-error" class="error hidden"></div>
+          <div id="kb-list" class="queue"></div>
+        </div>
+
+        <div class="stack">
+          <div id="kb-empty" class="empty-state">
+            <h2>No document selected</h2>
+            <p>Pick a document to review the passages the retriever extracted,
+              or add one. Uploads are indexed immediately — no restart.</p>
+          </div>
+          <div id="kb-view" class="stack hidden">
+            <div class="row-between">
+              <h2 id="kb-title">—</h2>
+              <div class="row-gap">
+                <button id="kb-edit" class="ghost small">Edit</button>
+                <button id="kb-delete" class="danger small">Delete</button>
+              </div>
+            </div>
+            <div class="panel">
+              <h3>Extracted passages <span id="kb-passage-count" class="tag"></span></h3>
+              <p class="hint">These are the retrieval units. A section the
+                retriever can't see is a question it can't answer.</p>
+              <div id="kb-passages" class="passages"></div>
+            </div>
+            <div class="panel">
+              <h3>Extracted text</h3>
+              <pre id="kb-raw" class="transcript"></pre>
+            </div>
+          </div>
+          <div id="kb-editor" class="panel hidden">
+            <div class="row-between">
+              <h3 id="kb-editor-title">Add document</h3>
+              <button id="kb-cancel" class="ghost small">Cancel</button>
+            </div>
+            <label class="field">
+              <span>Filename</span>
+              <input id="kb-filename" type="text" placeholder="travel-insurance.md" />
+            </label>
+            <label class="field">
+              <span>Markdown — each <code>## Section</code> becomes a passage</span>
+              <textarea id="kb-content" rows="16" spellcheck="false"></textarea>
+            </label>
+            <div id="kb-error" class="error hidden"></div>
+            <div class="row-gap">
+              <button id="kb-save" class="primary">Save &amp; reindex</button>
+              <button id="kb-template" class="ghost">Insert template</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- SETTINGS ---------- -->
+    <section id="panel-settings" class="agent-panel hidden">
+      <div class="split">
+        <div class="panel">
+          <h2>LLM provider</h2>
+          <p class="hint">Applies immediately, to this running process only.</p>
+          <div id="provider-list" class="queue"></div>
+        </div>
+        <div class="stack">
+          <div class="panel">
+            <h3>Active configuration</h3>
+            <div id="active-config"></div>
+          </div>
+          <div class="panel">
+            <h3>Configure</h3>
+            <label class="field">
+              <span>Provider</span>
+              <select id="cfg-provider">
+                <option value="auto">auto — first one configured</option>
+                <option value="anthropic">anthropic</option>
+                <option value="openai">openai</option>
+                <option value="gemini">gemini</option>
+                <option value="groq">groq — free tier</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>API key <em id="cfg-key-hint">— stored in memory only</em></span>
+              <div class="row-gap">
+                <input id="cfg-key" type="password" placeholder="paste key, or leave blank to keep" />
+                <button id="cfg-key-toggle" class="ghost small" type="button">Show</button>
+              </div>
+            </label>
+            <label class="field">
+              <span>Model <em>— blank uses the provider default</em></span>
+              <input id="cfg-model" type="text" />
+            </label>
+            <div class="grid-2">
+              <label class="field">
+                <span>Effort</span>
+                <select id="cfg-effort">
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Base URL <em>— openai adapter only</em></span>
+                <input id="cfg-base" type="text" placeholder="https://…/v1" />
+              </label>
+            </div>
+            <div id="cfg-error" class="error hidden"></div>
+            <div class="row-gap">
+              <button id="cfg-save" class="primary">Apply</button>
+              <button id="cfg-clear" class="ghost">Clear key</button>
+            </div>
+          </div>
+          <div class="panel warn">
+            <h3>About key handling</h3>
+            <p>A key entered here is held in this process's memory only — never
+              written to disk, and no endpoint returns it. The catalogue shows a
+              mask (<code>sk-a…4f2c</code>), never the value.</p>
+            <p>It is still plaintext in the process environment. Fine for a demo,
+              <b>not</b> how to handle credentials in production.</p>
+          </div>
+        </div>
       </div>
     </section>
   </main>

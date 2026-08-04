@@ -8,11 +8,11 @@ grounding the LLM layer rather than letting it answer freely.
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from threading import RLock
 
+from . import chunker, loaders
 from .textmodel import TfidfIndex
 
 KB_DIR = Path(__file__).resolve().parent.parent / "data" / "kb"
@@ -27,7 +27,9 @@ KB_DIR = Path(__file__).resolve().parent.parent / "data" / "kb"
 # Measured on the demo corpus: in-scope questions score 0.29-1.00 against their
 # correct passage, out-of-scope questions top out at 0.23. The floor sits in
 # that gap. Re-measure it whenever the knowledge base changes materially.
-MIN_RELEVANCE = 0.28
+from . import policy as _policy
+
+MIN_RELEVANCE = _policy.current.min_relevance
 RELATIVE_CUTOFF = 0.60
 
 
@@ -37,49 +39,82 @@ class Passage:
     doc_id: str
     source: str
     title: str
-    heading: str
+    heading: str                       # leaf heading — what gets cited
     text: str
+    heading_path: list[str] = field(default_factory=list)
+    chunk_index: int = 0
 
     @property
     def citation(self) -> str:
         return f"{self.doc_id} · {self.heading}"
 
+    @property
+    def breadcrumb(self) -> str:
+        """Full heading path. In a deep document the leaf alone is ambiguous —
+        three sections can all be called "Fees" under different parents."""
+        return " › ".join(self.heading_path) if self.heading_path else self.heading
+
+
+# Reciprocal Rank Fusion constant. 60 is the value from the original paper and
+# is not sensitive here: it damps the difference between adjacent ranks so that
+# agreement across rankers matters more than any single ranker's confidence.
+RRF_K = 60
+
+
+def reciprocal_rank_fusion(rankings: dict[str, list[float]]) -> list[float]:
+    """Combine several scorings of the same corpus into one ranking.
+
+    Fusing on *rank* rather than score is what makes this work: coverage runs
+    0-1, cosine 0-0.5, and BM25 unbounded, so no weighted sum of the raw values
+    is meaningful without per-corpus calibration that would drift the moment a
+    document is uploaded. Ranks are unit-free, so the fusion needs no tuning and
+    survives a changing corpus.
+    """
+    length = len(next(iter(rankings.values()), []))
+    fused = [0.0] * length
+
+    for scores in rankings.values():
+        order = sorted(range(length), key=lambda i: scores[i], reverse=True)
+        for rank, index in enumerate(order, start=1):
+            # A zero score is an absence of evidence, not weak evidence; letting
+            # it contribute would give every unmatched passage a rank bonus.
+            if scores[index] > 0.0:
+                fused[index] += 1.0 / (RRF_K + rank)
+    return fused
+
 
 @dataclass
 class RetrievedPassage:
     passage: Passage
-    score: float          # coverage - the relevance gate
-    similarity: float = 0.0   # cosine - tie-breaker only
+    score: float              # coverage — the relevance gate
+    similarity: float = 0.0   # cosine
+    bm25: float = 0.0         # Okapi BM25
+    fusion: float = 0.0       # RRF of the three — decides the ordering
+    rerank: float | None = None   # LLM relevance score, when reranking is on
+
+
+def parse_text(raw: str, source: str, stem: str) -> list[Passage]:
+    """Turn a document's text into retrievable passages."""
+    title = chunker.extract_title(raw) or stem
+    doc_id = chunker.extract_doc_id(raw) or stem.upper()
+
+    return [
+        Passage(
+            passage_id=f"{doc_id}#{chunk.index + 1}",
+            doc_id=doc_id,
+            source=source,
+            title=title,
+            heading=chunk.heading,
+            text=chunk.text,
+            heading_path=chunk.heading_path,
+            chunk_index=chunk.index,
+        )
+        for chunk in chunker.chunk_document(chunker.strip_metadata(raw))
+    ]
 
 
 def _parse_document(path: Path) -> list[Passage]:
-    raw = path.read_text(encoding="utf-8")
-
-    title_match = re.search(r"^#\s+(.+)$", raw, re.MULTILINE)
-    title = title_match.group(1).strip() if title_match else path.stem
-
-    doc_match = re.search(r"^\*\*doc_id:\*\*\s*(\S+)", raw, re.MULTILINE)
-    doc_id = doc_match.group(1) if doc_match else path.stem.upper()
-
-    passages: list[Passage] = []
-    sections = re.split(r"^##\s+(.+)$", raw, flags=re.MULTILINE)
-    # re.split with one capture group yields [preamble, heading, body, ...].
-    for index in range(1, len(sections), 2):
-        heading = sections[index].strip()
-        body = re.sub(r"\s+", " ", sections[index + 1]).strip()
-        if not body:
-            continue
-        passages.append(
-            Passage(
-                passage_id=f"{doc_id}#{len(passages) + 1}",
-                doc_id=doc_id,
-                source=path.name,
-                title=title,
-                heading=heading,
-                text=body,
-            )
-        )
-    return passages
+    return parse_text(loaders.read_document(path), source=path.name, stem=path.stem)
 
 
 class KnowledgeBase:
@@ -108,35 +143,85 @@ class KnowledgeBase:
         """
         with self._lock:
             passages: list[Passage] = []
-            for path in sorted(self.kb_dir.glob("*.md")):
-                passages.extend(_parse_document(path))
+            for path in self.document_paths():
+                try:
+                    passages.extend(_parse_document(path))
+                except loaders.UnsupportedDocument:
+                    # A file that cannot be read must not take the whole corpus
+                    # down on reload — skip it and keep serving the rest.
+                    continue
             self.passages = passages
             # Index heading + body: headings carry a lot of signal in a small corpus.
             self._index = TfidfIndex(
                 [f"{p.title} {p.heading} {p.text}" for p in passages]
             ) if passages else None
 
-    def search(self, query: str, top_k: int = 3) -> list[RetrievedPassage]:
-        with self._lock:
-            return self._search_locked(query, top_k)
+    def search(self, query: str, top_k: int = 3,
+               gate: float | None = None) -> list[RetrievedPassage]:
+        """Retrieve passages for `query`.
 
-    def _search_locked(self, query: str, top_k: int) -> list[RetrievedPassage]:
+        `gate` overrides the rejection threshold. The reranking path lowers it
+        deliberately: a semantic judge downstream can throw out what lexical
+        matching let through, so stage one is free to favour recall. With no
+        judge downstream the conservative default stands, because then this
+        threshold is the only thing between an off-topic passage and a
+        grounded-looking answer.
+        """
+        with self._lock:
+            return self._search_locked(query, top_k, gate)
+
+    def _search_locked(self, query: str, top_k: int,
+                       gate: float | None) -> list[RetrievedPassage]:
         if self._index is None:
             return []
-        # Coverage decides relevance; cosine similarity breaks ties between
-        # passages that cover the question equally well.
+
         coverages = self._index.coverages(query)
         similarities = self._index.similarities(query)
+        bm25 = self._index.bm25_scores(query)
+
+        # Rejection is a coverage decision, tuned separately from ranking.
+        # Keeping those two jobs apart is deliberate: a ranker always produces
+        # an order, even over pure noise, so it can never be what decides
+        # whether there is anything worth returning.
+        best_coverage = max(coverages, default=0.0)
+        threshold = _policy.current.min_relevance if gate is None else gate
+        if best_coverage < threshold:
+            return []
+
+        fused = reciprocal_rank_fusion({
+            "coverage": coverages, "cosine": similarities, "bm25": bm25,
+        })
+
+        # Ordered by coverage, not by the fusion score. Fusion was measured
+        # against this baseline on the labelled set and did not beat it — see
+        # README § Retrieval quality. The fused value is still computed and
+        # carried through, because it is worth showing in the inspector and is
+        # what a larger corpus would likely need; it just does not decide the
+        # order today, on the evidence available.
         ranked = sorted(
-            (RetrievedPassage(passage=p, score=round(c, 3), similarity=round(s, 3))
-             for p, c, s in zip(self.passages, coverages, similarities)),
+            (
+                RetrievedPassage(
+                    passage=passage,
+                    score=round(coverages[i], 3),
+                    similarity=round(similarities[i], 3),
+                    bm25=round(bm25[i], 3),
+                    fusion=round(fused[i], 5),
+                )
+                for i, passage in enumerate(self.passages)
+            ),
             key=lambda r: (r.score, r.similarity),
             reverse=True,
         )
-        if not ranked or ranked[0].score < MIN_RELEVANCE:
-            return []
-        floor = max(MIN_RELEVANCE, ranked[0].score * RELATIVE_CUTOFF)
+
+        floor = best_coverage * RELATIVE_CUTOFF
         return [r for r in ranked[:top_k] if r.score >= floor]
+
+    def document_paths(self) -> list[Path]:
+        """Every readable document in the knowledge-base directory, sorted."""
+        return sorted(
+            p for p in self.kb_dir.iterdir()
+            if p.is_file() and p.suffix.lower() in loaders.SUPPORTED
+        )
 
     @property
     def stats(self) -> dict:

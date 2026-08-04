@@ -115,7 +115,7 @@ def main() -> int:
     router = Router()
     session = router.sessions.create()
     result = router.handle_turn(session, QUESTION)
-    check(result.route == "escalation", f"escalated (got {result.route})")
+    check(result.route == "escalation_offered", f"offered a handoff (got {result.route})")
     check("declined" in (result.escalation_reason or ""),
           f"reason names the refusal: {result.escalation_reason!r}")
 
@@ -126,8 +126,16 @@ def main() -> int:
     result = router.handle_turn(session, QUESTION)
     check(result.route == "rag", f"served extractive fallback (got {result.route})")
     check(not result.generated, "not marked as generated")
-    check("wires cost" in result.text or "transfers" in result.text.lower(),
-          "fallback text came from the knowledge base")
+    # Assert the fallback is verbatim corpus text, not that it contains any
+    # particular words. The earlier version hardcoded a phrase from the passage
+    # it expected to win, so adding a document to the corpus broke it — the
+    # check was really testing retrieval ranking, which is eval_retrieval.py's
+    # job and is measured there against a labelled set.
+    corpus = " ".join(p.text for p in router.kb.passages)
+    # The extractive fallback is "<preamble>\n\n<verbatim passage excerpt>".
+    excerpt = result.text.split("\n\n", 1)[-1].strip()[:80]
+    check(bool(excerpt) and excerpt in corpus,
+          "fallback text is verbatim from the knowledge base")
 
     print("\nAdapter returning blank output")
     with_stub("empty")
@@ -142,9 +150,14 @@ def main() -> int:
     router = Router()
     session = router.sessions.create()
     result = router.handle_turn(session, QUESTION)
-    check(result.route == "escalation", f"escalated (got {result.route})")
+    # A failed grounding check now *offers* a handoff rather than forcing one —
+    # the customer decides whether their time is better spent in a queue.
+    check(result.route == "escalation_offered", f"offered a handoff (got {result.route})")
     check("grounding" in (result.escalation_reason or "").lower(),
           f"reason names the grounding gate: {result.escalation_reason!r}")
+    accepted = router.handle_turn(session, "yes")
+    check(accepted.route == "escalation" and session.escalated,
+          f"accepting the offer escalates (got {accepted.route})")
 
     print("\nSummarisation goes through the same adapter")
     stub = with_stub("ok")

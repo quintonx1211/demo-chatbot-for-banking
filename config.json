@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "Runtime policy. The client asked for a parameter to control how strict the",
+    "assistant is, and accepted a config file rather than a dashboard for it.",
+    "",
+    "strictness picks a preset:",
+    "  strict    - highest refusal rate, lowest hallucination risk. Every",
+    "              knowledge answer must be strongly supported, and anything",
+    "              marginal goes to a human.",
+    "  balanced  - the default.",
+    "  relaxed   - answers more questions, including weakly-supported ones.",
+    "              More natural to talk to, and more likely to be wrong.",
+    "",
+    "Overrides below take precedence over the preset when set to a number."
+  ],
+  "strictness": "balanced",
+
+  "overrides": {
+    "min_grounding": null,
+    "min_relevance": null,
+    "high_confidence": null
+  },
+
+  "presets": {
+    "strict":   { "min_grounding": 0.70, "min_relevance": 0.34, "high_confidence": 0.50 },
+    "balanced": { "min_grounding": 0.55, "min_relevance": 0.28, "high_confidence": 0.55 },
+    "relaxed":  { "min_grounding": 0.40, "min_relevance": 0.18, "high_confidence": 0.62 }
+  }
+}

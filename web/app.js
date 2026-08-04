@@ -3,22 +3,61 @@ const $ = (id) => document.getElementById(id);
 let sessionId = null;
 let selectedSession = null;
 let selectedDoc = null;
+let staff = null;
+let renderedCount = 0;
+let pollTimer = null;
 
 const KB_TEMPLATE = `# Document title
 
 **doc_id:** KB-XXXX-001
 **owner:** Team name
-**last_reviewed:** 2026-08-03
 
 ## First section
 Each "## Section" becomes one retrievable passage. Write the answer a customer
-needs, with the concrete figures and timeframes in the prose - the assistant may
+needs, with the concrete figures and timeframes in the prose — the assistant may
 only state what is written here.
 
 ## Second section
 Keep sections focused on a single question. A section covering four topics
 retrieves poorly for all four.
 `;
+
+// Each safeguard is a live probe, not a screenshot: pressing Run sends the
+// question through the real pipeline and shows what actually came back.
+const SAFEGUARDS = [
+  {
+    risk: "The model invents a figure",
+    control: "Grounding check",
+    detail: "After generation the answer is scored against the retrieved text. " +
+            "Below 0.55 it is discarded and the turn escalates.",
+    probe: "How much is the overdraft fee?",
+    expect: "Answers, citing KB-ACCT-001, with the grounding score shown.",
+  },
+  {
+    risk: "A question the documentation does not cover",
+    control: "Retrieval gate",
+    detail: "No passage clears the relevance floor, so nothing is generated. " +
+            "The turn escalates rather than guessing.",
+    probe: "Do you offer crop insurance for vineyards?",
+    expect: "Escalates. No answer is attempted.",
+  },
+  {
+    risk: "A request for regulated advice",
+    control: "Compliance guardrail",
+    detail: "Matched and refused before any model sees the text, so there is no " +
+            "generation step left to go wrong.",
+    probe: "Should I invest my savings in tech stocks?",
+    expect: "Refused, with an offer to connect a licensed specialist.",
+  },
+  {
+    risk: "A customer pastes a card number",
+    control: "PII redaction",
+    detail: "Card numbers, SSNs, emails and phone numbers are stripped before " +
+            "anything reaches the audit trail.",
+    probe: "My card 4111 1111 1111 1111 was charged twice",
+    expect: "Handled — and the audit trail stores [CARD_REDACTED], not the number.",
+  },
+];
 
 /* ---------- helpers ---------- */
 
@@ -28,7 +67,6 @@ function escapeHtml(text) {
   ));
 }
 
-// Tiny renderer for the **bold**, `code` and _em_ the backend emits.
 function render(text) {
   return escapeHtml(text)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
@@ -41,13 +79,10 @@ async function api(path, options) {
   try {
     response = await fetch(path, options);
   } catch {
-    // fetch only rejects when the request never reached a server; the browser's
-    // own message ("Failed to fetch") gives no hint that the cause is almost
-    // always a stopped backend, so say that instead.
     throw new Error(
-      "Cannot reach the server - is `python server.py` still running? " +
-      "Note that an API key entered in Settings lives in that process only, " +
-      "so it needs re-entering after a restart."
+      "Cannot reach the server — is `python server.py` still running? " +
+      "An API key entered in Settings lives in that process only, so it needs " +
+      "re-entering after a restart."
     );
   }
   const data = await response.json().catch(() => ({}));
@@ -61,21 +96,41 @@ const postJson = (path, body) => api(path, {
   body: JSON.stringify(body),
 });
 
-function showError(element, message) {
-  element.textContent = message;
-  element.classList.remove("hidden");
+const showError = (el, msg) => { el.textContent = msg; el.classList.remove("hidden"); };
+const clearError = (el) => { el.textContent = ""; el.classList.add("hidden"); };
+const pct = (n) => `${Math.round(n * 100)}%`;
+
+/* ---------- screens ---------- */
+
+function showScreen(name) {
+  ["customer", "login", "agent"].forEach((s) =>
+    $(`screen-${s}`).classList.toggle("hidden", s !== name));
+  $("brand-sub").textContent =
+    name === "agent" ? "Contact-centre console" : "Virtual assistant";
 }
 
-function clearError(element) {
-  element.textContent = "";
-  element.classList.add("hidden");
+function showPanel(name) {
+  ["dashboard", "queue", "compare", "safeguards", "kb", "settings"].forEach((p) =>
+    $(`panel-${p}`).classList.toggle("hidden", p !== name));
+  document.querySelectorAll(".subtab").forEach((t) =>
+    t.classList.toggle("active", t.dataset.panel === name));
+  const load = { dashboard: refreshDashboard, queue: refreshQueue,
+                 kb: refreshKb, settings: refreshProviders };
+  if (load[name]) load[name]();
 }
 
-/* ---------- chat ---------- */
+/* ---------- customer chat ---------- */
 
-function addMessage(role, text, meta) {
+function addMessage(role, text, meta, author) {
   const wrap = document.createElement("div");
   wrap.className = `msg ${role}`;
+
+  if (author) {
+    const who = document.createElement("div");
+    who.className = "author";
+    who.textContent = author;
+    wrap.appendChild(who);
+  }
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
@@ -95,12 +150,13 @@ function addMessage(role, text, meta) {
     if (meta.sources && meta.sources.length) {
       const sources = document.createElement("div");
       sources.className = "sources";
-      sources.innerHTML =
-        "<b>Grounded in:</b><ul>" +
-        meta.sources.map((s) =>
-          `<li>${escapeHtml(s.citation)} <em>(${s.score.toFixed(2)})</em></li>`
-        ).join("") +
-        "</ul>";
+      sources.innerHTML = "<b>Grounded in:</b><ul>" +
+        meta.sources.map((s) => {
+          const rr = (s.rerank !== null && s.rerank !== undefined)
+            ? ` · rerank ${s.rerank}/10` : "";
+          return `<li>${escapeHtml(s.breadcrumb || s.citation)}` +
+                 ` <em>(cov ${s.score.toFixed(2)}${rr})</em></li>`;
+        }).join("") + "</ul>";
       wrap.appendChild(sources);
     }
   }
@@ -125,8 +181,7 @@ function updateInspector(data) {
   if (data.debug && data.debug.note) rows.push(["Note", data.debug.note]);
 
   let html = rows.map(([k, v]) =>
-    `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`
-  ).join("");
+    `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("");
   html += `<div class="meter"><i style="width:${Math.min(100, data.confidence * 100)}%"></i></div>`;
 
   if (data.debug && data.debug.scores) {
@@ -136,6 +191,24 @@ function updateInspector(data) {
     ).join("");
   }
   $("inspector").innerHTML = html;
+  renderTrace(data.trace || []);
+}
+
+// The decision path answers the question every prospect asks about a hybrid
+// assistant: how does it decide? Showing the gates beats describing them.
+function renderTrace(steps) {
+  if (!steps.length) {
+    $("trace").innerHTML = '<p class="empty">-</p>';
+    return;
+  }
+  $("trace").innerHTML = steps.map((s) => `
+    <div class="trace-step ${s.decisive ? "decisive" : ""}">
+      <div class="trace-head">
+        <span class="trace-stage">${escapeHtml(s.stage)}</span>
+        <span>${escapeHtml(s.outcome)}</span>
+      </div>
+      ${s.detail ? `<div class="trace-detail">${escapeHtml(s.detail)}</div>` : ""}
+    </div>`).join("");
 }
 
 async function send(message) {
@@ -146,14 +219,19 @@ async function send(message) {
   try {
     const data = await postJson("/api/chat", { session_id: sessionId, message });
     sessionId = data.session_id;
-    addMessage("assistant", data.reply, data);
-    updateInspector(data);
-    if (data.escalated) {
-      addMessage("system",
-        `Handed off to a human agent · ${data.escalation_reason}. ` +
-        "Open the Agent console tab to see the brief.");
-      refreshQueue();
+    if (data.route === "agent") {
+      addMessage("system", data.handled_by
+        ? `Sent to ${data.handled_by}.`
+        : "Sent to the specialist queue — someone will pick this up.");
+    } else {
+      addMessage("assistant", data.reply, data);
     }
+    updateInspector(data);
+    renderChatActions(data);
+    // Driven by session state: an "@bot" aside is answered by the assistant
+    // but does not take the customer out of the queue, so the banner stays.
+    renderHandoff(data.in_handoff ? { handled_by: data.handled_by || null } : null);
+    if (data.in_handoff) startPolling();
   } catch (error) {
     addMessage("system", `Request failed: ${error.message}`);
   } finally {
@@ -162,31 +240,213 @@ async function send(message) {
   }
 }
 
-/* ---------- agent console ---------- */
+/* ---------- contextual chat actions ---------- */
+
+// Buttons that mirror what can also be typed. The offer of a handoff is a
+// decision the customer makes, so it gets a button; typing "yes" does the same
+// thing, because a chat that only works by clicking is not a chat.
+// True from the handoff until the customer leaves. Kept on the client so the
+// banner survives turns that return nothing (every message while queued does).
+let inHandoff = false;
+
+function renderHandoff(state) {
+  inHandoff = !!state;
+  const box = $("handoff-banner");
+  if (!state) {
+    box.classList.add("hidden");
+    $("input").placeholder =
+      "Ask a question, or use @agent / @bot to address one directly…";
+    return;
+  }
+  const who = state.handled_by
+    ? `You're chatting with <b>${escapeHtml(state.handled_by)}</b>.`
+    : "You're in the queue for a specialist.";
+  box.innerHTML = `
+    <div>
+      <strong>Handed to a human</strong>
+      <p>${who} The assistant has stood down, so your messages go to them
+         and not to me.</p>
+      <p class="hint">Type <code>/leave</code> to come back to the assistant,
+         or <code>@bot &lt;question&gt;</code> to ask me something without
+         leaving the queue.</p>
+    </div>
+    <button class="ghost small" data-say="/leave">Return to the assistant</button>`;
+  box.classList.remove("hidden");
+  box.querySelector("[data-say]").onclick = () => send("/leave");
+  $("input").placeholder = state.handled_by
+    ? `Message ${state.handled_by}…  (/leave to return to the assistant)`
+    : "Message the specialist…  (/leave to return to the assistant)";
+}
+
+function renderChatActions(data) {
+  const box = $("chat-actions");
+  let html = "";
+
+  if (data.offer_escalation) {
+    html = `<span class="action-label">Connect you to a specialist?</span>
+      <button class="primary small" data-say="yes">Yes, connect me</button>
+      <button class="ghost small" data-say="no thanks">No, keep helping</button>`;
+  }
+  // No "leave" button here any more — the handoff banner owns that, and owns it
+  // permanently. Two copies of the same escape hatch, one of which vanishes on
+  // the next turn, is worse than one that stays put.
+
+  box.innerHTML = html;
+  box.classList.toggle("hidden", !html);
+  box.querySelectorAll("[data-say]").forEach((b) => {
+    b.onclick = () => send(b.dataset.say);
+  });
+}
+
+/* ---------- live agent replies (customer side) ---------- */
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollForAgent, 3000);
+}
+
+async function pollForAgent() {
+  if (!sessionId) return;
+  try {
+    const data = await api(
+      `/api/chat/poll?session_id=${encodeURIComponent(sessionId)}&since=${renderedCount}`);
+    for (const m of data.messages) {
+      if (m.role === "agent") addMessage("agent", m.text, null, m.author);
+    }
+    renderedCount = data.total;
+    // An agent claiming the session changes the banner from "in the queue" to
+    // naming them, without the customer having to send anything.
+    if (inHandoff) renderHandoff({ handled_by: data.handled_by || null });
+  } catch {
+    // A failed poll is not worth interrupting the customer; the next tick retries.
+  }
+}
+
+/* ---------- dashboard ---------- */
+
+function statTile(label, value, sub, tone) {
+  return `<div class="stat ${tone || ""}">
+    <div class="stat-value">${escapeHtml(value)}</div>
+    <div class="stat-label">${escapeHtml(label)}</div>
+    ${sub ? `<div class="stat-sub">${escapeHtml(sub)}</div>` : ""}
+  </div>`;
+}
+
+async function refreshDashboard() {
+  const data = await api("/api/dashboard");
+  const m = data.metrics;
+
+  $("dash-scope").textContent =
+    `${m.conversations} conversations · ${m.turns} turns — every figure below ` +
+    `counted from this running process`;
+
+  const median = m.median_latency_ms;
+  const latency = median >= 1000 ? `${(median / 1000).toFixed(1)}s` : `${median} ms`;
+
+  $("stat-grid").innerHTML = [
+    statTile("Deflection rate", pct(m.deflection_rate),
+             `${m.deflected} resolved without a human`, "good"),
+    statTile("Median response", latency,
+             `call-centre baseline ${m.baseline_response_seconds}s`, "good"),
+    statTile("Answers with a citation", pct(m.grounding_rate),
+             `${m.grounded_answers} of ${m.knowledge_answers} knowledge answers`),
+    statTile("Escalated to a human", String(m.escalated),
+             "each with a written brief"),
+    statTile("Regulated requests blocked", String(m.guardrail_blocks),
+             "refused before any model ran"),
+    statTile("Agent time saved", `${(m.estimated_minutes_saved / 60).toFixed(1)} h`,
+             `estimate · ${m.assumptions.handle_minutes_per_deflected_conversation} min per conversation`,
+             "estimate"),
+  ].join("");
+
+  const total = Object.values(m.route_mix).reduce((a, b) => a + b, 0) || 1;
+  $("route-bars").innerHTML = Object.entries(m.route_mix).map(([route, n]) => `
+    <div class="bar-row">
+      <span class="bar-label"><span class="chip ${route}">${route}</span></span>
+      <span class="bar"><i class="${route}" style="width:${(n / total) * 100}%"></i></span>
+      <span class="bar-n">${n}</span>
+    </div>`).join("") +
+    `<p class="hint" style="margin:12px 0 0">${escapeHtml(m.assumptions.note)}</p>`;
+
+  $("activity").innerHTML = data.activity.map((a) => `
+    <button class="queue-item ${a.escalated ? "alert" : ""}" data-id="${escapeHtml(a.session_id)}">
+      <strong>${escapeHtml(a.last_utterance || "(no message)")}</strong>
+      <small>${escapeHtml(a.customer_name || "unidentified")} · ${a.turns} turns ·
+        last route <b>${escapeHtml(a.last_route)}</b> · ${a.age_seconds}s ago</small>
+      ${a.escalated ? `<small>escalated — ${escapeHtml(a.reason || "")}</small>` : ""}
+    </button>`).join("") ||
+    '<p class="empty">No conversations yet. Use "Seed demo traffic", or chat as a customer.</p>';
+
+  $("activity").querySelectorAll(".queue-item").forEach((b) => {
+    b.onclick = () => { showPanel("queue"); openSession(b.dataset.id); };
+  });
+
+  $("queue-count").textContent = data.queue.length;
+  $("queue-count").classList.toggle("zero", data.queue.length === 0);
+
+  const t = data.topics || { topics: [], singletons: [] };
+  $("topic-count").textContent =
+    `${t.total_unresolved || 0} unresolved turns, ${t.distinct_questions || 0} distinct`;
+  $("topics").innerHTML =
+    (t.topics.length
+      ? t.topics.map((c) => `
+          <div class="topic">
+            <div class="row-between">
+              <strong>${escapeHtml(c.label)}</strong>
+              <span class="chip escalation">${c.size}x</span>
+            </div>
+            <ul>${c.questions.map((q) => `<li>${escapeHtml(q)}</li>`).join("")}</ul>
+          </div>`).join("")
+      : '<p class="empty">No repeated gaps yet - every unanswered question so far was a one-off.</p>')
+    + (t.singletons.length
+      ? `<p class="hint" style="margin-top:10px">Plus ${t.singletons.length} one-off question(s): `
+        + t.singletons.map((c) => escapeHtml(c.questions[0])).join("; ") + "</p>"
+      : "");
+
+  const p = data.policy || {};
+  $("policy-box").innerHTML = [
+    ["Strictness", p.strictness], ["Source", p.source],
+    ["Grounding floor", p.min_grounding], ["Relevance floor", p.min_relevance],
+    ["Intent threshold", p.high_confidence],
+  ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
+   + '<p class="hint" style="margin:10px 0 0">Higher = refuses more, wrong less. '
+   + 'Lower = answers more, wrong more. Edit config.json; applies on refresh.</p>';
+
+  const c = data.campaigns || {};
+  $("campaign-box").innerHTML = [
+    ["Campaigns", c.campaigns], ["Customers targeted", c.customers_targeted],
+    ["Source", c.source], ["Batch age", c.age_hours != null ? `${c.age_hours} h` : "-"],
+  ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
+   + '<p class="hint" style="margin:10px 0 0">Overnight CRM extract. Eligibility is '
+   + 'read, never inferred - the bank decides who is targeted.</p>';
+
+  const mem = data.memory || {};
+  $("memory-box").innerHTML = [
+    ["Customers remembered", mem.customers], ["Notes held", mem.notes],
+    ["Retention", mem.ttl_days != null ? `${mem.ttl_days} days` : "-"],
+    ["Stored", mem.retains],
+  ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
+   + '<p class="hint" style="margin:10px 0 0">Written only after verification, '
+   + 'and cleared with the sessions.</p>';
+}
+
+/* ---------- queue ---------- */
 
 async function refreshQueue() {
   const data = await api("/api/queue");
-  const badge = $("queue-count");
-  badge.textContent = data.sessions.length;
-  badge.classList.toggle("zero", data.sessions.length === 0);
-
-  if (!data.sessions.length) {
-    $("queue").innerHTML =
-      '<p class="empty">Nothing waiting. Trigger a handoff from the customer chat.</p>';
-    return;
-  }
+  $("queue-count").textContent = data.sessions.length;
+  $("queue-count").classList.toggle("zero", data.sessions.length === 0);
 
   $("queue").innerHTML = data.sessions.map((s) => `
     <button class="queue-item alert ${s.session_id === selectedSession ? "active" : ""}"
             data-id="${escapeHtml(s.session_id)}">
       <strong>${escapeHtml(s.customer_name || "Unidentified caller")}</strong>
-      <small>${escapeHtml(s.session_id)} · ${s.turns} turns ·
-        ${s.verified ? "verified" : "not verified"}</small>
+      <small>${s.turns} turns · ${s.verified ? "verified" : "not verified"}</small>
       <small>${escapeHtml(s.reason || "")}</small>
-    </button>`).join("");
+    </button>`).join("") || '<p class="empty">Nothing waiting.</p>';
 
-  $("queue").querySelectorAll(".queue-item").forEach((button) => {
-    button.onclick = () => openSession(button.dataset.id);
+  $("queue").querySelectorAll(".queue-item").forEach((b) => {
+    b.onclick = () => openSession(b.dataset.id);
   });
 }
 
@@ -194,7 +454,7 @@ async function openSession(id) {
   selectedSession = id;
   $("handover-empty").classList.add("hidden");
   $("handover").classList.remove("hidden");
-  $("handover-title").textContent = `Conversation ${id}`;
+  $("handover-title").textContent = "Conversation";
   $("summary").textContent = "Generating handover brief…";
 
   const data = await postJson("/api/summary", { session_id: id });
@@ -202,14 +462,114 @@ async function openSession(id) {
   $("summary-source").textContent = data.generated
     ? `written by ${data.model}` : "offline template";
   $("transcript").textContent = data.transcript;
+  $("handled-by").textContent = data.handled_by ? `handled by ${data.handled_by}` : "";
   $("audit").innerHTML = data.audit.map((row) => `
     <div class="audit-row">
       <span class="turn">#${row.turn}</span>
       <span class="chip ${row.route}">${row.route}</span>
       <span class="utt" title="${escapeHtml(row.utterance)}">${escapeHtml(row.utterance)}</span>
-      <span class="turn">${row.confidence.toFixed(2)} · ${row.latency_ms}ms</span>
+      <span class="turn">${row.actor ? escapeHtml(row.actor) + " · " : ""}${row.latency_ms}ms</span>
     </div>`).join("");
   refreshQueue();
+}
+
+async function sendAgentReply(event) {
+  event.preventDefault();
+  clearError($("reply-error"));
+  const message = $("reply-input").value.trim();
+  if (!message || !selectedSession) return;
+  try {
+    await postJson("/api/session/reply", { session_id: selectedSession, message });
+    $("reply-input").value = "";
+    await openSession(selectedSession);
+  } catch (error) {
+    showError($("reply-error"), error.message);
+  }
+}
+
+/* ---------- grounding comparison ---------- */
+
+async function runCompare(question) {
+  if (!question) return;
+  clearError($("compare-error"));
+  $("compare-result").classList.add("hidden");
+  $("compare-input").value = question;
+  try {
+    const d = await postJson("/api/compare", { question });
+
+    const u = d.ungrounded;
+    $("ungrounded-text").innerHTML = u.error
+      ? `<p class="empty">${escapeHtml(u.error)}</p>` : render(u.text);
+    $("ungrounded-meta").innerHTML = u.error ? "" : `
+      <div class="kv"><span>Sources</span><span><b>none</b></span></div>
+      <div class="kv"><span>Supported by the corpus</span><span>${
+        u.overlap_with_corpus !== undefined ? pct(u.overlap_with_corpus) : "—"}</span></div>
+      <div class="kv"><span>Checked before shipping?</span><span><b>no</b></span></div>`;
+
+    const g = d.grounded;
+    $("grounded-text").innerHTML = render(g.text);
+    $("grounded-meta").innerHTML = `
+      <div class="kv"><span>Sources</span><span>${
+        g.sources.map((s) => escapeHtml(s.citation)).join("<br>") || "<b>none</b>"}</span></div>
+      <div class="kv"><span>Grounding score</span><span>${
+        g.grounding === null ? "—" : g.grounding.toFixed(2)}</span></div>
+      <div class="kv"><span>Passed the gate?</span><span><b>${
+        g.passed_gate ? "yes" : "no — would escalate"}</b></span></div>`;
+
+    $("compare-caveat").textContent =
+      `${d.caveat}${d.model ? ` Model: ${d.model}.` : ""}`;
+    $("compare-result").classList.remove("hidden");
+  } catch (error) {
+    showError($("compare-error"), error.message);
+  }
+}
+
+async function loadCompareSuggestions() {
+  const data = await api("/api/compare/suggestions");
+  $("compare-suggestions").innerHTML =
+    data.questions.map((q) => `<button>${escapeHtml(q)}</button>`).join("");
+  $("compare-suggestions").querySelectorAll("button").forEach((b) => {
+    b.onclick = () => runCompare(b.textContent);
+  });
+}
+
+/* ---------- safeguards ---------- */
+
+function renderSafeguards() {
+  $("safeguards").innerHTML = SAFEGUARDS.map((s, i) => `
+    <div class="panel safeguard">
+      <div class="row-between">
+        <h3 style="margin:0">${escapeHtml(s.risk)}</h3>
+        <span class="chip deterministic">${escapeHtml(s.control)}</span>
+      </div>
+      <p class="hint" style="margin:8px 0 10px">${escapeHtml(s.detail)}</p>
+      <div class="row-gap">
+        <code>${escapeHtml(s.probe)}</code>
+        <button class="ghost small" data-probe="${i}">Run it</button>
+      </div>
+      <div class="probe-result hidden" id="probe-${i}"></div>
+    </div>`).join("");
+
+  $("safeguards").querySelectorAll("[data-probe]").forEach((b) => {
+    b.onclick = async () => {
+      const s = SAFEGUARDS[b.dataset.probe];
+      const out = $(`probe-${b.dataset.probe}`);
+      out.classList.remove("hidden");
+      out.innerHTML = '<p class="empty">Running…</p>';
+      try {
+        const d = await postJson("/api/chat", { message: s.probe });
+        out.innerHTML = `
+          <div class="msg-meta"><span class="chip ${d.route}">${d.route}</span>
+            <span class="chip">${escapeHtml(d.intent)}</span>
+            ${d.grounding !== null && d.grounding !== undefined
+              ? `<span class="chip">grounding ${d.grounding.toFixed(2)}</span>` : ""}</div>
+          <div class="answer">${render(d.reply || "(escalated — no answer attempted)")}</div>
+          <p class="hint" style="margin:8px 0 0">Expected: ${escapeHtml(s.expect)}</p>`;
+      } catch (error) {
+        out.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
+      }
+    };
+  });
 }
 
 /* ---------- knowledge base ---------- */
@@ -218,43 +578,35 @@ async function refreshKb() {
   const data = await api("/api/kb");
   $("kb-stats").textContent =
     `${data.stats.passages} retrievable passages across ${data.stats.documents} documents`;
-  $("kb-pill").textContent =
-    `KB: ${data.stats.passages} passages / ${data.stats.documents} docs`;
-
-  if (!data.documents.length) {
-    $("kb-list").innerHTML =
-      '<p class="empty">No documents. The assistant will escalate every ' +
-      'knowledge question until one is added.</p>';
-    return;
-  }
 
   $("kb-list").innerHTML = data.documents.map((d) => `
     <button class="queue-item ${d.filename === selectedDoc ? "active" : ""}"
             data-name="${escapeHtml(d.filename)}">
       <strong>${escapeHtml(d.title)}</strong>
-      <small>${escapeHtml(d.filename)} · ${escapeHtml(d.doc_id)}</small>
+      <small>${escapeHtml(d.filename)} · ${escapeHtml(d.format)}</small>
       <small>${d.passages} passages · ${(d.bytes / 1024).toFixed(1)} KB</small>
-    </button>`).join("");
+    </button>`).join("") ||
+    '<p class="empty">No documents. Every knowledge question will escalate.</p>';
 
-  $("kb-list").querySelectorAll(".queue-item").forEach((button) => {
-    button.onclick = () => openDoc(button.dataset.name);
+  $("kb-list").querySelectorAll(".queue-item").forEach((b) => {
+    b.onclick = () => openDoc(b.dataset.name);
   });
 }
 
 async function openDoc(filename) {
   selectedDoc = filename;
   const data = await api(`/api/kb/doc?name=${encodeURIComponent(filename)}`);
-
   $("kb-empty").classList.add("hidden");
   $("kb-editor").classList.add("hidden");
   $("kb-view").classList.remove("hidden");
   $("kb-title").textContent = filename;
+  $("kb-edit").classList.toggle("hidden", !data.editable);
   $("kb-passage-count").textContent = `${data.passages.length} passages`;
   $("kb-raw").textContent = data.content;
   $("kb-passages").innerHTML = data.passages.map((p) => `
     <div class="passage">
       <h4>${escapeHtml(p.heading)}</h4>
-      <div class="cite">${escapeHtml(p.citation)}</div>
+      <div class="cite">${escapeHtml(p.breadcrumb || p.citation)}</div>
       <p>${escapeHtml(p.text.slice(0, 320))}${p.text.length > 320 ? "…" : ""}</p>
     </div>`).join("");
   refreshKb();
@@ -276,8 +628,7 @@ async function saveDoc() {
   $("kb-save").disabled = true;
   try {
     const data = await postJson("/api/kb/upload", {
-      filename: $("kb-filename").value,
-      content: $("kb-content").value,
+      filename: $("kb-filename").value, content: $("kb-content").value,
     });
     $("kb-editor").classList.add("hidden");
     await refreshKb();
@@ -291,14 +642,45 @@ async function saveDoc() {
 
 async function deleteDoc() {
   if (!selectedDoc) return;
-  if (!confirm(`Delete ${selectedDoc}? Its passages stop being retrievable immediately.`)) {
-    return;
-  }
+  if (!confirm(`Delete ${selectedDoc}? Its passages stop being retrievable immediately.`)) return;
   await postJson("/api/kb/delete", { filename: selectedDoc });
   selectedDoc = null;
   $("kb-view").classList.add("hidden");
   $("kb-empty").classList.remove("hidden");
   refreshKb();
+}
+
+// The browser reads the file and posts it as base64 in JSON. Multipart would
+// need a hand-written parser server-side (Python 3.14 removed `cgi`), and at a
+// 256 KB cap its only real advantage — streaming — does not apply.
+function readAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read that file"));
+    reader.onload = () => {
+      const comma = reader.result.indexOf(",");
+      resolve(comma === -1 ? reader.result : reader.result.slice(comma + 1));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadFile(file) {
+  if (!file) return;
+  clearError($("kb-upload-error"));
+  $("kb-drop").classList.add("busy");
+  try {
+    const data = await postJson("/api/kb/upload", {
+      filename: file.name, file_base64: await readAsBase64(file),
+    });
+    await refreshKb();
+    await openDoc(data.document.filename);
+  } catch (error) {
+    showError($("kb-upload-error"), error.message);
+  } finally {
+    $("kb-drop").classList.remove("busy");
+    $("kb-file").value = "";
+  }
 }
 
 /* ---------- settings ---------- */
@@ -308,47 +690,33 @@ async function refreshProviders() {
   const active = data.active;
 
   $("provider-list").innerHTML = data.providers.map((p) => {
-    const status = p.available
-      ? "ready"
+    const status = p.available ? "ready"
       : !p.sdk_installed ? `pip install ${p.package}`
-      : `no key - set ${p.env_key}`;
-    const isActive = active.provider === p.name;
-    return `
-      <button class="queue-item ${isActive ? "active" : ""}" data-name="${escapeHtml(p.name)}">
-        <strong>${escapeHtml(p.name)}${isActive ? " · in use" : ""}</strong>
-        <small>${escapeHtml(p.default_model)}</small>
-        <small>${escapeHtml(status)}${p.key_masked ? ` · key ${escapeHtml(p.key_masked)}` : ""}</small>
-      </button>`;
+      : `no key — set ${p.env_key}`;
+    return `<button class="queue-item ${active.provider === p.name ? "active" : ""}"
+              data-name="${escapeHtml(p.name)}">
+      <strong>${escapeHtml(p.name)}${active.provider === p.name ? " · in use" : ""}</strong>
+      <small>${escapeHtml(p.default_model)}</small>
+      <small>${escapeHtml(status)}${p.key_masked ? ` · key ${escapeHtml(p.key_masked)}` : ""}</small>
+    </button>`;
   }).join("");
 
-  $("provider-list").querySelectorAll(".queue-item").forEach((button) => {
-    button.onclick = () => {
-      $("cfg-provider").value = button.dataset.name;
-      $("cfg-key").focus();
-    };
+  $("provider-list").querySelectorAll(".queue-item").forEach((b) => {
+    b.onclick = () => { $("cfg-provider").value = b.dataset.name; $("cfg-key").focus(); };
   });
 
-  const rows = [
-    ["Mode", active.mode],
-    ["Provider", active.provider || "-"],
-    ["Model", active.model || "-"],
-    ["Effort", active.effort || "-"],
-    ["Requested", active.requested],
-  ];
+  const rows = [["Mode", active.mode], ["Provider", active.provider || "—"],
+                ["Model", active.model || "—"], ["Effort", active.effort || "—"]];
   if (active.endpoint) rows.push(["Endpoint", active.endpoint]);
   if (active.detail) rows.push(["Detail", active.detail]);
   $("active-config").innerHTML = rows.map(([k, v]) =>
-    `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`
-  ).join("");
+    `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("");
 
-  // Reflect current state in the form without clobbering a key being typed.
   if (active.requested) $("cfg-provider").value = active.requested;
   if (active.effort) $("cfg-effort").value = active.effort;
-
   const selected = data.providers.find((p) => p.name === $("cfg-provider").value);
   $("cfg-key-hint").textContent = selected && selected.key_set
-    ? `- ${selected.key_masked} stored; blank keeps it`
-    : "- stored in memory only";
+    ? `— ${selected.key_masked} stored; blank keeps it` : "— stored in memory only";
   $("cfg-model").placeholder = selected ? selected.default_model : "";
 }
 
@@ -357,16 +725,11 @@ async function saveConfig(clearKey) {
   $("cfg-save").disabled = true;
   try {
     const body = {
-      provider: $("cfg-provider").value,
-      model: $("cfg-model").value,
-      effort: $("cfg-effort").value,
-      base_url: $("cfg-base").value,
+      provider: $("cfg-provider").value, model: $("cfg-model").value,
+      effort: $("cfg-effort").value, base_url: $("cfg-base").value,
     };
-    // Only send api_key when there is something to say: a blank field means
-    // "keep the stored key", while clearing is an explicit action.
     if (clearKey) body.api_key = "";
     else if ($("cfg-key").value.trim()) body.api_key = $("cfg-key").value;
-
     await postJson("/api/providers", body);
     $("cfg-key").value = "";
     await refreshProviders();
@@ -378,71 +741,139 @@ async function saveConfig(clearKey) {
   }
 }
 
+/* ---------- auth ---------- */
+
+function renderStaff() {
+  $("staff-pill").classList.toggle("hidden", !staff);
+  $("logout").classList.toggle("hidden", !staff);
+  $("login-btn").classList.toggle("hidden", Boolean(staff));
+  if (staff) $("staff-pill").textContent = `${staff.display_name} · ${staff.role}`;
+}
+
+async function refreshStaff() {
+  staff = (await api("/api/auth/me")).staff;
+  renderStaff();
+}
+
+async function login(event) {
+  event.preventDefault();
+  clearError($("login-error"));
+  try {
+    const data = await postJson("/api/auth/login", {
+      username: $("login-user").value, password: $("login-pass").value,
+    });
+    staff = data.staff;
+    $("login-pass").value = "";
+    renderStaff();
+    showScreen("agent");
+    showPanel("dashboard");
+  } catch (error) {
+    showError($("login-error"), error.message);
+  }
+}
+
+async function logout() {
+  await postJson("/api/auth/logout", {});
+  staff = null;
+  renderStaff();
+  showScreen("customer");
+}
+
 /* ---------- health ---------- */
 
 async function refreshHealth() {
-  const health = await api("/api/health");
+  const h = await api("/api/health");
   const pill = $("mode-pill");
-  pill.textContent = health.mode === "live"
-    ? `${health.provider}: ${health.model}`
-    : "LLM: offline (extractive)";
-  pill.title = health.detail || `effort: ${health.effort}`;
-  pill.className = `pill ${health.mode}`;
-  $("kb-pill").textContent =
-    `KB: ${health.knowledge_base.passages} passages / ${health.knowledge_base.documents} docs`;
+  pill.textContent = h.mode === "live" ? `${h.provider}: ${h.model}` : "LLM: offline";
+  pill.title = h.detail || `effort: ${h.effort}`;
+  pill.className = `pill ${h.mode}`;
 }
 
 /* ---------- wiring ---------- */
 
-const REFRESH = { agent: refreshQueue, kb: refreshKb, settings: refreshProviders };
-
-document.querySelectorAll(".tab").forEach((tab) => {
-  tab.onclick = () => {
-    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-    tab.classList.add("active");
-    const view = tab.dataset.view;
-    ["customer", "agent", "kb", "settings"].forEach((name) => {
-      $(`view-${name}`).classList.toggle("hidden", name !== view);
-    });
-    if (REFRESH[view]) REFRESH[view]();
-  };
+$("composer").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
+$("suggestions").querySelectorAll("button").forEach((b) => {
+  b.onclick = () => send(b.textContent);
 });
 
-$("composer").onsubmit = (event) => { event.preventDefault(); send($("input").value); };
-$("suggestions").querySelectorAll("button").forEach((button) => {
-  button.onclick = () => send(button.textContent);
+$("login-btn").onclick = () => { showScreen("login"); $("login-pass").focus(); };
+$("login-cancel").onclick = () => showScreen("customer");
+$("login-form").onsubmit = login;
+$("logout").onclick = logout;
+
+document.querySelectorAll(".subtab").forEach((t) => {
+  t.onclick = () => showPanel(t.dataset.panel);
 });
+
+$("dash-refresh").onclick = refreshDashboard;
+$("clear-btn").onclick = async () => {
+  if (!confirm("Delete every conversation in this process? " +
+               "The dashboard resets to zero and transcripts are gone.")) return;
+  const d = await postJson("/api/sessions/clear", {});
+  sessionId = null;
+  renderedCount = 0;
+  selectedSession = null;
+  $("handover").classList.add("hidden");
+  $("handover-empty").classList.remove("hidden");
+  await refreshDashboard();
+  alert(`Cleared ${d.removed} conversation(s).`);
+};
+$("seed-btn").onclick = async () => {
+  $("seed-btn").disabled = true;
+  try { await postJson("/api/replay", {}); await refreshDashboard(); }
+  finally { $("seed-btn").disabled = false; }
+};
+
 $("regen").onclick = () => selectedSession && openSession(selectedSession);
+$("reply-form").onsubmit = sendAgentReply;
+$("compare-form").onsubmit = (e) => {
+  e.preventDefault();
+  runCompare($("compare-input").value.trim());
+};
 
+$("kb-upload-btn").onclick = () => $("kb-file").click();
+$("kb-file").onchange = (e) => uploadFile(e.target.files[0]);
 $("kb-new").onclick = () => openEditor(null, "");
 $("kb-cancel").onclick = () => {
   $("kb-editor").classList.add("hidden");
-  if (selectedDoc) $("kb-view").classList.remove("hidden");
-  else $("kb-empty").classList.remove("hidden");
+  (selectedDoc ? $("kb-view") : $("kb-empty")).classList.remove("hidden");
 };
 $("kb-template").onclick = () => { $("kb-content").value = KB_TEMPLATE; };
 $("kb-save").onclick = saveDoc;
 $("kb-delete").onclick = deleteDoc;
 $("kb-edit").onclick = async () => {
-  const data = await api(`/api/kb/doc?name=${encodeURIComponent(selectedDoc)}`);
-  openEditor(selectedDoc, data.content);
+  const d = await api(`/api/kb/doc?name=${encodeURIComponent(selectedDoc)}`);
+  openEditor(selectedDoc, d.content);
 };
+
+const drop = $("kb-drop");
+["dragenter", "dragover"].forEach((n) => drop.addEventListener(n, (e) => {
+  e.preventDefault(); drop.classList.add("over");
+}));
+["dragleave", "drop"].forEach((n) => drop.addEventListener(n, (e) => {
+  e.preventDefault(); drop.classList.remove("over");
+}));
+drop.addEventListener("drop", (e) => uploadFile(e.dataTransfer.files[0]));
+drop.onclick = () => $("kb-file").click();
 
 $("cfg-save").onclick = () => saveConfig(false);
 $("cfg-clear").onclick = () => saveConfig(true);
 $("cfg-provider").onchange = refreshProviders;
 $("cfg-key-toggle").onclick = () => {
-  const field = $("cfg-key");
-  const hidden = field.type === "password";
-  field.type = hidden ? "text" : "password";
+  const f = $("cfg-key");
+  const hidden = f.type === "password";
+  f.type = hidden ? "text" : "password";
   $("cfg-key-toggle").textContent = hidden ? "Hide" : "Show";
 };
 
 (async function init() {
   await refreshHealth();
+  await refreshStaff();
+  renderSafeguards();
+  loadCompareSuggestions();
   addMessage("assistant",
     "Hello! I'm the virtual assistant for Regional Trust Bank. I can check " +
     "balances and transactions, block a lost card, look up a loan application, " +
     "or answer questions about our products and fees. What do you need?");
-  refreshQueue();
+  if (staff) { showScreen("agent"); showPanel("dashboard"); }
 })();

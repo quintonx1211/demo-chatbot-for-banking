@@ -14,22 +14,68 @@ recoverable after the fact.
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass, field
 
-from . import flows, guardrails, llm
-from .nlu import IntentClassifier
-from .retriever import KnowledgeBase
+from . import flows, guardrails, llm, policy
+from .llm import rerank
+from .nlu import HIGH_CONFIDENCE, LOW_CONFIDENCE, IntentClassifier
+from .retriever import MIN_RELEVANCE, KnowledgeBase
+from .trace import Trace
+from . import memory as memory_mod
+from .textmodel import tokenize
 from .session import Session, SessionStore
 
 # Two consecutive turns we couldn't confidently handle means the assistant is
 # not converging - hand off rather than let the customer keep rephrasing.
 MAX_LOW_CONFIDENCE_STREAK = 2
 
+# Addressing. "@agent hello" reaches a human; "@bot ..." pulls the assistant
+# back in while a human has the conversation. Anything else is routed normally.
+_MENTION_RE = re.compile(r"^\s*@(agent|human|staff|bot|assistant|ai)(?=[\s:,]|$)[:,]?\s*",
+                         re.IGNORECASE)
+_AGENT_MENTIONS = {"agent", "human", "staff"}
+
+# Leaving a conversation a human has taken over.
+_LEAVE_RE = re.compile(r"^\s*(/leave|/bot|/back|end chat|leave chat)\s*$",
+                       re.IGNORECASE)
+
+_AFFIRM_RE = re.compile(
+    r"^\s*(yes|yeah|yep|yup|ok(ay)?|sure|please|go ahead|do it|connect me|"
+    r"put me through|transfer me|i do)(?=[\s.!,]|$)", re.IGNORECASE)
+_DECLINE_RE = re.compile(
+    r"^\s*(no|nope|not now|no thanks|nah|don'?t|cancel)(?=[\s.!,]|$)", re.IGNORECASE)
+
+
+def split_mention(text: str) -> tuple[str | None, str]:
+    """Split a leading @mention off a message. Returns (target, remainder)."""
+    match = _MENTION_RE.match(text or "")
+    if not match:
+        return None, text
+    target = match.group(1).lower()
+    who = "agent" if target in _AGENT_MENTIONS else "bot"
+    return who, text[match.end():].strip()
+
+_FLOW_LABELS = {
+    "verify": "identity check",
+    "block_card": "card block",
+}
+
+
+def _flow_label(name: str | None) -> str:
+    return _FLOW_LABELS.get(name or "", "previous request")
+
+
 ESCALATION_MESSAGE = (
     "Let me bring in one of our specialists - they'll have the full context of "
     "this conversation, so you won't need to repeat anything.\n\n"
     "**You're now in the queue for a human agent.**"
+)
+
+REQUEUED_MESSAGE = (
+    "That one's outside what I can answer too - I've added it to the notes for "
+    "the specialist picking this up. **You're still in the queue.**"
 )
 
 
@@ -45,6 +91,9 @@ class TurnResult:
     escalated: bool = False
     escalation_reason: str | None = None
     latency_ms: int = 0
+    offer_escalation: bool = False   # UI should show the yes/no handoff prompt
+    with_agent: bool = False         # a human currently owns this conversation
+    trace: list = field(default_factory=list)   # why this route was taken
     debug: dict = field(default_factory=dict)
 
 
@@ -58,12 +107,106 @@ class Router:
 
     def handle_turn(self, session: Session, text: str) -> TurnResult:
         started = time.perf_counter()
+        self.trace = Trace()
         session.add_message("customer", text)
 
-        result = self._route(session, text)
+        mention, body = split_mention(text)
+
+        # Leaving a conversation that went to a human. Available from the
+        # moment the handoff happens, not just once an agent has claimed it:
+        # the customer who changes their mind while third in the queue is
+        # exactly the one most in need of a way out.
+        if (session.handled_by or session.escalated) and _LEAVE_RE.match(text):
+            agent_name = session.handled_by
+            session.handled_by = None
+            session.escalated = False
+            session.escalation_reason = None
+            session.pending_escalation = None
+            session.record(
+                utterance=text, route="deterministic", intent="left_agent",
+                confidence=1.0,
+                note=(f"customer left the chat with {agent_name}" if agent_name
+                      else "customer left the handoff queue before it was claimed"),
+            )
+            reply = ((f"You're back with the assistant — {agent_name} has been "
+                      "released from this chat. What can I help with?")
+                     if agent_name else
+                     ("You're back with the assistant and I've taken you out of "
+                      "the queue. What can I help with?"))
+            session.add_message("assistant", reply)
+            return TurnResult(
+                text=reply, route="deterministic", intent="left_agent",
+                confidence=1.0,
+                latency_ms=int((time.perf_counter() - started) * 1000),
+                debug={"note": "customer ended the agent conversation"},
+            )
+
+        # "/leave" with no agent attached is a no-op, not a question. Routing
+        # it as one offered the customer a handoff, which is the opposite of
+        # what they asked for.
+        if _LEAVE_RE.match(text):
+            reply = "You're already chatting with the assistant. How can I help?"
+            session.add_message("assistant", reply)
+            session.record(utterance=text, route="deterministic",
+                           intent="left_agent", confidence=1.0,
+                           note="/leave with no agent attached")
+            return TurnResult(
+                text=reply, route="deterministic", intent="left_agent",
+                confidence=1.0,
+                latency_ms=int((time.perf_counter() - started) * 1000),
+                debug={"note": "no agent was attached"},
+            )
+
+        # Once the conversation has gone to a human the assistant stands down.
+        #
+        # The trigger is the handoff, not the agent picking it up. Gating this
+        # on `handled_by` alone left a window — often minutes — where the
+        # customer had been told a person was coming and the bot kept answering
+        # anyway. That window is the worst possible moment to keep talking: the
+        # customer is there *because* the assistant already failed, and every
+        # further attempt undermines the handoff it just promised. Worse, the
+        # agent arrives to a transcript where the bot has been arguing with
+        # their customer on their behalf.
+        #
+        # "@bot ..." is the one exemption: a deliberate request for the
+        # assistant is not talking over the agent.
+        if (session.handled_by or session.escalated) and mention != "bot":
+            waiting_for = session.handled_by or "the next available agent"
+            session.record(
+                utterance=text, route="agent", intent="awaiting_agent",
+                confidence=1.0, note=f"queued for {waiting_for}",
+            )
+            return TurnResult(
+                text="", route="agent", intent="awaiting_agent", confidence=1.0,
+                with_agent=True, escalated=session.escalated,
+                latency_ms=int((time.perf_counter() - started) * 1000),
+                debug={"note": f"assistant stood down; queued for {waiting_for}"},
+            )
+
+        # "@agent ..." asks for a person explicitly — no need to consult the
+        # customer about whether they want one.
+        if mention == "agent" and not session.handled_by:
+            result = self._escalate(
+                session, "Customer addressed a human agent directly",
+                intent="human_agent", confidence=1.0,
+            )
+            result.latency_ms = int((time.perf_counter() - started) * 1000)
+            session.add_message("assistant", result.text)
+            session.record(
+                utterance=text, route=result.route, intent=result.intent,
+                confidence=1.0, latency_ms=result.latency_ms,
+                note=result.debug.get("note", ""),
+            )
+            return result
+
+        result = self._route(session, body if mention else text)
 
         result.latency_ms = int((time.perf_counter() - started) * 1000)
+        result.offer_escalation = bool(session.pending_escalation)
+        result.with_agent = bool(session.handled_by)
+        result.trace = self.trace.to_list()
         session.add_message("assistant", result.text)
+        self._remember(session, text, result)
         session.record(
             utterance=text,
             route=result.route,
@@ -73,17 +216,99 @@ class Router:
             grounding=result.grounding,
             generated=result.generated,
             latency_ms=result.latency_ms,
-            note=result.debug.get("note", ""),
+            note=" · ".join(filter(None, [self.trace.summary,
+                                          result.debug.get("note", "")])),
         )
         return result
+
+    def _remember(self, session: Session, text: str, result: TurnResult) -> None:
+        """Carry a topic, never a sentence, into the customer's next conversation.
+
+        The label is a bag of the question's content words, not the question:
+        stemmed, stopped, capped at four, and only written for a verified
+        customer. That is enough for "you asked about travel insurance last
+        time" and not enough to reconstruct what they typed — which matters,
+        because whatever is stored here outlives the session that produced it.
+        """
+        if not session.customer_id:
+            return
+        topic = " ".join(dict.fromkeys(tokenize(text)))[:60].strip()
+        if result.route in ("escalation", "escalation_offered"):
+            memory_mod.store.remember(session.customer_id, "outcome", "unresolved",
+                                      detail=topic or "an unlisted subject")
+        elif result.route == "rag" and result.sources:
+            memory_mod.store.remember(session.customer_id, "topic",
+                                      result.sources[0]["heading"].lower(),
+                                      detail=result.sources[0]["citation"])
+        elif result.route == "deterministic" and result.intent in (
+                "card_offers", "activate_card"):
+            memory_mod.store.remember(session.customer_id, "campaign", result.intent)
 
     # -- routing ----------------------------------------------------------
 
     def _route(self, session: Session, text: str) -> TurnResult:
-        # 1. A flow already in progress owns the turn. Slot answers ("4471",
-        #    "yes") have no intent signal, so classifying them would misroute.
+        # 0. An outstanding offer of a handoff. Answered first, because "yes"
+        #    means nothing to the classifier and would otherwise be routed as
+        #    an unknown utterance — the same trap the flow escape hatch fixes.
+        if session.pending_escalation:
+            reason = session.pending_escalation
+            session.pending_escalation = None
+            self.trace.add("handoff_offer", "an offer was outstanding",
+                           f"offered because: {reason}")
+
+            if _AFFIRM_RE.match(text):
+                self.trace.decide("handoff_offer", "customer accepted",
+                                  "handing off to a human")
+                return self._escalate(session, reason, intent="escalation_accepted",
+                                      confidence=1.0)
+            if _DECLINE_RE.match(text):
+                self.trace.decide("handoff_offer", "customer declined",
+                                  "assistant continues")
+                return TurnResult(
+                    text=("No problem — I'll keep helping. What else can I look "
+                          "at for you?"),
+                    route="deterministic", intent="escalation_declined",
+                    confidence=1.0, debug={"note": "customer declined the handoff"},
+                )
+            # Anything else is a new question. Dropping the offer and answering
+            # it is the right reading: they moved on.
+
+        # 1. A flow already in progress usually owns the turn, because slot
+        #    answers ("4471", "yes") carry no intent signal and classifying
+        #    them would misroute. But "usually" needs an escape hatch: without
+        #    one the customer is trapped repeating themselves at a prompt they
+        #    are not trying to answer, which is precisely the rule-based
+        #    failure this architecture is supposed to remove.
+        if session.pending_flow:
+            abandon = self._should_abandon_flow(session, text)
+            if abandon:
+                flow_name = session.pending_flow
+                session.reset_flow()
+                session.flow_misses = 0
+                # Fall through to normal routing, and prefix the answer so the
+                # customer knows the earlier request was dropped rather than
+                # silently forgotten.
+                result = self._route_fresh(session, text)
+                result.text = (
+                    f"_No problem — I've stopped the {_flow_label(flow_name)}._"
+                    f"\n\n{result.text}" if result.text else result.text
+                )
+                result.debug["note"] = " · ".join(
+                    filter(None, [f"abandoned:{flow_name}({abandon})",
+                                  result.debug.get("note", "")])
+                )
+                return result
+
         pending = flows.continue_pending(session, text)
         if pending is not None:
+            # Track re-prompts: a flow that keeps asking the same question is
+            # not making progress, and two of those is enough to conclude the
+            # customer has moved on.
+            if pending.note.endswith("_retry"):
+                session.flow_misses += 1
+            else:
+                session.flow_misses = 0
+
             if pending.escalate:
                 return self._escalate(session, pending.escalation_reason,
                                       prefix=pending.text)
@@ -93,10 +318,41 @@ class Router:
                 confidence=1.0, debug={"note": pending.note},
             )
 
-        # 2. Compliance gate - restricted topics never reach a model.
+        return self._route_fresh(session, text)
+
+    def _should_abandon_flow(self, session: Session, text: str) -> str | None:
+        """Reason to drop the in-progress flow, or None to keep it."""
+        if flows.wants_out(text):
+            return "explicit-cancel"
+
+        if session.flow_misses >= flows.MAX_FLOW_MISSES:
+            return f"no-progress-after-{session.flow_misses}"
+
+        # A clearly different request. Verification is exempt: it is a gate in
+        # front of something the customer asked for, so abandoning it on the
+        # intent that triggered it would loop forever.
+        if session.pending_flow == "verify":
+            return None
+
+        # LOW_CONFIDENCE, not HIGH: the bar for *leaving* a flow should be far
+        # lower than the bar for entering one. Slot answers ("2205", "yes",
+        # "debit") classify as unknown or as the current flow's own intent, so
+        # they are safe from this; anything that looks like a different request
+        # at all is better served by dropping the flow than by re-prompting.
+        prediction = self.classifier.predict(text)
+        if (prediction.confidence >= LOW_CONFIDENCE
+                and prediction.intent not in ("unknown", session.pending_flow)):
+            return f"new-intent:{prediction.intent}@{prediction.confidence:.2f}"
+        return None
+
+    def _route_fresh(self, session: Session, text: str) -> TurnResult:
+
+        # Compliance gate - restricted topics never reach a model.
         verdict = guardrails.check_input(text)
         if not verdict.allowed:
             session.low_confidence_streak = 0
+            self.trace.decide("guardrail", f"blocked: {verdict.topic}",
+                              f"{verdict.reason} — no model was called")
             return TurnResult(
                 text=guardrails.RESTRICTED_RESPONSE,
                 route="guardrail", intent=verdict.topic or "restricted",
@@ -104,12 +360,20 @@ class Router:
                 debug={"note": f"blocked:{verdict.topic} - {verdict.reason}"},
             )
 
-        # 3. NLU. High confidence + a scripted flow = deterministic answer.
+        # NLU. High confidence + a scripted flow = deterministic answer.
         prediction = self.classifier.predict(text)
+        self.trace.add(
+            "nlu", f"intent {prediction.intent} @ {prediction.confidence:.2f}",
+            f"threshold {HIGH_CONFIDENCE} for a scripted flow"
+            + (f"; runner-up {prediction.runner_up} @ "
+               f"{prediction.runner_up_confidence:.2f}" if prediction.runner_up else ""))
 
         if prediction.is_high_confidence and prediction.intent != "knowledge_query":
             flow = flows.handle(session, prediction.intent, text)
             if flow.handled:
+                self.trace.decide(
+                    "nlu", "above threshold — scripted flow",
+                    "answer assembled from the customer record; no model involved")
                 session.low_confidence_streak = 0
                 if flow.escalate:
                     return self._escalate(session, flow.escalation_reason,
@@ -122,23 +386,78 @@ class Router:
                     debug={"note": flow.note, "scores": prediction.scores},
                 )
 
-        # 4. Everything else: retrieve, then generate strictly over what we found.
+        # Everything else: retrieve, then generate strictly over what we found.
         return self._answer_from_kb(session, text, prediction)
 
+    def _retrieve(self, text: str) -> tuple[list, str]:
+        """Retrieve passages, optionally through the LLM reranking stage."""
+        if not rerank.enabled():
+            return self.kb.search(text, top_k=3), ""
+
+    def agent_reply(self, session: Session, text: str, staff) -> None:
+        """Record a human agent's reply to the customer.
+
+        Writes an audit row naming the staff member. That row is the point: up
+        to here the trail explains how the *assistant* decided, and once people
+        are replying, "who said this to the customer" is the question a
+        reviewer will actually be asking.
+        """
+        session.handled_by = staff.display_name
+        session.add_message("agent", text, author=staff.display_name)
+        session.record(
+            utterance=text, route="agent", intent="agent_reply",
+            confidence=1.0, actor=staff.username,
+            note=f"reply sent by {staff.username} ({staff.role})",
+        )
+
+        # With a semantic judge downstream, stage one runs for recall: a looser
+        # lexical gate and a wider pool, because the judge — not the threshold —
+        # is what decides relevance on this path.
+        candidates = self.kb.search(
+            text, top_k=rerank.CANDIDATE_POOL, gate=rerank.RECALL_GATE
+        )
+        return rerank.rerank(text, candidates, top_k=3)
+
     def _answer_from_kb(self, session: Session, text: str, prediction) -> TurnResult:
-        passages = self.kb.search(text, top_k=3)
+        # Redact before retrieval and before the model sees anything. Two
+        # separate reasons, both load-bearing:
+        #
+        #   Privacy — the raw text is sent to a third-party LLM provider. A
+        #   customer who pastes a card number was having it forwarded verbatim
+        #   to Groq. Masking it in the audit log afterwards does not unsend it.
+        #
+        #   Retrieval — "my card 4111 1111 1111 1111 was charged twice" tokenises
+        #   the digits, and those tokens appear in no passage, so the coverage
+        #   score collapses and a legitimate dispute question retrieves nothing.
+        safe_text = guardrails.redact(text)
+        if safe_text != text:
+            self.trace.add("privacy", "sensitive data masked",
+                           "redacted before retrieval and before the model")
+        passages, rerank_note = self._retrieve(safe_text)
+        self.trace.add(
+            "retrieval",
+            f"{len(passages)} passage(s) above the floor" if passages
+            else "nothing cleared the relevance floor",
+            "; ".join(f"{p.passage.citation} (cov {p.score:.2f})" for p in passages[:3])
+            or f"floor {MIN_RELEVANCE}")
 
         if not passages:
             # No verified source covers this. Guessing here is exactly the
             # hallucination risk the architecture exists to remove.
-            return self._escalate(
-                session,
-                "No supporting knowledge-base passage found for the question",
-                intent=prediction.intent, confidence=prediction.confidence,
+            reason = "No supporting knowledge-base passage found for the question"
+            if rerank_note.startswith("rerank:rejected-all"):
+                # A different, stronger statement than "nothing matched the
+                # words": a model read the candidates and judged none of them
+                # to answer the question.
+                reason = "Reranker judged no retrieved passage relevant"
+            self.trace.decide("retrieval", "no verified source",
+                              "offering a human rather than answering")
+            return self._offer_escalation(
+                session, reason, confidence=prediction.confidence,
             )
 
-        history = session.transcript(limit=6)
-        result = llm.answer_from_kb(text, passages, history=history)
+        history = guardrails.redact(session.transcript(limit=6))
+        result = llm.answer_from_kb(safe_text, passages, history=history)
 
         if not result.text.strip():
             return self._escalate(
@@ -151,10 +470,10 @@ class Router:
         # asked something the vendor's classifiers object to, and a human
         # should see it.
         if result.refused:
-            return self._escalate(
+            return self._offer_escalation(
                 session,
                 f"Provider safety system declined the request ({result.provider})",
-                intent=prediction.intent, confidence=prediction.confidence,
+                confidence=prediction.confidence,
             )
 
         # 5. Grounding check on the way out: if the answer drifted off the
@@ -162,28 +481,36 @@ class Router:
         context = " ".join(p.passage.text for p in passages)
         grounding = round(guardrails.grounding_score(result.text, context), 3)
 
-        if result.generated and grounding < guardrails.MIN_GROUNDING:
-            return self._escalate(
+        self.trace.add(
+            "generation",
+            "answer written by the model" if result.generated
+            else "extractive fallback (no model)",
+            f"grounding {grounding:.2f} against a {guardrails.MIN_GROUNDING} floor")
+
+        if result.generated and grounding < policy.current.min_grounding:
+            self.trace.decide("generation", "failed the grounding check",
+                              "answer discarded; offering a human")
+            return self._offer_escalation(
                 session,
                 f"Answer failed the grounding check ({grounding:.2f} < "
-                f"{guardrails.MIN_GROUNDING})",
-                intent=prediction.intent, confidence=prediction.confidence,
-                grounding=grounding,
+                f"{policy.current.min_grounding})",
+                confidence=prediction.confidence,
             )
 
         # Low classifier confidence twice running means we're not converging.
         if prediction.is_unknown:
             session.low_confidence_streak += 1
             if session.low_confidence_streak >= MAX_LOW_CONFIDENCE_STREAK:
-                return self._escalate(
+                return self._offer_escalation(
                     session,
                     "Intent confidence stayed below threshold across consecutive turns",
-                    intent=prediction.intent, confidence=prediction.confidence,
-                    prefix=result.text,
+                    confidence=prediction.confidence, prefix=result.text,
                 )
         else:
             session.low_confidence_streak = 0
 
+        self.trace.decide("generation", "grounded answer served",
+                          f"cited {len(passages)} passage(s)")
         return TurnResult(
             text=result.text,
             route="rag",
@@ -195,17 +522,56 @@ class Router:
                 "heading": p.passage.heading,
                 "source": p.passage.source,
                 "score": p.score,
+                "bm25": p.bm25,
+                "fusion": p.fusion,
+                "rerank": p.rerank,
+                "breadcrumb": p.passage.breadcrumb,
             } for p in passages],
             generated=result.generated,
             grounding=grounding,
             debug={
-                "note": result.error or ("llm" if result.generated else "extractive"),
+                "note": " · ".join(filter(None, [
+                    rerank_note,
+                    result.error or ("llm" if result.generated else "extractive"),
+                ])),
                 "scores": prediction.scores,
                 "tokens": {"in": result.input_tokens, "out": result.output_tokens},
             },
         )
 
     # -- escalation -------------------------------------------------------
+
+    def _offer_escalation(
+        self,
+        session: Session,
+        reason: str,
+        intent: str = "escalation_offered",
+        confidence: float = 0.0,
+        prefix: str = "",
+    ) -> TurnResult:
+        """Ask before handing off, rather than handing off and announcing it.
+
+        The customer, not the assistant, should decide whether their time is
+        better spent in a queue. Plenty of people would rather rephrase the
+        question than wait — and a bot that escalates unilaterally the first
+        time it is stuck feels like it gave up on them.
+
+        Handoffs the customer already asked for, and security failures, are
+        exempt: there is nothing to consult them about in either case.
+        """
+        session.pending_escalation = reason
+        body = (
+            "I don't have a verified answer for that one.\n\n"
+            "**Would you like me to connect you to a specialist?** "
+            "They'll get the full conversation, so you won't repeat yourself. "
+            "Or ask me something else and I'll keep helping."
+        )
+        message = f"{prefix.strip()}\n\n{body}" if prefix.strip() else body
+        return TurnResult(
+            text=message, route="escalation_offered", intent=intent,
+            confidence=confidence, escalation_reason=reason,
+            debug={"note": f"offered handoff: {reason}"},
+        )
 
     def _escalate(
         self,
@@ -217,6 +583,11 @@ class Router:
         grounding: float | None = None,
     ) -> TurnResult:
         reason = reason or "Assistant could not resolve the request"
+
+        # Announcing the handoff once is reassuring; announcing it on every
+        # subsequent turn reads as broken, because nothing visibly changed the
+        # first three times it was said.
+        already_queued = session.escalated
         session.escalated = True
         session.escalation_reason = reason
         session.reset_flow()
@@ -225,8 +596,9 @@ class Router:
         # agent picking it up has it the moment they open the queue.
         session.escalation_summary = self.build_summary(session).text
 
-        message = (f"{prefix.strip()}\n\n{ESCALATION_MESSAGE}" if prefix.strip()
-                   else ESCALATION_MESSAGE)
+        announcement = REQUEUED_MESSAGE if already_queued else ESCALATION_MESSAGE
+        message = (f"{prefix.strip()}\n\n{announcement}" if prefix.strip()
+                   else announcement)
         return TurnResult(
             text=message, route="escalation", intent=intent, confidence=confidence,
             escalated=True, escalation_reason=reason, grounding=grounding,
