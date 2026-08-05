@@ -38,6 +38,12 @@ individual customer's account, application, or eligibility - you cannot see \
 account data.
 4. Never ask for, repeat, or confirm a full card number, PIN, password, or \
 one-time passcode.
+5. Some passages are market references about OTHER banks' products, marked with \
+a doc_id beginning KB-MKT-. They are compiled from public sources, not verified \
+by this bank. When you answer from one, say so in a short closing line and tell \
+the customer to confirm with the issuing bank. Never present another bank's fee, \
+rate or limit as something this bank stands behind, and never answer a question \
+about a customer's own account at another bank - you hold no data from one.
 
 Style: second person, 2-4 short sentences or a brief bullet list. No preamble, \
 no restating the question. Do not cite document IDs - the interface renders \
@@ -234,12 +240,37 @@ def build_summary_request(transcript: str, context_lines: list[str]) -> LLMReque
 # generated answer, but it cannot hallucinate - the right trade-off for a
 # fallback path in a regulated setting.
 
+# Documents about other banks' products. They are in the corpus so the
+# assistant can help a customer compare, but they are compiled from public
+# pages and review sites rather than approved by this bank - so an answer drawn
+# from one must not be dressed in the authority the rest of the corpus has.
+UNVERIFIED_DOC_PREFIX = "KB-MKT-"
+
+
+def is_unverified(passage) -> bool:
+    return passage.doc_id.startswith(UNVERIFIED_DOC_PREFIX)
+
+
 def extractive_answer(passages: list[RetrievedPassage]) -> str:
     if not passages:
         return ""
     best = passages[0].passage
     sentences = re.split(r"(?<=[.!?])\s+", best.text)
     excerpt = " ".join(sentences[:3]).strip()
+
+    if is_unverified(best):
+        # Saying "taken word for word from our own guidance, so you can rely on
+        # it" about a competitor's fee schedule is precisely the misattribution
+        # these documents warn about in their own headers. The sentence was
+        # written for the bank's own material and quietly became false the
+        # moment market references entered the corpus.
+        return (f"Here's what our market notes say about "
+                f"**{best.heading.lower()}**:\n\n{excerpt}\n\n"
+                f"_This is reference information about another bank's product, "
+                f"gathered from public sources rather than verified by us. "
+                f"Please confirm the current terms with them before relying on "
+                f"it._")
+
     return (f"Here's what we have on **{best.heading.lower()}** - this is taken "
             f"word for word from our own guidance, so you can rely on it:\n\n"
             f"{excerpt}\n\n"

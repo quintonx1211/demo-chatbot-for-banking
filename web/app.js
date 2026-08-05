@@ -401,6 +401,31 @@ async function refreshDashboard() {
   ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
    + '<p class="hint" style="margin:10px 0 0">Written only after verification, '
    + 'and cleared with the sessions.</p>';
+
+  const dbs = data.database || {};
+  const byStatus = dbs.cards_by_status || {};
+  $("db-box").innerHTML = [
+    ["Customers", dbs.customers], ["Cards", dbs.cards],
+    ["Card state changes", dbs.card_events],
+  ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
+   + Object.entries(byStatus).map(([k, v]) =>
+       `<div class="kv"><span>&nbsp;&nbsp;${escapeHtml(k)}</span><span>${v}</span></div>`).join("")
+   + '<p class="hint" style="margin:10px 0 0">sqlite, reseeded by Clear sessions '
+   + 'and by Seed demo traffic.</p>';
+
+  const events = data.card_events || [];
+  $("card-events").innerHTML = events.length
+    ? `<table class="events"><thead><tr><th>Card</th><th>Transition</th>
+        <th>Action</th><th>By</th><th>Ref</th><th>When</th></tr></thead><tbody>`
+      + events.map((e) => `<tr>
+          <td><code>${escapeHtml(e.card_id)}</code></td>
+          <td>${escapeHtml(e.from_status || "-")} &rarr; <b>${escapeHtml(e.to_status)}</b></td>
+          <td>${escapeHtml(e.action)}</td>
+          <td>${escapeHtml(e.actor)}</td>
+          <td>${escapeHtml(e.reference || "-")}</td>
+          <td>${escapeHtml((e.at || "").replace("T", " ").replace("+00:00", ""))}</td>
+        </tr>`).join("") + "</tbody></table>"
+    : '<p class="empty">No card actions yet. Block or freeze a card in the customer chat and it appears here.</p>';
 }
 
 /* ---------- queue ---------- */

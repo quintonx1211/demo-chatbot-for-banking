@@ -8,27 +8,23 @@ of how each answer was produced.
 from __future__ import annotations
 
 import itertools
-import json
 import secrets
 import time
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
 from threading import Lock
 
-from . import guardrails
-
-ACCOUNTS_PATH = Path(__file__).resolve().parent.parent / "data" / "accounts.json"
-
-
-def _load_customers() -> list[dict]:
-    return json.loads(ACCOUNTS_PATH.read_text(encoding="utf-8"))["customers"]
-
-
-CUSTOMERS = _load_customers()
-
+from . import db, guardrails
 
 def find_customer(customer_id: str) -> dict | None:
-    return next((c for c in CUSTOMERS if c["customer_id"] == customer_id), None)
+    """Read a customer from the database, fresh, every time.
+
+    Deliberately not cached. The previous version held one shared list in
+    module state, so a card blocked in one conversation was blocked in every
+    other one, and stayed blocked after "Clear sessions". Re-reading costs a
+    few microseconds against a handful of local CSV rows and removes a class of
+    bug where two sessions disagree about what a card's status is.
+    """
+    return db.get_customer(customer_id)
 
 
 @dataclass

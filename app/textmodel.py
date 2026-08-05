@@ -12,7 +12,16 @@ import re
 from collections import Counter
 from typing import Iterable, Sequence
 
-_TOKEN_RE = re.compile(r"[a-z0-9']+")
+# Unicode-aware, and it has to be. `[a-z0-9']+` silently shredded every
+# non-ASCII script: "phí thường niên thẻ tín dụng" tokenised to
+# ['ph', 'th', 'ng', 'ni', 'n', 'th', 't', 'n', 'd', 'ng'] - fragments split at
+# each accented character, matching nothing and carrying no meaning. A question
+# asked in Vietnamese retrieved zero passages and escalated, which looks like
+# the knowledge base is missing rather than like the tokeniser is broken.
+#
+# `\w` under Python's default Unicode semantics keeps letters, digits and
+# underscore in any script, so ASCII behaviour is unchanged.
+_TOKEN_RE = re.compile(r"[\w']+", re.UNICODE)
 
 # Stop list covering both function words and question scaffolding. Dropping
 # "what / how / much / can" matters more than it looks: they appear in almost
@@ -28,9 +37,27 @@ _STOPWORDS = {
     "what", "how", "when", "where", "who", "why", "which", "much", "many",
     "do", "does", "did", "can", "could", "would", "will", "should", "need",
     "want", "get", "got", "have", "has", "had", "any", "some", "all",
+    # Temporal scaffolding. Same category as the question words above: they
+    # appear in a question without being what it is about. "today" was letting
+    # "what is the weather in Hanoi today" clear the relevance floor against a
+    # document whose provenance note happens to say "a rate correct today may
+    # not be correct next quarter" - one shared word, no shared subject.
+    "today", "tomorrow", "yesterday", "now", "currently", "still", "yet",
+    "already", "soon", "recently",
     # pronouns and pleasantries
     "i", "me", "my", "mine", "we", "us", "our", "you", "your", "they", "them",
     "please", "hi", "hello", "hey", "thanks", "thank",
+    # Vietnamese. The same job as the English list above and for the same
+    # reason: without it "là", "của" and "bao nhiêu" appear in nearly every
+    # question, so an off-topic query still shares terms with every passage
+    # and clears the coverage floor on function words alone.
+    "là", "và", "của", "cho", "với", "các", "những", "một", "này", "đó",
+    "thì", "mà", "ở", "tại", "trong", "ngoài", "khi", "nếu", "hoặc", "hay",
+    "được", "bị", "có", "không", "chưa", "đã", "sẽ", "đang", "rồi",
+    "tôi", "mình", "bạn", "em", "anh", "chị", "chúng", "ta", "họ",
+    "bao", "nhiêu", "gì", "nào", "sao", "đâu", "ai", "thế", "vậy",
+    "làm", "muốn", "cần", "phải", "nên", "để", "về", "từ", "đến", "theo",
+    "xin", "chào", "cảm", "ơn", "ạ", "nhé", "vui", "lòng",
 }
 
 # Very small stemmer: folds the plural/gerund forms that show up in the demo

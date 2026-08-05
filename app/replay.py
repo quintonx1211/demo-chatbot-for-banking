@@ -17,7 +17,34 @@ dashboard a lie of a different kind.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+from . import db
 from .router import Router
+
+# Credentials are looked up from the fixture by scenario, never written in.
+# Hard-coded codes went stale the moment the customer set was regenerated, and
+# a replay whose verification silently fails produces a dashboard full of
+# escalations that say nothing about the assistant.
+_FIXTURE = json.loads(
+    (Path(__file__).resolve().parent.parent / "data" / "accounts.json")
+    .read_text(encoding="utf-8"))["customers"]
+_BY_PROFILE = {c["profile"]: c for c in _FIXTURE}
+
+
+def cred(profile: str) -> str:
+    """The two verification codes for the customer playing `profile`."""
+    customer = _BY_PROFILE[profile]
+    return f"{customer['phone_last4']} {customer['national_id_last4']}"
+
+
+TRAVEL = cred("travel_offer")
+DORMANT = cred("dormant_card")
+INACTIVE = cred("inactive_card")
+LOAN = cred("loan_in_review")
+MORTGAGE = cred("mortgage_approved")
+FROZEN = cred("frozen_card")
 
 # Each entry is one conversation: a list of customer messages in order.
 CONVERSATIONS: list[list[str]] = [
@@ -45,15 +72,21 @@ CONVERSATIONS: list[list[str]] = [
     ["What happens if I go overdrawn?", "And is there a cap on that?"],
 
     # --- account actions: verification then a scripted flow ---
-    ["Check my balance", "4471 0512"],
-    ["Show me my recent transactions", "9032 8847"],
-    ["What's the status of my loan application?", "4471 0512"],
-    ["What's the status of my mortgage?", "9032 8847"],
-    ["Can you tell me who am I?", "4471 0512"],
-    ["I lost my debit card", "9032 8847", "yes"],
+    ["Check my balance", TRAVEL],
+    ["Show me my recent transactions", DORMANT],
+    ["What's the status of my loan application?", LOAN],
+    ["What's the status of my mortgage?", MORTGAGE],
+    ["Can you tell me who am I?", TRAVEL],
+    ["I lost my debit card", DORMANT, "yes"],
+
+    # --- freeze, then change their mind: the reversible path ---
+    # Present so the card-event log shows a transition going back, not only
+    # one-way blocks. The reversible case is the one customers actually hit.
+    ["freeze my card", TRAVEL, "yes"],
+    ["unblock my card", FROZEN, "yes"],
 
     # --- customer changes their mind mid-flow (the escape path) ---
-    ["I lost my debit card", "4471 0512", "actually never mind, what are your branch hours?"],
+    ["I lost my debit card", TRAVEL, "actually never mind, what are your branch hours?"],
 
     # --- regulated topics: blocked before any model runs ---
     ["Should I invest my savings in tech stocks?"],
@@ -80,12 +113,12 @@ CONVERSATIONS: list[list[str]] = [
     ["Does contactless work on foreign transit systems?"],
 
     # --- campaign scenarios (the client's three) ---
-    ["How do I activate my new card?", "3390 2266"],
-    ["My new card arrived, how do I start using it?", "3390 2266"],
-    ["Do you have any offers for me?", "4471 0512"],
-    ["Am I eligible for an upgrade?", "4471 0512"],
-    ["Any promotions for me?", "9032 8847"],
-    ["My card hasn't been used in ages, is it still ok?", "9032 8847"],
+    ["How do I activate my new card?", INACTIVE],
+    ["My new card arrived, how do I start using it?", INACTIVE],
+    ["Do you have any offers for me?", TRAVEL],
+    ["Am I eligible for an upgrade?", TRAVEL],
+    ["Any promotions for me?", DORMANT],
+    ["My card hasn't been used in ages, is it still ok?", DORMANT],
 
     # --- handoff offered, then accepted / declined ---
     ["Do you offer safe deposit boxes?", "yes"],
@@ -102,7 +135,15 @@ CONVERSATIONS: list[list[str]] = [
 
 
 def seed(router: Router) -> dict:
-    """Replay every conversation through `router`. Returns a short summary."""
+    """Replay every conversation through `router`. Returns a short summary.
+
+    Resets the database first. These conversations perform real account
+    actions now - one of them reports a card lost, which blocks it and issues a
+    replacement - so without a reset each press of "Seed demo traffic" would
+    leave the demo data further from its starting state than the last. A seed
+    that degrades what it seeds is worse than no seed.
+    """
+    db.reset()
     before = len(router.sessions._sessions)
 
     for messages in CONVERSATIONS:

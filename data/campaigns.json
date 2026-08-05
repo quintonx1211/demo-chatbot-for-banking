@@ -11,7 +11,6 @@
   ],
   "generated_at": "2026-08-04T02:00:00Z",
   "source": "CRM daily extract v3",
-
   "campaigns": {
     "CARD-ACTIVATION": {
       "name": "Card activation onboarding",
@@ -60,35 +59,40 @@
       "deeplink": "https://app.example-bank.test/cards/limit-review"
     }
   },
-
   "eligibility": [
     {
-      "customer_id": "CUS-100294",
+      "customer_id": "CUS-100301",
       "segment": "MASS",
-      "campaigns": ["XS-TRAVEL-2026Q3"],
+      "campaigns": [
+        "XS-TRAVEL-2026Q3"
+      ],
       "context": {
         "reason": "12 foreign-currency purchases in the last 90 days",
-        "fees_paid_last_90d": 41.6
+        "fees_paid_last_90d": 1040000
       }
     },
     {
-      "customer_id": "CUS-100571",
+      "customer_id": "CUS-100308",
       "segment": "MASS",
-      "campaigns": ["DORMANT-REACTIVATION", "XS-CASHBACK-2026Q3"],
+      "campaigns": [
+        "DORMANT-REACTIVATION",
+        "XS-CASHBACK-2026Q3"
+      ],
       "context": {
         "reason": "no card activity for 214 days",
         "dormant_since": "2026-01-02",
-        "card_mask": "****7710"
+        "card_mask": "****9414"
       }
     },
     {
-      "customer_id": "CUS-100742",
+      "customer_id": "CUS-100315",
       "segment": "MASS",
-      "campaigns": ["CARD-ACTIVATION"],
+      "campaigns": [
+        "CARD-ACTIVATION"
+      ],
       "context": {
-        "reason": "card issued 11 days ago, never activated",
-        "issued_on": "2026-07-24",
-        "card_mask": "****3390"
+        "reason": "card issued 2026-07-24, not yet activated",
+        "card_mask": "****6387"
       }
     }
   ]

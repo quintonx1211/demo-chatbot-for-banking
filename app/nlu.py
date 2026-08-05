@@ -50,14 +50,53 @@ INTENTS: dict[str, dict] = {
             "block my card",
             "I lost my debit card",
             "my credit card was stolen",
-            "freeze my card immediately",
             "someone stole my wallet block the card",
             "deactivate my card now",
             "I need to report my card lost",
         ],
-        "anchors": [r"\b(block|freeze|deactivate|cancel)\b.*\bcard\b",
+        # "freeze" is deliberately NOT here any more. Freezing and reporting a
+        # card lost are different requests with different consequences - one is
+        # reversible, the other issues a replacement and can never be undone -
+        # and routing both to the same flow is what left customers with a
+        # blocked card and no way back.
+        "anchors": [r"\b(block|deactivate)\b.*\bcard\b",
                     r"\bcard\b.*\b(lost|stolen|missing)\b",
-                    r"\b(lost|stolen)\b.*\bcard\b"],
+                    r"\b(lost|stolen)\b.*\bcard\b",
+                    r"\breport\b.*\bcard\b.*\b(lost|stolen)\b"],
+    },
+    "freeze_card": {
+        "utterances": [
+            "freeze my card",
+            "temporarily lock my card",
+            "put a hold on my card",
+            "I've misplaced my card, pause it for now",
+            "can you suspend my card until I find it",
+            "lock my card temporarily",
+        ],
+        "anchors": [r"\b(freeze|suspend|pause|lock)\b[^?.]{0,20}\bcard\b",
+                    r"\bcard\b[^?.]{0,16}\b(freeze|frozen|suspend|paused|locked)\b",
+                    r"\btemporar\w+\b[^?.]{0,20}\b(block|lock|stop)\b"],
+    },
+    "unfreeze_card": {
+        "utterances": [
+            "unblock my card",
+            "unfreeze my card",
+            "I found my card, please turn it back on",
+            "can you unlock my card again",
+            "remove the freeze on my card",
+            "my card is frozen, switch it back on",
+            "undo the block on my card",
+        ],
+        # The gap that produced the bug this intent exists to fix: a customer
+        # who froze a card had no phrase that reached anything. "unblock my
+        # card" classified as `unknown` and fell through to retrieval, which
+        # found nothing, so the assistant offered a human agent for an action
+        # it was perfectly able to perform itself.
+        "anchors": [r"\bun(block|freeze|lock|suspend)\w*\b",
+                    r"\b(undo|remove|lift|cancel)\b[^?.]{0,20}"
+                    r"\b(block|freeze|hold|lock)\b",
+                    r"\b(turn|switch)\b[^?.]{0,12}\b(back on|on again)\b",
+                    r"\bfound\b[^?.]{0,16}\bcard\b"],
     },
     "loan_status": {
         "utterances": [
@@ -197,7 +236,7 @@ INTENTS: dict[str, dict] = {
 # information that needed none.
 PERSONAL_INTENTS = frozenset({
     "balance_inquiry", "transaction_history", "loan_status",
-    "account_summary", "block_card",
+    "account_summary", "block_card", "freeze_card", "unfreeze_card",
 })
 
 # Questions about how something *works*, as opposed to requests for a

@@ -126,9 +126,11 @@ Open the **Customer chat** tab. Each suggestion below hits a different branch:
 
 | Try this | What happens |
 |---|---|
-| `Check my balance` → `4471 0512` | High-confidence intent → identity verification (phone + national ID) → deterministic flow reading the mock core-banking record |
-| `I lost my debit card` → `4471 0512` → `8891` → `yes` | Scripted flow with slot filling and an explicit confirmation before an irreversible action |
-| `What's the status of my loan application?` → `9032 8847` | Deterministic lookup, no model involved |
+| `Check my balance` → `9411 3147` | High-confidence intent → identity verification (phone + national ID) → deterministic flow reading the customer record |
+| `freeze my card` → `7091 9527` → `yes`, then `unblock my card` → `yes` | A reversible card action, written to `data/db/cards.csv` and logged |
+| `I lost my debit card` → `5194 9572` → `6591` → `yes` | Irreversible: the card is blocked for good and a replacement is issued |
+| `What's the status of my loan application?` → `9170 3723` | Deterministic lookup, no model involved |
+| `what is the annual fee on Vietcombank Visa Platinum` | Retrieval from a market-reference document, answered with an explicit "not verified by us" note |
 | `What are your fees for international transfers?` | No scripted flow matches → retrieval over the knowledge base → LLM answers strictly from the retrieved passages, with sources shown |
 | `Should I invest my savings in tech stocks?` | Compliance guardrail - refused before any model call |
 | `Do you offer crop insurance for vineyards?` | No supporting passage exists → escalation rather than a guess |
@@ -136,6 +138,10 @@ Open the **Customer chat** tab. Each suggestion below hits a different branch:
 
 Then open the **Agent console** tab to see the escalated conversation, the
 handover brief, the full transcript, and the per-turn audit trail.
+
+Full credentials for all fifteen demo customers, and the scenario each one
+exercises, are in **`TEST-SCENARIOS.txt`** - along with the questions that are
+known to fail, which is the more useful half of that file.
 
 ## Retrieval quality
 
@@ -359,7 +365,7 @@ tab says so on screen rather than only here.
 ```
 customer message
       │
-      ├─ 1. pending flow?  ────────────►  deterministic  (slot answers like "4471 0512" or "yes"
+      ├─ 1. pending flow?  ────────────►  deterministic  (slot answers like "9411 3147" or "yes"
       │                                                    carry no intent signal, so an
       │                                                    in-progress flow owns the turn)
       ├─ 2. restricted topic? ─────────►  guardrail      (investment / tax / legal - refused
@@ -390,7 +396,7 @@ reproducible and auditable. `flows.py` contains no LLM call at all.
 **Identity verification is two independent factors, checked together.** Phone
 last-4 alone was a single 4-digit secret with no lockout wider than one
 session - a fresh session resets the 3-attempt counter, so it does not stop
-guessing, only slow it per session. Adding the national ID (CCCD) last-4 as a
+guessing, only slow it per session. Adding the national ID (ID) last-4 as a
 second factor, matched together against the same customer record, raises the
 search space from "guess one code" to "guess two codes for the same person at
 once" - the cheapest real improvement available without a true step-up
@@ -431,6 +437,10 @@ SSNs, emails and phone numbers (`guardrails.redact`).
 ```
 server.py            stdlib HTTP server + JSON API
 smoke_test.py        end-to-end test of all seven routing branches
+make_customers.py    regenerates the 15-customer fixture (deterministic)
+compare_grounding.py grounded vs ungrounded, side by side, from the terminal
+diagnose_provider.py why a provider call is failing, without printing the key
+TEST-SCENARIOS.txt   manual test script, structured by case-study capability
 provider_test.py     adapter contract test (stub adapters, no SDK needed)
 eval_retrieval.py    labelled retrieval metrics (P@1, recall, MRR, rejection)
 sweep_retrieval.py   compares ranking strategies before one is adopted
@@ -449,10 +459,21 @@ app/
     runtime.py       runtime provider + masked key configuration
     rerank.py        optional LLM reranking / semantic rejection
   guardrails.py      restricted topics, PII redaction, grounding check
+  db.py              CSV-backed records + the card-status state machine
+  campaigns.py       overnight CRM batch - eligibility is read, never inferred
+  memory.py          cross-session recall, topics and outcomes only
+  policy.py          strictness presets read from config.json
+  topics.py          clusters what the assistant could not answer
+  trace.py           the decision path shown in the routing inspector
   session.py         transcript, verification state, audit trail
   textmodel.py       dependency-free TF-IDF / coverage scoring
-data/kb/*.md         the bank's verified knowledge base (4 docs, 21 passages)
-data/accounts.json   mock core-banking records for two customers
+data/kb/*.md         the knowledge base (16 documents, 105 passages)
+                     - KB-MKT-* are competitor references, NOT verified by
+                       this bank, and answers from them say so
+data/accounts.json   the customer fixture, written by make_customers.py
+data/db/*.csv        live records - open them in Excel during a demo and watch
+                     a card status change as the assistant changes it
+data/campaigns.json  the overnight campaign batch
 web/                 single-page customer chat + agent console
 ```
 

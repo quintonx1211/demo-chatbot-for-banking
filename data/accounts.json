@@ -1,167 +1,999 @@
 {
   "customers": [
     {
-      "customer_id": "CUS-100294",
-      "name": "Maria Alvarez",
-      "dob": "1988-03-11",
-      "phone_last4": "4471",
-      "national_id_last4": "0512",
+      "customer_id": "CUS-100301",
+      "name": "Nguyen Van An",
+      "given_name": "An",
+      "segment": "MASS",
+      "profile": "travel_offer",
+      "dob": "1997-08-20",
+      "phone_last4": "9411",
+      "national_id_last4": "3147",
       "accounts": [
         {
-          "account_id": "ACC-4471-0021",
+          "account_id": "ACC-9411-3101",
           "type": "Everyday Checking",
-          "mask": "****0021",
-          "balance": 2841.17,
-          "available": 2741.17,
-          "currency": "USD"
-        },
-        {
-          "account_id": "ACC-4471-0088",
-          "type": "Savings",
-          "mask": "****0088",
-          "balance": 15320.4,
-          "available": 15320.4,
-          "currency": "USD"
+          "mask": "****3101",
+          "balance": 35918993.55,
+          "available": 33418993.55,
+          "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-8891",
+          "card_id": "CRD-7062",
           "type": "Debit",
-          "mask": "****8891",
+          "mask": "****7062",
           "status": "active",
-          "linked_account": "ACC-4471-0021"
-        },
-        {
-          "card_id": "CRD-2205",
-          "type": "Credit",
-          "mask": "****2205",
-          "status": "active",
-          "linked_account": "ACC-4471-0021"
-        }
-      ],
-      "loans": [
-        {
-          "application_id": "LN-2026-00841",
-          "product": "Auto Loan",
-          "amount": 24000,
-          "status": "In Review",
-          "submitted_on": "2026-07-29",
-          "note": "Underwriter has the file. Decision expected by 2026-08-05."
-        }
-      ],
-      "transactions": [
-        {
-          "date": "2026-08-02",
-          "description": "GREENLEAF GROCERY",
-          "amount": -84.22
-        },
-        {
-          "date": "2026-08-01",
-          "description": "PAYROLL DEPOSIT",
-          "amount": 3120.0
-        },
-        {
-          "date": "2026-07-31",
-          "description": "CITY TRANSIT AUTHORITY",
-          "amount": -42.5
-        },
-        {
-          "date": "2026-07-30",
-          "description": "NORTHSIDE PHARMACY",
-          "amount": -19.87
-        },
-        {
-          "date": "2026-07-29",
-          "description": "STREAMING SERVICE MONTHLY",
-          "amount": -15.99
-        }
-      ]
-    },
-    {
-      "customer_id": "CUS-100571",
-      "name": "Daniel Okafor",
-      "dob": "1975-11-02",
-      "phone_last4": "9032",
-      "national_id_last4": "8847",
-      "accounts": [
-        {
-          "account_id": "ACC-9032-0140",
-          "type": "Premier Checking",
-          "mask": "****0140",
-          "balance": 48210.05,
-          "available": 47210.05,
-          "currency": "USD"
-        }
-      ],
-      "cards": [
-        {
-          "card_id": "CRD-7710",
-          "type": "Debit",
-          "mask": "****7710",
-          "status": "active",
-          "linked_account": "ACC-9032-0140"
-        }
-      ],
-      "loans": [
-        {
-          "application_id": "LN-2026-00612",
-          "product": "Residential Mortgage",
-          "amount": 410000,
-          "status": "Pending Documents",
-          "submitted_on": "2026-07-14",
-          "note": "Awaiting proof of homeowner's insurance and the property appraisal."
-        }
-      ],
-      "transactions": [
-        {
-          "date": "2026-08-03",
-          "description": "HARBOUR POINT DINER",
-          "amount": -63.4
-        },
-        {
-          "date": "2026-08-02",
-          "description": "WIRE TRANSFER OUT",
-          "amount": -5000.0
-        },
-        {
-          "date": "2026-07-30",
-          "description": "CONSULTING INVOICE 2291",
-          "amount": 8400.0
-        }
-      ]
-    },
-    {
-      "customer_id": "CUS-100742",
-      "name": "Linh Pham",
-      "dob": "1996-09-18",
-      "phone_last4": "3390",
-      "national_id_last4": "2266",
-      "accounts": [
-        {
-          "account_id": "ACC-3390-0007",
-          "type": "Everyday Checking",
-          "mask": "****0007",
-          "balance": 640.25,
-          "available": 640.25,
-          "currency": "USD"
-        }
-      ],
-      "cards": [
-        {
-          "card_id": "CRD-3390",
-          "type": "Debit",
-          "mask": "****3390",
-          "status": "inactive",
-          "linked_account": "ACC-3390-0007"
+          "linked_account": "ACC-9411-3101"
         }
       ],
       "loans": [],
       "transactions": [
         {
+          "date": "2026-08-05",
+          "description": "GRAB TRANSPORT",
+          "amount": -3654000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "SALARY CREDIT",
+          "amount": 24713000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "SALARY CREDIT",
+          "amount": 23906000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "VINMART SUPERMARKET",
+          "amount": -2774000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100308",
+      "name": "Tran Thi Bich",
+      "given_name": "Bich",
+      "segment": "MASS",
+      "profile": "dormant_card",
+      "dob": "1988-01-01",
+      "phone_last4": "8502",
+      "national_id_last4": "1346",
+      "accounts": [
+        {
+          "account_id": "ACC-8502-8201",
+          "type": "Everyday Checking",
+          "mask": "****8201",
+          "balance": 16526147.99,
+          "available": 16526147.99,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-9414",
+          "type": "Debit",
+          "mask": "****9414",
+          "status": "dormant",
+          "linked_account": "ACC-8502-8201"
+        }
+      ],
+      "loans": [],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "WATER UTILITY",
+          "amount": -3809000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "WATER UTILITY",
+          "amount": -409000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "MOBILE TOPUP",
+          "amount": -37000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "SALARY CREDIT",
+          "amount": 12112000.0
+        },
+        {
           "date": "2026-08-01",
-          "description": "OPENING DEPOSIT",
-          "amount": 640.25
+          "description": "CGV CINEMA",
+          "amount": -2701000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100315",
+      "name": "Le Minh Chau",
+      "given_name": "Chau",
+      "segment": "MASS",
+      "profile": "inactive_card",
+      "dob": "1983-04-08",
+      "phone_last4": "7454",
+      "national_id_last4": "9005",
+      "accounts": [
+        {
+          "account_id": "ACC-7454-4801",
+          "type": "Everyday Checking",
+          "mask": "****4801",
+          "balance": 32760536.24,
+          "available": 32760536.24,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-6387",
+          "type": "Debit",
+          "mask": "****6387",
+          "status": "inactive",
+          "linked_account": "ACC-7454-4801"
+        }
+      ],
+      "loans": [],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "PETROLIMEX FUEL",
+          "amount": -639000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "SALARY CREDIT",
+          "amount": 22957000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "SALARY CREDIT",
+          "amount": 21711000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "SALARY CREDIT",
+          "amount": 15337000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "SALARY CREDIT",
+          "amount": 22740000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100322",
+      "name": "Pham Quoc Dung",
+      "given_name": "Dung",
+      "segment": "PRIORITY",
+      "profile": "high_balance",
+      "dob": "2001-08-18",
+      "phone_last4": "3142",
+      "national_id_last4": "2902",
+      "accounts": [
+        {
+          "account_id": "ACC-3142-9001",
+          "type": "Everyday Checking",
+          "mask": "****9001",
+          "balance": 872242026.21,
+          "available": 869742026.21,
+          "currency": "VND"
+        },
+        {
+          "account_id": "ACC-3142-6288",
+          "type": "Savings",
+          "mask": "****6288",
+          "balance": 375888496.62,
+          "available": 375888496.62,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-5792",
+          "type": "Debit",
+          "mask": "****5792",
+          "status": "active",
+          "linked_account": "ACC-3142-9001"
+        },
+        {
+          "card_id": "CRD-1208",
+          "type": "Credit",
+          "mask": "****1208",
+          "status": "active",
+          "linked_account": "ACC-3142-9001"
+        }
+      ],
+      "loans": [],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "SALARY CREDIT",
+          "amount": 10894000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "THE GIOI DI DONG",
+          "amount": -3609000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "SALARY CREDIT",
+          "amount": 8683000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "MOBILE TOPUP",
+          "amount": -319000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "GRAB TRANSPORT",
+          "amount": -667000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "SALARY CREDIT",
+          "amount": 15170000.0
+        },
+        {
+          "date": "2026-07-30",
+          "description": "WATER UTILITY",
+          "amount": -2169000.0
+        },
+        {
+          "date": "2026-07-29",
+          "description": "GRAB TRANSPORT",
+          "amount": -427000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100329",
+      "name": "Hoang Thi Ha",
+      "given_name": "Ha",
+      "segment": "MASS",
+      "profile": "frozen_card",
+      "dob": "1982-03-19",
+      "phone_last4": "7091",
+      "national_id_last4": "9527",
+      "accounts": [
+        {
+          "account_id": "ACC-7091-3001",
+          "type": "Everyday Checking",
+          "mask": "****3001",
+          "balance": 53417688.61,
+          "available": 50917688.61,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-4973",
+          "type": "Debit",
+          "mask": "****4973",
+          "status": "frozen",
+          "linked_account": "ACC-7091-3001"
+        },
+        {
+          "card_id": "CRD-8971",
+          "type": "Credit",
+          "mask": "****8971",
+          "status": "active",
+          "linked_account": "ACC-7091-3001"
+        }
+      ],
+      "loans": [],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "SALARY CREDIT",
+          "amount": 18533000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "SALARY CREDIT",
+          "amount": 21457000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "PETROLIMEX FUEL",
+          "amount": -1084000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "SALARY CREDIT",
+          "amount": 12706000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100336",
+      "name": "Vu Duc Hieu",
+      "given_name": "Hieu",
+      "segment": "MASS",
+      "profile": "loan_in_review",
+      "dob": "1977-05-22",
+      "phone_last4": "9170",
+      "national_id_last4": "3723",
+      "accounts": [
+        {
+          "account_id": "ACC-9170-2601",
+          "type": "Everyday Checking",
+          "mask": "****2601",
+          "balance": 28217847.58,
+          "available": 25717847.58,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-1201",
+          "type": "Debit",
+          "mask": "****1201",
+          "status": "active",
+          "linked_account": "ACC-9170-2601"
+        }
+      ],
+      "loans": [
+        {
+          "application_id": "LN-2026-66939",
+          "product": "Auto Loan",
+          "amount": 240000000,
+          "status": "In Review",
+          "submitted_on": "2026-07-29",
+          "note": "Underwriter has the file. Decision expected within 5 business days."
+        }
+      ],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "PHARMACITY",
+          "amount": -3475000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "SALARY CREDIT",
+          "amount": 20709000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "HIGHLANDS COFFEE",
+          "amount": -3936000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "SALARY CREDIT",
+          "amount": 9613000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "CGV CINEMA",
+          "amount": -390000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "SALARY CREDIT",
+          "amount": 20398000.0
+        },
+        {
+          "date": "2026-07-30",
+          "description": "SALARY CREDIT",
+          "amount": 18663000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100343",
+      "name": "Dang Thi Lan",
+      "given_name": "Lan",
+      "segment": "MASS",
+      "profile": "overdrawn",
+      "dob": "1990-12-14",
+      "phone_last4": "8780",
+      "national_id_last4": "5058",
+      "accounts": [
+        {
+          "account_id": "ACC-8780-1701",
+          "type": "Everyday Checking",
+          "mask": "****1701",
+          "balance": -1528989.13,
+          "available": -1528989.13,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-5906",
+          "type": "Debit",
+          "mask": "****5906",
+          "status": "active",
+          "linked_account": "ACC-8780-1701"
+        }
+      ],
+      "loans": [],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "SALARY CREDIT",
+          "amount": 13613000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "SHOPEE PAY",
+          "amount": -92000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "THE GIOI DI DONG",
+          "amount": -419000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "SALARY CREDIT",
+          "amount": 20102000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "PETROLIMEX FUEL",
+          "amount": -3306000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "GRAB TRANSPORT",
+          "amount": -3832000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100350",
+      "name": "Bui Van Long",
+      "given_name": "Long",
+      "segment": "MASS",
+      "profile": "blocked_and_replaced",
+      "dob": "1983-03-09",
+      "phone_last4": "6850",
+      "national_id_last4": "7777",
+      "accounts": [
+        {
+          "account_id": "ACC-6850-6401",
+          "type": "Everyday Checking",
+          "mask": "****6401",
+          "balance": 27177019.48,
+          "available": 27177019.48,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-1974",
+          "type": "Debit",
+          "mask": "****1974",
+          "status": "blocked",
+          "linked_account": "ACC-6850-6401"
+        },
+        {
+          "card_id": "CRD-4326",
+          "type": "Debit",
+          "mask": "****4326",
+          "status": "inactive",
+          "linked_account": "ACC-6850-6401",
+          "replaces": "CRD-1974"
+        }
+      ],
+      "loans": [],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "THE GIOI DI DONG",
+          "amount": -357000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "ELECTRICITY BILL",
+          "amount": -540000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "PHARMACITY",
+          "amount": -440000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "SALARY CREDIT",
+          "amount": 24986000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100357",
+      "name": "Do Thi Mai",
+      "given_name": "Mai",
+      "segment": "PRIORITY",
+      "profile": "multi_card",
+      "dob": "1997-12-02",
+      "phone_last4": "5194",
+      "national_id_last4": "9572",
+      "accounts": [
+        {
+          "account_id": "ACC-5194-3101",
+          "type": "Everyday Checking",
+          "mask": "****3101",
+          "balance": 49684525.47,
+          "available": 49684525.47,
+          "currency": "VND"
+        },
+        {
+          "account_id": "ACC-5194-1488",
+          "type": "Savings",
+          "mask": "****1488",
+          "balance": 524391134.57,
+          "available": 524391134.57,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-6591",
+          "type": "Debit",
+          "mask": "****6591",
+          "status": "active",
+          "linked_account": "ACC-5194-3101"
+        },
+        {
+          "card_id": "CRD-5743",
+          "type": "Credit",
+          "mask": "****5743",
+          "status": "active",
+          "linked_account": "ACC-5194-3101"
+        }
+      ],
+      "loans": [],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "SALARY CREDIT",
+          "amount": 22937000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "WATER UTILITY",
+          "amount": -1110000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "THE GIOI DI DONG",
+          "amount": -207000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "THE GIOI DI DONG",
+          "amount": -1574000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "SALARY CREDIT",
+          "amount": 19872000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "ELECTRICITY BILL",
+          "amount": -545000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100364",
+      "name": "Ngo Thanh Nam",
+      "given_name": "Nam",
+      "segment": "MASS",
+      "profile": "new_customer",
+      "dob": "1982-07-17",
+      "phone_last4": "3745",
+      "national_id_last4": "8701",
+      "accounts": [
+        {
+          "account_id": "ACC-3745-4501",
+          "type": "Everyday Checking",
+          "mask": "****4501",
+          "balance": 1909109.43,
+          "available": 1909109.43,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-9277",
+          "type": "Debit",
+          "mask": "****9277",
+          "status": "inactive",
+          "linked_account": "ACC-3745-4501"
+        }
+      ],
+      "loans": [],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "SHOPEE PAY",
+          "amount": -884000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "THE GIOI DI DONG",
+          "amount": -2190000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "PETROLIMEX FUEL",
+          "amount": -3872000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "BACH HOA XANH",
+          "amount": -3232000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "GRAB TRANSPORT",
+          "amount": -2366000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "SALARY CREDIT",
+          "amount": 23014000.0
+        },
+        {
+          "date": "2026-07-30",
+          "description": "PETROLIMEX FUEL",
+          "amount": -695000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100371",
+      "name": "Duong Thi Oanh",
+      "given_name": "Oanh",
+      "segment": "MASS",
+      "profile": "mortgage_approved",
+      "dob": "1983-02-06",
+      "phone_last4": "9218",
+      "national_id_last4": "7753",
+      "accounts": [
+        {
+          "account_id": "ACC-9218-1901",
+          "type": "Everyday Checking",
+          "mask": "****1901",
+          "balance": 15985666.8,
+          "available": 15985666.8,
+          "currency": "VND"
+        },
+        {
+          "account_id": "ACC-9218-8988",
+          "type": "Savings",
+          "mask": "****8988",
+          "balance": 761738291.53,
+          "available": 761738291.53,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-9853",
+          "type": "Debit",
+          "mask": "****9853",
+          "status": "active",
+          "linked_account": "ACC-9218-1901"
+        }
+      ],
+      "loans": [
+        {
+          "application_id": "LN-2026-52078",
+          "product": "Home Loan",
+          "amount": 1800000000,
+          "status": "Approved",
+          "submitted_on": "2026-07-02",
+          "note": "Approved. Awaiting signed offer and disbursement date."
+        }
+      ],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "SALARY CREDIT",
+          "amount": 18987000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "MOBILE TOPUP",
+          "amount": -1166000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "CGV CINEMA",
+          "amount": -729000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "GRAB TRANSPORT",
+          "amount": -688000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "HIGHLANDS COFFEE",
+          "amount": -2281000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "WATER UTILITY",
+          "amount": -1333000.0
+        },
+        {
+          "date": "2026-07-30",
+          "description": "SALARY CREDIT",
+          "amount": 22361000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100378",
+      "name": "Ly Van Phuc",
+      "given_name": "Phuc",
+      "segment": "MASS",
+      "profile": "dispute_open",
+      "dob": "1970-06-04",
+      "phone_last4": "6070",
+      "national_id_last4": "6964",
+      "accounts": [
+        {
+          "account_id": "ACC-6070-2601",
+          "type": "Everyday Checking",
+          "mask": "****2601",
+          "balance": 13059708.23,
+          "available": 12959708.23,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-9323",
+          "type": "Debit",
+          "mask": "****9323",
+          "status": "active",
+          "linked_account": "ACC-6070-2601"
+        }
+      ],
+      "loans": [],
+      "transactions": [
+        {
+          "date": "2026-08-03",
+          "description": "UNKNOWN MERCHANT - DISPUTE RAISED",
+          "amount": -2450000
+        },
+        {
+          "date": "2026-08-05",
+          "description": "CGV CINEMA",
+          "amount": -110000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "PETROLIMEX FUEL",
+          "amount": -1296000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "SALARY CREDIT",
+          "amount": 22988000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "WATER UTILITY",
+          "amount": -3373000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "MOBILE TOPUP",
+          "amount": -242000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100385",
+      "name": "Trinh Thi Quyen",
+      "given_name": "Quyen",
+      "segment": "MASS",
+      "profile": "savings_only",
+      "dob": "1995-09-14",
+      "phone_last4": "2492",
+      "national_id_last4": "3703",
+      "accounts": [
+        {
+          "account_id": "ACC-2492-6088",
+          "type": "Savings",
+          "mask": "****6088",
+          "balance": 739657534.36,
+          "available": 739657534.36,
+          "currency": "VND"
+        }
+      ],
+      "cards": [],
+      "loans": [],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "SHOPEE PAY",
+          "amount": -178000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "PETROLIMEX FUEL",
+          "amount": -830000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "SALARY CREDIT",
+          "amount": 8301000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "GRAB TRANSPORT",
+          "amount": -296000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100392",
+      "name": "Cao Van Son",
+      "given_name": "Son",
+      "segment": "PRIORITY",
+      "profile": "business_owner",
+      "dob": "1986-04-03",
+      "phone_last4": "4230",
+      "national_id_last4": "5072",
+      "accounts": [
+        {
+          "account_id": "ACC-4230-2601",
+          "type": "Everyday Checking",
+          "mask": "****2601",
+          "balance": 505713542.7,
+          "available": 505713542.7,
+          "currency": "VND"
+        },
+        {
+          "account_id": "ACC-4230-3888",
+          "type": "Savings",
+          "mask": "****3888",
+          "balance": 51500742.23,
+          "available": 51500742.23,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-1531",
+          "type": "Debit",
+          "mask": "****1531",
+          "status": "active",
+          "linked_account": "ACC-4230-2601"
+        },
+        {
+          "card_id": "CRD-1183",
+          "type": "Credit",
+          "mask": "****1183",
+          "status": "active",
+          "linked_account": "ACC-4230-2601"
+        }
+      ],
+      "loans": [],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "SALARY CREDIT",
+          "amount": 8969000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "SALARY CREDIT",
+          "amount": 9815000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "SALARY CREDIT",
+          "amount": 16723000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "CGV CINEMA",
+          "amount": -58000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "CGV CINEMA",
+          "amount": -1005000.0
+        }
+      ]
+    },
+    {
+      "customer_id": "CUS-100399",
+      "name": "Mai Thi Thuy",
+      "given_name": "Thuy",
+      "segment": "MASS",
+      "profile": "loan_declined",
+      "dob": "1979-02-20",
+      "phone_last4": "9519",
+      "national_id_last4": "6507",
+      "accounts": [
+        {
+          "account_id": "ACC-9519-4201",
+          "type": "Everyday Checking",
+          "mask": "****4201",
+          "balance": 42578695.35,
+          "available": 40078695.35,
+          "currency": "VND"
+        }
+      ],
+      "cards": [
+        {
+          "card_id": "CRD-8156",
+          "type": "Debit",
+          "mask": "****8156",
+          "status": "active",
+          "linked_account": "ACC-9519-4201"
+        }
+      ],
+      "loans": [
+        {
+          "application_id": "LN-2026-91029",
+          "product": "Personal Loan",
+          "amount": 80000000,
+          "status": "Declined",
+          "note": "Declined. Reasons are not disclosed by the assistant - refer the customer to a lending officer.",
+          "submitted_on": "2026-07-15"
+        }
+      ],
+      "transactions": [
+        {
+          "date": "2026-08-05",
+          "description": "PETROLIMEX FUEL",
+          "amount": -2080000.0
+        },
+        {
+          "date": "2026-08-04",
+          "description": "SALARY CREDIT",
+          "amount": 22591000.0
+        },
+        {
+          "date": "2026-08-03",
+          "description": "SALARY CREDIT",
+          "amount": 19060000.0
+        },
+        {
+          "date": "2026-08-02",
+          "description": "MOBILE TOPUP",
+          "amount": -3259000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "SALARY CREDIT",
+          "amount": 11560000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "SALARY CREDIT",
+          "amount": 13149000.0
+        },
+        {
+          "date": "2026-07-30",
+          "description": "CGV CINEMA",
+          "amount": -866000.0
+        },
+        {
+          "date": "2026-07-29",
+          "description": "VINMART SUPERMARKET",
+          "amount": -349000.0
         }
       ]
     }

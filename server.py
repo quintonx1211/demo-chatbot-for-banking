@@ -44,7 +44,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from app import (auth, campaigns as campaign_mod, llm, memory, metrics,
+from app import (auth, campaigns as campaign_mod, db, llm, memory, metrics,
                  policy, replay, topics)
 from app.kbstore import KBError, KnowledgeBaseStore
 from app.llm import runtime
@@ -236,6 +236,8 @@ class Handler(BaseHTTPRequestHandler):
                 "policy": policy.reload().to_dict(),
                 "campaigns": campaign_mod.CampaignBook().stats,
                 "memory": memory.store.stats,
+                "database": db.stats(),
+                "card_events": db.card_events(limit=12),
             })
 
         elif path == "/api/auth/me":
@@ -308,7 +310,13 @@ class Handler(BaseHTTPRequestHandler):
             # still greeted the next customer by recalling a conversation the
             # operator believed they had deleted.
             forgotten = memory.store.forget()
-            self._send_json({"removed": removed, "forgotten": forgotten})
+            # Card blocks and freezes are real rows now, so "clear everything"
+            # has to mean the account data too. Leaving a card blocked after
+            # the operator cleared the demo is the same class of surprise as
+            # leaving cross-session memory behind.
+            db.reset()
+            self._send_json({"removed": removed, "forgotten": forgotten,
+                             "database": "reset"})
 
         elif path == "/api/replay":
             if not self._require_staff():

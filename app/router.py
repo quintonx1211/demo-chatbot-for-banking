@@ -321,7 +321,7 @@ class Router:
             # it is the right reading: they moved on.
 
         # 1. A flow already in progress usually owns the turn, because slot
-        #    answers ("4471 0512", "yes") carry no intent signal and classifying
+        #    answers ("9411 3147", "yes") carry no intent signal and classifying
         #    them would misroute. But "usually" needs an escape hatch: without
         #    one the customer is trapped repeating themselves at a prompt they
         #    are not trying to answer, which is precisely the rule-based

@@ -6,3 +6,6 @@ venv/
 note.txt
 venv-demo-chatbot-banking/
 CLIENT-DEMO-SCRIPT.md
+
+# Generated demo data. Reseeded from data/accounts.json on Clear sessions.
+data/db/

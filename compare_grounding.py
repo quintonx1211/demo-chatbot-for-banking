@@ -4,7 +4,7 @@ This used to be a tab in the agent console. It does not belong there: a contact
 centre console is a place to work escalations, not a place to run experiments
 about the architecture. The comparison is a thing you show once, deliberately,
 while narrating it - which makes it a scripted demo step, not an operational
-surface. See KICH-BAN-TEST.txt section B4.
+surface. See TEST-SCENARIOS.txt section B4.
 
     python compare_grounding.py                     # run the suggested set
     python compare_grounding.py "your question"     # one question

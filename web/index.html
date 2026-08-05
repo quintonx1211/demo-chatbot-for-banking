@@ -157,6 +157,13 @@
       </div>
       <div id="stat-grid" class="stat-grid"></div>
       <div class="panel" style="margin-top:16px">
+        <h3>Card actions <span class="tag">written to the database</span></h3>
+        <p class="hint">Every card state change, with the transition it made and
+          the conversation that asked for it. An account action the bank cannot
+          evidence afterwards may as well not have happened.</p>
+        <div id="card-events"></div>
+      </div>
+      <div class="panel" style="margin-top:16px">
         <h3>Unresolved topics <span id="topic-count" class="tag"></span></h3>
         <p class="hint">Questions the assistant could not answer, grouped. This is
           a ranked list of what to write next, not just a failure count.</p>
@@ -172,6 +179,8 @@
           <div id="campaign-box"></div>
           <h3 style="margin-top:16px">Cross-session memory</h3>
           <div id="memory-box"></div>
+          <h3 style="margin-top:16px">Database</h3>
+          <div id="db-box"></div>
         </div>
       </div>
       <div class="panel" style="margin-top:16px">

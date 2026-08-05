@@ -14,14 +14,16 @@ from dataclasses import dataclass
 
 from . import memory
 from .campaigns import CampaignBook
-from .session import CUSTOMERS, Session
+from . import db
+from .session import Session
 
 CAMPAIGNS = CampaignBook()
 
 # Flows that must not run for an unverified caller.
 PROTECTED_FLOWS = {"balance_inquiry", "block_card", "loan_status",
                    "transaction_history", "account_summary",
-                   "activate_card", "card_offers"}
+                   "activate_card", "card_offers",
+                   "freeze_card", "unfreeze_card"}
 
 
 @dataclass
@@ -33,7 +35,20 @@ class FlowResult:
     note: str = ""
 
 
-def _money(amount: float) -> str:
+def _first_name(customer: dict) -> str:
+    """How to address this customer, read from the record, never inferred."""
+    return customer.get("given_name") or customer["name"].split()[-1]
+
+
+def _money(amount: float, currency: str = "VND") -> str:
+    """Format money the way the currency is actually written.
+
+    VND has no minor unit in practice, so printing two decimal places on a
+    balance of 41,238,000 is not just noise - it reads as a different kind of
+    number and invites the customer to check a rounding that does not exist.
+    """
+    if currency == "VND":
+        return f"{amount:,.0f} VND"
     return f"${amount:,.2f}"
 
 
@@ -45,7 +60,7 @@ def _verification_prompt(session: Session, intent: str) -> FlowResult:
     Two factors, asked for and checked together: the phone number alone was a
     4-digit space with no lockout wider than one session - a customer (or an
     attacker) could open a fresh session after every third guess and keep
-    dialling. A second, independent factor - the national ID (CCCD) - does
+    dialling. A second, independent factor - the national ID (ID) - does
     not fix that on its own, but it takes the search space from "guess one
     4-digit code" to "guess two 4-digit codes for the same person at once",
     which is the cheapest real improvement available without a true step-up
@@ -58,7 +73,7 @@ def _verification_prompt(session: Session, intent: str) -> FlowResult:
             "Happy to help with that. First, a quick security check so I know "
             "it's really you.\n\n"
             "Could you send me the **last 4 digits of your registered phone "
-            "number** and the **last 4 digits of your national ID (CCCD)**, "
+            "number** and the **last 4 digits of your national ID (ID)**, "
             "with a space between them?"
         ),
         note="verification_started",
@@ -79,7 +94,7 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
         return FlowResult(
             text=("Not quite - I need just the two 4-digit codes on their own: "
                   "the last 4 of your phone number, then the last 4 of your "
-                  "CCCD. Something like `1234 5678`.\n\n"
+                  "ID. Something like `1234 5678`.\n\n"
                   "Please don't send your full card number or PIN - I'll never "
                   "need either of those."),
             note="verification_retry",
@@ -90,11 +105,7 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
     # does not say which one was wrong - telling an attacker "the phone
     # matched but the ID didn't" turns two independent secrets into one,
     # guessed a factor at a time.
-    match = next(
-        (c for c in CUSTOMERS
-         if c["phone_last4"] == phone and c["national_id_last4"] == national_id),
-        None,
-    )
+    match = db.find_by_credentials(phone, national_id)
     if not match:
         attempts = int(session.slots.get("verify_attempts", "0")) + 1
         session.slots["verify_attempts"] = str(attempts)
@@ -122,7 +133,7 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
     # Cross-session recall lands here and nowhere earlier: before this line the
     # session has no verified customer, so there is nobody to remember.
     recalled = memory.store.summary(match["customer_id"])
-    greeting = f"Thanks, {match['name'].split()[0]} - you're verified. "
+    greeting = f"Thanks, {_first_name(match)} - you're verified. "
     if recalled:
         greeting += recalled + " "
     if target:
@@ -138,12 +149,12 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
 
 def _balance(session: Session) -> FlowResult:
     customer = session.customer
-    lines = [f"Here are your balances as of today, {customer['name'].split()[0]}:"]
+    lines = [f"Here are your balances as of today, {_first_name(customer)}:"]
     for account in customer["accounts"]:
         lines.append(
             f"- **{account['type']}** {account['mask']} - "
-            f"balance {_money(account['balance'])}, "
-            f"available {_money(account['available'])}"
+            f"balance {_money(account['balance'], account['currency'])}, "
+            f"available {_money(account['available'], account['currency'])}"
         )
     return FlowResult(text="\n".join(lines), note="balance_read_from_core")
 
@@ -305,73 +316,144 @@ def _loan_status(session: Session) -> FlowResult:
     return FlowResult(text="\n".join(lines), note="loan_read_from_core")
 
 
-def _block_card(session: Session, text: str) -> FlowResult:
-    """Two-step confirmation: pick the card, then confirm the irreversible block."""
+# What each customer-facing card action does, and what it may act on. Freezing
+# and reporting a card lost are two different requests that the previous version
+# collapsed into one "block", which is why a customer who froze a card had no
+# way back: the only transition that existed was terminal.
+CARD_ACTIONS: dict[str, dict] = {
+    "report_lost": {
+        "verb": "report lost and block",
+        "from": ("active", "frozen", "dormant", "inactive"),
+        "reversible": False,
+        "confirm": ("Just to confirm: report your **{type} card {mask}** lost "
+                    "and block it?\n\nThis one can't be undone - a blocked card "
+                    "is never reopened, so I'll order you a replacement at the "
+                    "same time. If you've only mislaid it and think it'll turn "
+                    "up, say **freeze** instead and you can unfreeze it "
+                    "yourself later."),
+        "none_left": "You don't have a card I can block right now.",
+    },
+    "freeze": {
+        "verb": "freeze",
+        "from": ("active",),
+        "reversible": True,
+        "confirm": ("I can freeze your **{type} card {mask}** straight away. "
+                    "Nothing will go through on it until you unfreeze it, and "
+                    "you can do that here any time.\n\nReply **yes** to freeze "
+                    "it."),
+        "none_left": "You don't have an active card to freeze.",
+    },
+    "unfreeze": {
+        "verb": "unfreeze",
+        "from": ("frozen",),
+        "reversible": True,
+        "confirm": ("Ready to unfreeze your **{type} card {mask}** - it'll work "
+                    "again immediately.\n\nReply **yes** and I'll do it."),
+        "none_left": ("None of your cards are frozen at the moment. If a card "
+                      "was reported lost it's blocked rather than frozen, and "
+                      "that one can't be reopened - but I can check the "
+                      "replacement for you."),
+    },
+}
+
+_YES_RE = re.compile(r"\b(yes|yeah|yep|confirm|correct|do it|go ahead|please)\b", re.I)
+_NO_RE = re.compile(r"\b(no|nope|cancel|stop|don't|dont|wait)\b", re.I)
+
+
+def _card_action(session: Session, action: str, text: str) -> FlowResult:
+    """Pick a card, confirm, then write the change to the database.
+
+    Every branch that ends in a state change goes through `db.set_card_status`,
+    which owns the legal transitions and writes the audit row. This function
+    decides *which* card and *whether the customer agreed*; it does not decide
+    what a card is allowed to do next.
+    """
+    spec = CARD_ACTIONS[action]
     customer = session.customer
-    active = [c for c in customer["cards"] if c["status"] == "active"]
+    eligible = [c for c in customer["cards"] if c["status"] in spec["from"]]
 
-    if not active:
-        return FlowResult(text="All cards on your profile are already blocked.",
-                          note="no_active_cards")
+    if not eligible:
+        session.reset_flow()
+        return FlowResult(text=spec["none_left"], note=f"{action}_none_eligible")
 
-    stage = session.slots.get("block_stage")
+    stage = session.slots.get("card_stage")
 
     if stage == "confirm":
-        if re.search(r"\b(yes|yeah|yep|confirm|correct|do it|go ahead)\b", text, re.I):
-            card = next(c for c in customer["cards"]
-                        if c["card_id"] == session.slots["card_id"])
-            card["status"] = "blocked"          # writes to the mock core banking record
+        if _NO_RE.search(text) and not _YES_RE.search(text):
             session.reset_flow()
+            return FlowResult(text="No problem - I've left the card as it is.",
+                              note=f"{action}_cancelled")
+        if not _YES_RE.search(text):
             return FlowResult(
-                text=(
-                    f"Done - your **{card['type']} card {card['mask']}** is blocked "
-                    f"effective immediately. Reference **BLK-{card['card_id'][-4:]}"
-                    f"-{session.session_id[-4:]}**.\n\n"
-                    "A replacement is on its way and arrives in 5–7 business days at "
-                    "no charge. The card number will change, so any recurring payments "
-                    "on the old card need updating. Anything else I can help with?"
-                ),
-                note=f"card_blocked:{card['card_id']}",
-            )
-        if re.search(r"\b(no|nope|cancel|stop|don't|dont)\b", text, re.I):
+                text=f"Reply **yes** to {spec['verb']} the card, or **no** to leave it.",
+                note=f"{action}_confirm_retry")
+
+        try:
+            card = db.set_card_status(session.slots["card_id"], action,
+                                      session_id=session.session_id)
+        except db.TransitionError as exc:
+            # The status changed under us - another session, or the customer
+            # doing it in the app while talking to us. Report what the record
+            # now says rather than the outcome we expected to produce.
             session.reset_flow()
-            return FlowResult(text="No problem - I've left the card active.",
-                              note="block_cancelled")
-        return FlowResult(text="Please reply **yes** to confirm the block, or **no** to cancel.",
-                          note="block_confirm_retry")
+            return FlowResult(text=str(exc), note=f"{action}_refused")
+
+        session.reset_flow()
+        return FlowResult(text=_confirmation(action, card), note=f"{action}:{card['card_id']}")
 
     if stage == "select":
-        chosen = _match_card(active, text)
+        chosen = _match_card(eligible, text)
         if not chosen:
-            return FlowResult(text=_card_choice_prompt(active), note="block_select_retry")
+            return FlowResult(text=_card_choice_prompt(eligible, spec["verb"]),
+                              note=f"{action}_select_retry")
         session.slots["card_id"] = chosen["card_id"]
-        session.slots["block_stage"] = "confirm"
-        return FlowResult(
-            text=(f"Just to confirm: block your **{chosen['type']} card "
-                  f"{chosen['mask']}**? This is immediate and cannot be undone. "
-                  "Reply **yes** to proceed."),
-            note="block_confirm_prompt",
-        )
+        session.slots["card_stage"] = "confirm"
+        return FlowResult(text=spec["confirm"].format(**chosen),
+                          note=f"{action}_confirm_prompt")
 
-    # First entry into the flow.
-    session.pending_flow = "block_card"
-    if len(active) == 1:
-        session.slots["card_id"] = active[0]["card_id"]
-        session.slots["block_stage"] = "confirm"
-        return FlowResult(
-            text=(f"I can block your **{active[0]['type']} card {active[0]['mask']}** "
-                  "right away. This is immediate and cannot be undone - reply "
-                  "**yes** to proceed."),
-            note="block_confirm_prompt",
-        )
-    session.slots["block_stage"] = "select"
-    return FlowResult(text=_card_choice_prompt(active), note="block_select_prompt")
+    session.pending_flow = action
+    session.slots["card_action"] = action
+    if len(eligible) == 1:
+        session.slots["card_id"] = eligible[0]["card_id"]
+        session.slots["card_stage"] = "confirm"
+        return FlowResult(text=spec["confirm"].format(**eligible[0]),
+                          note=f"{action}_confirm_prompt")
+    session.slots["card_stage"] = "select"
+    return FlowResult(text=_card_choice_prompt(eligible, spec["verb"]),
+                      note=f"{action}_select_prompt")
 
 
-def _card_choice_prompt(cards: list[dict]) -> str:
-    options = "\n".join(f"- {c['type']} card {c['mask']}" for c in cards)
-    return ("You have more than one active card. Which one should I block?\n"
-            f"{options}\n\nReply with the last 4 digits or the card type.")
+def _confirmation(action: str, card: dict) -> str:
+    """What the customer is told after the record actually changed."""
+    reference = card["reference"]
+    if action == "freeze":
+        return (f"Done - your **{card['type']} card {card['mask']}** is frozen as "
+                f"of now. Reference **{reference}**.\n\n"
+                "Nothing will go through on it, including recurring payments. "
+                "Just say **unfreeze my card** whenever you want it back, and "
+                "I'll switch it on straight away.")
+    if action == "unfreeze":
+        return (f"Your **{card['type']} card {card['mask']}** is active again - "
+                f"reference **{reference}**. You can use it right now.\n\n"
+                "If any payment was declined while it was frozen, the merchant "
+                "will need to take it again.")
+    replacement = card.get("replacement") or {}
+    return (f"Done - your **{card['type']} card {card['mask']}** is blocked "
+            f"effective immediately. Reference **{reference}**.\n\n"
+            f"I've ordered a replacement: **{replacement.get('mask', 'a new card')}**, "
+            "arriving in 5-7 business days at no charge. It'll need activating "
+            "when it lands, and because the number changes you'll want to update "
+            "any recurring payments.\n\n"
+            "Is there anything on the old card you want to query?")
+
+
+def _card_choice_prompt(cards: list[dict], verb: str) -> str:
+    options = "\n".join(
+        f"- {c['type']} card {c['mask']}"
+        + ("" if c["status"] == "active" else f" ({c['status']})")
+        for c in cards)
+    return (f"Which card should I {verb}?\n{options}\n\n"
+            "Reply with the last 4 digits or the card type.")
 
 
 def _match_card(cards: list[dict], text: str) -> dict | None:
@@ -400,7 +482,11 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
     if intent == "loan_status":
         return _loan_status(session)
     if intent == "block_card":
-        return _block_card(session, text)
+        return _card_action(session, "report_lost", text)
+    if intent == "freeze_card":
+        return _card_action(session, "freeze", text)
+    if intent == "unfreeze_card":
+        return _card_action(session, "unfreeze", text)
     if intent == "greeting":
         return FlowResult(
             text=("Hello! I'm the virtual assistant for ABC Bank. I can "
@@ -453,11 +539,14 @@ def wants_out(text: str) -> bool:
 def continue_pending(session: Session, text: str) -> FlowResult | None:
     """Resume a mid-conversation flow before the classifier gets a say.
 
-    Slot answers like "4471 0512" or "yes" carry no intent signal, so an in-progress
+    Slot answers like "9411 3147" or "yes" carry no intent signal, so an in-progress
     flow must take priority over classification.
     """
     if session.pending_flow == "verify":
         return _handle_verification(session, text)
-    if session.pending_flow == "block_card":
-        return _block_card(session, text)
+    # Resumed by the action stored when the flow began, so freeze, unfreeze and
+    # report-lost each come back to their own branch rather than all landing in
+    # whichever one happened to be hard-coded here.
+    if session.pending_flow in CARD_ACTIONS:
+        return _card_action(session, session.pending_flow, text)
     return None
