@@ -68,6 +68,8 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
     try:
         response = client.chat.completions.create(
             model=model,
+            **({"temperature": request.temperature}
+               if request.temperature is not None else {}),
             # Counts reasoning tokens too on models that reason, which is why
             # the budget in base.py is generous.
             max_completion_tokens=request.max_tokens,

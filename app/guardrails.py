@@ -55,7 +55,11 @@ RESTRICTED_RESPONSE = (
 # Redaction patterns, applied in order. Card numbers first so their digits are
 # not partially eaten by the generic long-number rule.
 _PII_PATTERNS: list[tuple[re.Pattern, str]] = [
-    (re.compile(r"\b(?:\d[ -]?){13,19}\b"), "[CARD_REDACTED]"),
+    # The trailing separator is matched but not consumed, so "4111 1111 1111
+    # 1111 twice" masks to "[CARD_REDACTED] twice" rather than running the
+    # marker into the next word. Cosmetic, but this string is what gets shown
+    # when demonstrating that masking works.
+    (re.compile(r"\b(?:\d[ -]?){13,19}(?<![ -])\b"), "[CARD_REDACTED]"),
     (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "[SSN_REDACTED]"),
     (re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"), "[EMAIL_REDACTED]"),
     (re.compile(r"\b(?:\+?\d{1,2}[ -]?)?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{4}\b"), "[PHONE_REDACTED]"),

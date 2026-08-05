@@ -7,25 +7,25 @@
 
 This document is written the way a real Regulation DD disclosure is: a dense fee
 table, then the conditions that qualify each line. It exists in the demo corpus
-because that shape — a number in a table whose meaning lives three paragraphs
-away — is what retrieval actually has to cope with, and it is where a naive
+because that shape - a number in a table whose meaning lives three paragraphs
+away - is what retrieval actually has to cope with, and it is where a naive
 chunker fails.
 
 ## Consumer deposit fee schedule
 
 | Fee | Amount | When it applies |
 | --- | --- | --- |
-| Monthly maintenance — Everyday Checking | $12.00 | Each statement cycle, unless a waiver below is met |
-| Monthly maintenance — Premier Checking | $25.00 | Each statement cycle, unless a waiver below is met |
-| Monthly maintenance — Student Checking | $0.00 | Account holders aged 17-24 |
+| Monthly maintenance - Everyday Checking | $12.00 | Each statement cycle, unless a waiver below is met |
+| Monthly maintenance - Premier Checking | $25.00 | Each statement cycle, unless a waiver below is met |
+| Monthly maintenance - Student Checking | $0.00 | Account holders aged 17-24 |
 | Overdraft item | $34.00 | Per item paid into overdraft, maximum 3 per business day |
 | Returned item (NSF) | $34.00 | Per item returned unpaid, maximum 3 per business day |
 | Overdraft protection transfer | $10.00 | Per transfer from a linked savings account |
 | Extended overdraft | $15.00 | Each 5th consecutive business day the account remains negative |
 | Stop payment | $30.00 | Per request, whether or not the item is presented |
-| Domestic wire — outgoing | $25.00 | Per transfer |
-| Domestic wire — incoming | $15.00 | Per transfer |
-| International wire — outgoing | $45.00 | Per transfer, plus any correspondent bank charges |
+| Domestic wire - outgoing | $25.00 | Per transfer |
+| Domestic wire - incoming | $15.00 | Per transfer |
+| International wire - outgoing | $45.00 | Per transfer, plus any correspondent bank charges |
 | Same-day ACH | $5.00 | Per transfer, cut-off 4:00 PM ET |
 | Paper statement | $3.00 | Per statement cycle |
 | Certified historical statement | $10.00 | Per statement, ordered in branch |

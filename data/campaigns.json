@@ -3,7 +3,7 @@
     "Overnight batch from the bank's CRM. This is the shape the client asked",
     "for: no real-time core banking query, a daily push, and a tolerated",
     "one-day lag. Every campaign decision the assistant makes is read from",
-    "this file, which is why those turns are deterministic and auditable —",
+    "this file, which is why those turns are deterministic and auditable -",
     "the bot never decides who is eligible, it only reads who was selected.",
     "",
     "generated_at is shown to the customer-facing agent so the age of the data",

@@ -2,8 +2,8 @@
 
 The client asked for this directly: a customer who called yesterday should not
 start from zero today, and the same memory should hold across channels. The
-demonstrable version of that is small — it is a store keyed by customer_id, not
-by session — but the shape is the part that matters, because it is where the
+demonstrable version of that is small - it is a store keyed by customer_id, not
+by session - but the shape is the part that matters, because it is where the
 privacy question lives.
 
 Three rules, and they are the reason this is a separate module rather than a
@@ -18,7 +18,7 @@ dictionary on the session store:
 3. Entries expire. A campaign the customer declined six months ago should not
    shape today's conversation.
 
-In production this is a row in the CRM, not a process dictionary — which is also
+In production this is a row in the CRM, not a process dictionary - which is also
 why the interface is deliberately narrow: `remember`, `recall`, `forget`.
 """
 
@@ -73,7 +73,7 @@ class CustomerMemory:
         with self._lock:
             notes = [n for n in self._notes.get(customer_id, []) if not n.expired]
             # Re-asking the same thing refreshes the note rather than stacking
-            # duplicates — otherwise a persistent customer looks like twelve
+            # duplicates - otherwise a persistent customer looks like twelve
             # distinct concerns instead of one unresolved one.
             for note in notes:
                 if note.kind == kind and note.label == label:
@@ -109,7 +109,7 @@ class CustomerMemory:
                     f"and I passed it to a colleague.")
         if topics:
             subjects = " and ".join(n.label for n in topics)
-            return f"Welcome back — last time we covered {subjects}."
+            return f"Welcome back - last time we covered {subjects}."
         return ""
 
     def forget(self, customer_id: str | None = None) -> int:
@@ -130,7 +130,7 @@ class CustomerMemory:
                 "customers": sum(1 for v in live.values() if v),
                 "notes": sum(len(v) for v in live.values()),
                 "ttl_days": TTL.days,
-                "retains": "topics and outcomes only — never utterances",
+                "retains": "topics and outcomes only - never utterances",
             }
 
     def to_dict(self) -> dict:

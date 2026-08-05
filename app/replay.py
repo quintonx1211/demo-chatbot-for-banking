@@ -1,7 +1,7 @@
 """Seed the dashboard with realistic traffic.
 
 A dashboard computed from a three-turn demo session shows nothing, and a
-dashboard populated with invented numbers is worse than none — the first
+dashboard populated with invented numbers is worse than none - the first
 question in the room is "is this real?", and it has to be answerable with yes.
 
 So this replays scripted *customer messages* through the real router. Nothing

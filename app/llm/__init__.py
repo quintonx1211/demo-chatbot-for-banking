@@ -19,6 +19,8 @@ import os
 
 from ..retriever import RetrievedPassage
 from .base import (
+    DEFAULT_TONE,
+    TONES,
     LLMRequest,
     LLMResult,
     build_answer_request,
@@ -78,6 +80,30 @@ def is_live() -> bool:
     return active_provider() is not None
 
 
+def current_tone() -> str:
+    """The active tone preset, falling back to the default on anything unknown."""
+    name = (os.environ.get("LLM_TONE") or "").strip().lower()
+    return name if name in TONES else DEFAULT_TONE
+
+
+def current_temperature() -> float | None:
+    """The configured sampling temperature, or None to leave it to the provider.
+
+    An unparseable value returns None rather than a guess: silently sampling at
+    some default of our own choosing, when the operator believes they set
+    something specific, is worse than deferring to the provider and saying so
+    in the console.
+    """
+    raw = (os.environ.get("LLM_TEMPERATURE") or "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return value if 0.0 <= value <= 2.0 else None
+
+
 def describe() -> dict:
     """Mode summary for /api/health and the startup banner."""
     requested = os.environ.get("LLM_PROVIDER", "auto").lower()
@@ -88,6 +114,8 @@ def describe() -> dict:
             "provider": None,
             "model": None,
             "effort": None,
+            "tone": current_tone(),
+            "temperature": current_temperature(),
             "requested": requested,
             "endpoint": None,
             "detail": _unavailable_reason(requested),
@@ -152,7 +180,8 @@ def answer_from_kb(
     history: str = "",
 ) -> LLMResult:
     return _run(
-        build_answer_request(question, passages, history=history),
+        build_answer_request(question, passages, history=history,
+                             tone=current_tone(), temperature=current_temperature()),
         fallback=extractive_answer(passages),
     )
 
@@ -162,7 +191,8 @@ def raw_chat(message: str, history: str = "") -> LLMResult:
     model and the conversation so far. The baseline the rest of the router
     exists to improve on; see Router._raw_turn."""
     return _run(
-        build_raw_request(message, history=history),
+        build_raw_request(message, history=history,
+                          temperature=current_temperature()),
         # Reused whether there is no provider at all or a configured one just
         # failed (rate limit, timeout, ...) - the two aren't distinguished
         # here, only in `error`, which the routing inspector shows separately.
@@ -181,4 +211,5 @@ def summarize_for_agent(transcript: str, context_lines: list[str]) -> LLMResult:
 __all__ = [
     "LLMResult", "answer_from_kb", "raw_chat", "summarize_for_agent",
     "is_live", "describe", "active_provider", "PROVIDERS",
+    "current_tone", "current_temperature", "TONES",
 ]

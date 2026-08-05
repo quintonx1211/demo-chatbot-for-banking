@@ -95,7 +95,7 @@ class Session:
         self.handled_by: str | None = None
 
         # Demo lever: strips away routing, guardrails, retrieval and grounding
-        # and leaves a plain LLM call over the conversation history — the
+        # and leaves a plain LLM call over the conversation history - the
         # baseline the rest of the architecture is arguing against. Off by
         # default and scoped to this session only, so flipping it for a
         # demonstration never touches anyone else's conversation.
@@ -104,6 +104,22 @@ class Session:
     # -- transcript -------------------------------------------------------
 
     def add_message(self, role: str, text: str, author: str | None = None) -> None:
+        """Append a turn to the transcript, masking anything sensitive first.
+
+        Masking happens here, at the single point every message enters the
+        record, rather than at each place one leaves it. The retrieval and
+        prompt paths were patched individually and were clean; the transcript
+        was not, so a card number typed by a customer still reached the agent
+        console and the polling endpoint verbatim. One choke point is the only
+        version of this that stays true as new readers are added - and the
+        transcript outlives the turn, which is what makes it the copy that
+        matters.
+
+        The router keeps working from the raw text it was handed, so masking
+        here changes what is *stored and shown*, never what is understood.
+        """
+        if role == "customer":
+            text = guardrails.redact(text)
         self.messages.append(Message(role=role, text=text, author=author))
 
     def messages_since(self, index: int) -> list[dict]:
@@ -170,7 +186,7 @@ class SessionStore:
 
     def create(self) -> Session:
         # The customer's browser holds this id and polls with it, so it is a
-        # bearer credential in practice — anyone holding it reads that
+        # bearer credential in practice - anyone holding it reads that
         # conversation. Sized accordingly: `uuid4().hex[:8]` was 32 bits, which
         # is guessable, and shortening a uuid for looks is a bad trade when the
         # value is the only thing protecting a transcript.
@@ -195,7 +211,7 @@ class SessionStore:
 
         The dashboard aggregates whatever is in this store, so a demo run leaves
         numbers behind that the next run would silently inherit. Clearing is the
-        honest reset — and it is destructive, which is why it is staff-gated and
+        honest reset - and it is destructive, which is why it is staff-gated and
         confirmed in the UI rather than being a stray button.
         """
         with self._lock:

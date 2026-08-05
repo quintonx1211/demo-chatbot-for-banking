@@ -1,4 +1,4 @@
-"""Runtime policy — how strict the assistant is, from a config file.
+"""Runtime policy - how strict the assistant is, from a config file.
 
 The client asked whether strictness could be a parameter rather than a fixed
 design decision, and accepted a config file over a dashboard. This is that
@@ -12,8 +12,8 @@ it controls are the ones that trade the two failure modes against each other:
   * lower them and it answers more questions, more naturally, and is more
     likely to be wrong
 
-There is no setting that avoids both. Naming the presets after the trade-off —
-strict / balanced / relaxed — keeps that visible to whoever changes the file,
+There is no setting that avoids both. Naming the presets after the trade-off -
+strict / balanced / relaxed - keeps that visible to whoever changes the file,
 rather than presenting the numbers as though one of them is simply correct.
 
 Reloaded on demand, so a change takes effect without a restart.
@@ -67,7 +67,7 @@ def load(path: Path | None = None) -> Policy:
     source = f"preset '{name}'"
 
     # An explicit override beats the preset. Anything non-numeric is ignored
-    # rather than coerced — a typo in a threshold should not quietly become 0.0
+    # rather than coerced - a typo in a threshold should not quietly become 0.0
     # and disable the gate it was meant to tune.
     overrides = raw.get("overrides") or {}
     applied = []

@@ -38,7 +38,7 @@ INTENTS: dict[str, dict] = {
         # Anchored on possession, not on the word "balance". A bare \bbalance\b
         # also fires on "what counts as an average daily balance?", which is a
         # policy question about how balances are calculated, not a request to
-        # see one — and routing it here sends the customer into an identity
+        # see one - and routing it here sends the customer into an identity
         # check for information that needs no identity at all.
         "anchors": [r"\b(my|our)\b[^?.]{0,24}\bbalance",
                     r"\bbalance\b[^?.]{0,20}\b(my|our)\b",
@@ -139,7 +139,7 @@ INTENTS: dict[str, dict] = {
         ],
         # A request for a person needs a verb of asking, not just a noun.
         # "someone" on its own was catching "someone used my card without
-        # permission" — a fraud report, routed to the handoff queue because it
+        # permission" - a fraud report, routed to the handoff queue because it
         # contained a pronoun. Nouns alone are not intent.
         "anchors": [
             r"\b(speak|talk|chat)\b[^?.]{0,16}\b(to|with)\b[^?.]{0,16}"
@@ -201,7 +201,7 @@ PERSONAL_INTENTS = frozenset({
 })
 
 # Questions about how something *works*, as opposed to requests for a
-# customer's own data. The two share almost all their vocabulary — "how is
+# customer's own data. The two share almost all their vocabulary - "how is
 # interest on my savings worked out?" and "what's my savings balance?" differ
 # by intent, not by nouns, and TF-IDF alone cannot tell them apart. Possession
 # does not separate them either: the first is possessive and still a policy
@@ -219,7 +219,7 @@ _MECHANISM_RE = re.compile(
 
 # How far a mechanism question's score is knocked down. Enough to drop it below
 # HIGH_CONFIDENCE and into the knowledge-base path, not so far that it becomes
-# "unknown" — the intent guess is still the best available signal for the
+# "unknown" - the intent guess is still the best available signal for the
 # audit trail.
 _MECHANISM_PENALTY = 0.45
 

@@ -27,14 +27,14 @@ referral is free to the customer, and the scheme's decision binds the bank if
 the customer accepts it. Time limits apply to external referral, generally six
 months from the date of the final response.
 
-## Electronic transfer errors — Regulation E
+## Electronic transfer errors - Regulation E
 
 An error on an electronic funds transfer must be reported within 60 days of the
 statement on which it first appeared. Reports may be made by phone, but the bank
 may require written confirmation within 10 business days.
 
 The investigation is completed within 10 business days. Where more time is
-needed the investigation may take up to 45 days — extended to 90 days for
+needed the investigation may take up to 45 days - extended to 90 days for
 transfers that were initiated outside the country, that involve a point-of-sale
 debit card transaction, or that occurred within 30 days of the first deposit to
 a new account.
@@ -58,10 +58,10 @@ credentials were compromised.
 | More than 60 days after the statement | Unlimited for transfers after that point |
 
 The clock runs from when the customer learns of the loss or theft, not from when
-the transfer occurred. Extenuating circumstances — hospital admission, extended
-travel — extend these periods on request.
+the transfer occurred. Extenuating circumstances - hospital admission, extended
+travel - extend these periods on request.
 
-## Billing errors on credit accounts — Regulation Z
+## Billing errors on credit accounts - Regulation Z
 
 A billing error on a credit card must be disputed in writing within 60 days of
 the statement on which it appeared. The bank acknowledges within 30 days and
@@ -79,7 +79,7 @@ marketing. Requests are answered within 30 calendar days at no charge, extended
 once by a further 60 days for complex requests.
 
 Account and transaction records are retained for seven years after an account
-closes, which is a regulatory requirement rather than a choice — a deletion
+closes, which is a regulatory requirement rather than a choice - a deletion
 request cannot override it. Marketing preferences take effect within 10 business
 days.
 

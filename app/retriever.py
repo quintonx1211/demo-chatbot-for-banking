@@ -39,7 +39,7 @@ class Passage:
     doc_id: str
     source: str
     title: str
-    heading: str                       # leaf heading — what gets cited
+    heading: str                       # leaf heading - what gets cited
     text: str
     heading_path: list[str] = field(default_factory=list)
     chunk_index: int = 0
@@ -50,7 +50,7 @@ class Passage:
 
     @property
     def breadcrumb(self) -> str:
-        """Full heading path. In a deep document the leaf alone is ambiguous —
+        """Full heading path. In a deep document the leaf alone is ambiguous -
         three sections can all be called "Fees" under different parents."""
         return " › ".join(self.heading_path) if self.heading_path else self.heading
 
@@ -86,10 +86,10 @@ def reciprocal_rank_fusion(rankings: dict[str, list[float]]) -> list[float]:
 @dataclass
 class RetrievedPassage:
     passage: Passage
-    score: float              # coverage — the relevance gate
+    score: float              # coverage - the relevance gate
     similarity: float = 0.0   # cosine
     bm25: float = 0.0         # Okapi BM25
-    fusion: float = 0.0       # RRF of the three — decides the ordering
+    fusion: float = 0.0       # RRF of the three - decides the ordering
     rerank: float | None = None   # LLM relevance score, when reranking is on
 
 
@@ -148,7 +148,7 @@ class KnowledgeBase:
                     passages.extend(_parse_document(path))
                 except loaders.UnsupportedDocument:
                     # A file that cannot be read must not take the whole corpus
-                    # down on reload — skip it and keep serving the rest.
+                    # down on reload - skip it and keep serving the rest.
                     continue
             self.passages = passages
             # Index heading + body: headings carry a lot of signal in a small corpus.
@@ -193,7 +193,7 @@ class KnowledgeBase:
         })
 
         # Ordered by coverage, not by the fusion score. Fusion was measured
-        # against this baseline on the labelled set and did not beat it — see
+        # against this baseline on the labelled set and did not beat it - see
         # README § Retrieval quality. The fused value is still computed and
         # carried through, because it is worth showing in the inspector and is
         # what a larger corpus would likely need; it just does not decide the

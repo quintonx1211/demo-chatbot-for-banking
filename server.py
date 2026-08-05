@@ -67,7 +67,7 @@ _CONTENT_TYPES = {".html": "text/html", ".js": "text/javascript", ".css": "text/
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "RegionalTrustDemo/0.1"
+    server_version = "BankingChatbotDemo/0.1"
 
     # -- helpers ----------------------------------------------------------
 
@@ -92,7 +92,7 @@ class Handler(BaseHTTPRequestHandler):
         """Gate a privileged endpoint. Returns False once a 401 has been sent.
 
         Called at the top of every staff endpoint rather than being inferred
-        from the UI, because the UI is not a security boundary — these routes
+        from the UI, because the UI is not a security boundary - these routes
         answer anyone who calls them directly.
         """
         if self._staff() is not None:
@@ -200,7 +200,7 @@ class Handler(BaseHTTPRequestHandler):
 
         elif path == "/api/chat/poll":
             # Public, and scoped by the session id the customer's browser
-            # already holds. The response carries messages only — never the
+            # already holds. The response carries messages only - never the
             # audit trail or escalation reason, which are staff-facing.
             query = parse_qs(urlparse(self.path).query)
             session = router.sessions.get((query.get("session_id") or [""])[0])
@@ -268,7 +268,7 @@ class Handler(BaseHTTPRequestHandler):
             session = auth_store.login(payload.get("username", ""),
                                        payload.get("password", ""))
             if session is None:
-                # One message for both failure modes — naming which was wrong
+                # One message for both failure modes - naming which was wrong
                 # tells an attacker which usernames exist.
                 self._send_json({"error": "Incorrect username or password"},
                                 status=401)
@@ -369,6 +369,8 @@ class Handler(BaseHTTPRequestHandler):
                     model=payload.get("model"),
                     effort=payload.get("effort"),
                     base_url=payload.get("base_url"),
+                    tone=payload.get("tone"),
+                    temperature=payload.get("temperature"),
                 )
             except runtime.ConfigError as exc:
                 self._send_json({"error": str(exc)}, status=400)
@@ -421,7 +423,7 @@ class Handler(BaseHTTPRequestHandler):
                 "handled_by": session.handled_by,
                 # Session state, not turn state. `escalated` describes what this
                 # turn did, so an "@bot ..." aside inside a handoff reports
-                # False — and a banner driven by it would disappear while the
+                # False - and a banner driven by it would disappear while the
                 # customer was still in the queue.
                 "in_handoff": bool(session.escalated or session.handled_by),
                 "latency_ms": result.latency_ms,
@@ -455,7 +457,7 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> None:
     info = llm.describe()
     stats = router.kb.stats
-    print("Regional Trust Bank - hybrid assistant demo")
+    print("ABC Bank - hybrid assistant demo")
     if info["mode"] == "live":
         endpoint = f" → {info['endpoint']}" if info.get("endpoint") else ""
         print(f"  Generative layer : LIVE via {info['provider']}{endpoint}")

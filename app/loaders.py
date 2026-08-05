@@ -1,7 +1,7 @@
 """Reading uploaded documents into plain text.
 
 Markdown and plain text are read directly. `.docx` is unzipped and its XML
-walked with the standard library — a `.docx` is a ZIP of XML parts, so no
+walked with the standard library - a `.docx` is a ZIP of XML parts, so no
 third-party package is needed to pull the text out of one.
 
 PDF is deliberately not supported: extracting text from PDF means reimplementing
@@ -88,7 +88,7 @@ def _table_to_markdown(table: ET.Element) -> str:
     """Render a table as a markdown table.
 
     Worth the effort rather than flattening to prose: in bank documentation the
-    numbers that answer a question — fee, limit, timeframe — live in tables, and
+    numbers that answer a question - fee, limit, timeframe - live in tables, and
     a row stripped of its header is a number with no meaning.
     """
     rows: list[list[str]] = []
@@ -120,7 +120,7 @@ def docx_to_markdown(data: bytes) -> str:
         archive = zipfile.ZipFile(BytesIO(data))
     except zipfile.BadZipFile as exc:
         raise UnsupportedDocument(
-            "That .docx could not be opened — it may be corrupt, or it may be "
+            "That .docx could not be opened - it may be corrupt, or it may be "
             "an older .doc renamed rather than converted."
         ) from exc
 

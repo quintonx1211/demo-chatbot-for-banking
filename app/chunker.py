@@ -2,8 +2,8 @@
 
 The original loader split documents on `##` headings and stopped there, which
 works only because the starter corpus was hand-written with one topic per
-section. Real documents — a policy PDF exported to text, a Word file from the
-compliance team — have deep heading trees, sections that run for pages, and
+section. Real documents - a policy PDF exported to text, a Word file from the
+compliance team - have deep heading trees, sections that run for pages, and
 paragraphs that carry the actual answer. Feeding those in whole produces
 passages too long to rank precisely and too broad to cite usefully.
 
@@ -15,7 +15,7 @@ So chunking runs in three passes, coarse to fine:
      straddles a boundary survives in at least one chunk
 
 A section that already fits stays a single chunk, so the existing corpus
-chunks exactly as it did before — the upgrade costs nothing on documents that
+chunks exactly as it did before - the upgrade costs nothing on documents that
 were already well-formed.
 """
 
@@ -40,7 +40,7 @@ _PARA_SPLIT_RE = re.compile(r"\n\s*\n")
 @dataclass
 class Chunk:
     text: str
-    heading: str                       # leaf heading — what gets cited
+    heading: str                       # leaf heading - what gets cited
     heading_path: list[str] = field(default_factory=list)
     index: int = 0                     # position within the document
 
@@ -63,7 +63,7 @@ def _sections(text: str) -> list[tuple[list[str], str]]:
     """Split into (heading_path, body) pairs, tracking heading depth.
 
     Text before the first heading is emitted under an empty path rather than
-    dropped — in a converted document that preamble is often the summary.
+    dropped - in a converted document that preamble is often the summary.
     """
     matches = list(_HEADING_RE.finditer(text))
     if not matches:
@@ -184,7 +184,7 @@ def strip_metadata(text: str) -> str:
     """Remove `**key:** value` header lines from the body.
 
     They are extracted separately as document metadata, and left in place they
-    become a chunk of their own — a passage made of a doc id, an owner and a
+    become a chunk of their own - a passage made of a doc id, an owner and a
     review date, which can never answer a customer question but can still be
     retrieved for one.
     """

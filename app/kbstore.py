@@ -108,7 +108,7 @@ class KnowledgeBaseStore:
 
         The old rule required a literal `## Section` heading. That was a proxy
         for the real requirement, and a wrong one now the chunker also splits on
-        paragraphs — a heading-free .txt of policy prose chunks perfectly well.
+        paragraphs - a heading-free .txt of policy prose chunks perfectly well.
         So ask the pipeline directly instead of guessing: parse it, and reject
         only if nothing retrievable came out. A document that yields no passages
         would sit in the directory looking installed while contributing nothing.
@@ -117,7 +117,7 @@ class KnowledgeBaseStore:
             raise KBError("Document is empty")
         if not parse_text(text, source=name, stem=Path(name).stem):
             raise KBError(
-                "This document produced no retrievable passages — it appears to "
+                "This document produced no retrievable passages - it appears to "
                 "contain no body text the chunker can index."
             )
 
@@ -156,7 +156,7 @@ class KnowledgeBaseStore:
             "filename": path.name,
             "format": path.suffix.lower().lstrip("."),
             # For a .docx this is the extracted markdown, not the original
-            # bytes — which is exactly what the reviewer needs to see, since
+            # bytes - which is exactly what the reviewer needs to see, since
             # it is what retrieval actually indexes.
             "content": content,
             "editable": path.suffix.lower() in (".md", ".txt"),
@@ -176,7 +176,7 @@ class KnowledgeBaseStore:
     def _finish(self, path: Path) -> DocumentInfo:
         self.kb.reload()
         info = next((d for d in self.list_documents() if d.filename == path.name), None)
-        if info is None:  # pragma: no cover — the write above just succeeded
+        if info is None:  # pragma: no cover - the write above just succeeded
             raise KBError("Document was written but could not be read back")
         return info
 
@@ -189,7 +189,7 @@ class KnowledgeBaseStore:
             )
         self._check_size(len(content.encode("utf-8")))
         # Normalise line endings so documents written on Windows and on a POSIX
-        # box chunk identically — the section splitter is line-anchored.
+        # box chunk identically - the section splitter is line-anchored.
         normalised = content.replace("\r\n", "\n").replace("\r", "\n")
         self._check_retrievable(normalised, path.name)
         self._check_capacity(path)

@@ -146,7 +146,7 @@ class Router:
                 note=(f"customer left the chat with {agent_name}" if agent_name
                       else "customer left the handoff queue before it was claimed"),
             )
-            reply = ((f"You're back with the assistant — {agent_name} has been "
+            reply = ((f"You're back with the assistant - {agent_name} has been "
                       "released from this chat. What can I help with?")
                      if agent_name else
                      ("You're back with the assistant and I've taken you out of "
@@ -178,7 +178,7 @@ class Router:
         # Once the conversation has gone to a human the assistant stands down.
         #
         # The trigger is the handoff, not the agent picking it up. Gating this
-        # on `handled_by` alone left a window — often minutes — where the
+        # on `handled_by` alone left a window - often minutes - where the
         # customer had been told a person was coming and the bot kept answering
         # anyway. That window is the worst possible moment to keep talking: the
         # customer is there *because* the assistant already failed, and every
@@ -201,7 +201,7 @@ class Router:
                 debug={"note": f"assistant stood down; queued for {waiting_for}"},
             )
 
-        # "@agent ..." asks for a person explicitly — no need to consult the
+        # "@agent ..." asks for a person explicitly - no need to consult the
         # customer about whether they want one.
         if mention == "agent" and not session.handled_by:
             result = self._escalate(
@@ -274,7 +274,7 @@ class Router:
         The label is a bag of the question's content words, not the question:
         stemmed, stopped, capped at four, and only written for a verified
         customer. That is enough for "you asked about travel insurance last
-        time" and not enough to reconstruct what they typed — which matters,
+        time" and not enough to reconstruct what they typed - which matters,
         because whatever is stored here outlives the session that produced it.
         """
         if not session.customer_id:
@@ -296,7 +296,7 @@ class Router:
     def _route(self, session: Session, text: str) -> TurnResult:
         # 0. An outstanding offer of a handoff. Answered first, because "yes"
         #    means nothing to the classifier and would otherwise be routed as
-        #    an unknown utterance — the same trap the flow escape hatch fixes.
+        #    an unknown utterance - the same trap the flow escape hatch fixes.
         if session.pending_escalation:
             reason = session.pending_escalation
             session.pending_escalation = None
@@ -312,7 +312,7 @@ class Router:
                 self.trace.decide("handoff_offer", "customer declined",
                                   "assistant continues")
                 return TurnResult(
-                    text=("No problem — I'll keep helping. What else can I look "
+                    text=("No problem - I'll keep helping. What else can I look "
                           "at for you?"),
                     route="deterministic", intent="escalation_declined",
                     confidence=1.0, debug={"note": "customer declined the handoff"},
@@ -337,7 +337,7 @@ class Router:
                 # silently forgotten.
                 result = self._route_fresh(session, text)
                 result.text = (
-                    f"_No problem — I've stopped the {_flow_label(flow_name)}._"
+                    f"_No problem - I've stopped the {_flow_label(flow_name)}._"
                     f"\n\n{result.text}" if result.text else result.text
                 )
                 result.debug["note"] = " · ".join(
@@ -407,7 +407,7 @@ class Router:
         if not verdict.allowed:
             session.low_confidence_streak = 0
             self.trace.decide("guardrail", f"blocked: {verdict.topic}",
-                              f"{verdict.reason} — no model was called")
+                              f"{verdict.reason} - no model was called")
             return TurnResult(
                 text=guardrails.RESTRICTED_RESPONSE,
                 route="guardrail", intent=verdict.topic or "restricted",
@@ -427,7 +427,7 @@ class Router:
             flow = flows.handle(session, prediction.intent, text)
             if flow.handled:
                 self.trace.decide(
-                    "nlu", "above threshold — scripted flow",
+                    "nlu", "above threshold - scripted flow",
                     "answer assembled from the customer record; no model involved")
                 session.low_confidence_streak = 0
                 if flow.escalate:
@@ -466,7 +466,7 @@ class Router:
         )
 
         # With a semantic judge downstream, stage one runs for recall: a looser
-        # lexical gate and a wider pool, because the judge — not the threshold —
+        # lexical gate and a wider pool, because the judge - not the threshold -
         # is what decides relevance on this path.
         candidates = self.kb.search(
             text, top_k=rerank.CANDIDATE_POOL, gate=rerank.RECALL_GATE
@@ -477,11 +477,11 @@ class Router:
         # Redact before retrieval and before the model sees anything. Two
         # separate reasons, both load-bearing:
         #
-        #   Privacy — the raw text is sent to a third-party LLM provider. A
+        #   Privacy - the raw text is sent to a third-party LLM provider. A
         #   customer who pastes a card number was having it forwarded verbatim
         #   to Groq. Masking it in the audit log afterwards does not unsend it.
         #
-        #   Retrieval — "my card 4111 1111 1111 1111 was charged twice" tokenises
+        #   Retrieval - "my card 4111 1111 1111 1111 was charged twice" tokenises
         #   the digits, and those tokens appear in no passage, so the coverage
         #   score collapses and a legitimate dispute question retrieves nothing.
         safe_text = guardrails.redact(text)
@@ -608,7 +608,7 @@ class Router:
 
         The customer, not the assistant, should decide whether their time is
         better spent in a queue. Plenty of people would rather rephrase the
-        question than wait — and a bot that escalates unilaterally the first
+        question than wait - and a bot that escalates unilaterally the first
         time it is stuck feels like it gave up on them.
 
         Handoffs the customer already asked for, and security failures, are
@@ -616,10 +616,12 @@ class Router:
         """
         session.pending_escalation = reason
         body = (
-            "I don't have a verified answer for that one.\n\n"
-            "**Would you like me to connect you to a specialist?** "
-            "They'll get the full conversation, so you won't repeat yourself. "
-            "Or ask me something else and I'll keep helping."
+            "I want to be straight with you - I don't have anything verified "
+            "on that, and I'd rather say so than guess.\n\n"
+            "**Would you like me to bring in a colleague who can help?** "
+            "They'll already have this conversation in front of them, so "
+            "there's nothing you'd need to repeat. Otherwise, ask me anything "
+            "else and I'll keep going."
         )
         message = f"{prefix.strip()}\n\n{body}" if prefix.strip() else body
         return TurnResult(

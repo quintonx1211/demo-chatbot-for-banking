@@ -4,14 +4,14 @@ The architecture's whole justification is that an ungrounded model will answer
 a bank-policy question fluently and wrongly. That is easy to assert and hard to
 feel. This runs both paths side by side so it can be seen instead:
 
-  * **Ungrounded** — the model answers from whatever it absorbed in training,
+  * **Ungrounded** - the model answers from whatever it absorbed in training,
     with a plain "you are a bank assistant" prompt and no passages.
-  * **Grounded** — the production path: retrieve, answer only from what was
+  * **Grounded** - the production path: retrieve, answer only from what was
     retrieved, then check the answer stayed inside it.
 
 One honest caveat, stated in the payload rather than hidden: the ungrounded
 model sometimes declines to guess instead of inventing. That is a weaker demo
-moment and it is not suppressed — a comparison rigged to always produce an
+moment and it is not suppressed - a comparison rigged to always produce an
 invention would prove nothing.
 """
 
@@ -22,7 +22,7 @@ from .base import LLMRequest
 
 UNGROUNDED_SYSTEM_PROMPT = """You are a customer service assistant for a retail \
 bank. Answer the customer's question directly and helpfully in 2-4 sentences. \
-Be specific and concrete — give figures, timeframes and conditions where they \
+Be specific and concrete - give figures, timeframes and conditions where they \
 are relevant, the way a knowledgeable member of staff would."""
 
 # Questions chosen because the answer is bank-specific policy: it cannot be
@@ -77,7 +77,7 @@ def compare(question: str, kb: KnowledgeBase) -> dict:
     if provider is None:
         ungrounded = {
             "text": "", "generated": False,
-            "error": "No LLM provider configured — sign in and set one in "
+            "error": "No LLM provider configured - sign in and set one in "
                      "Settings to run this comparison.",
         }
     else:
@@ -93,8 +93,8 @@ def compare(question: str, kb: KnowledgeBase) -> dict:
         }
         if result.text:
             # How much of the ungrounded answer is actually supported by the
-            # bank's documentation. Not a verdict on truth — it cannot catch a
-            # figure that happens to be right — but it does show, concretely,
+            # bank's documentation. Not a verdict on truth - it cannot catch a
+            # figure that happens to be right - but it does show, concretely,
             # how much of that fluent paragraph has nothing behind it.
             corpus = " ".join(p.text for p in kb.passages)
             ungrounded["overlap_with_corpus"] = round(
@@ -111,7 +111,7 @@ def compare(question: str, kb: KnowledgeBase) -> dict:
             "Both answers come from the same model, at the same settings. The "
             "only difference is that one was given the bank's verified passages "
             "and told to use nothing else. The ungrounded model sometimes "
-            "declines to guess rather than inventing — that outcome is shown "
+            "declines to guess rather than inventing - that outcome is shown "
             "as-is rather than retried."
         ),
     }

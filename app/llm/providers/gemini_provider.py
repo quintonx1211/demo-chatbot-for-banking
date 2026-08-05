@@ -61,6 +61,8 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
         thinking_config=types.ThinkingConfig(
             thinking_budget=_THINKING_BUDGET.get(effort, 0)
         ),
+        **({"temperature": request.temperature}
+           if request.temperature is not None else {}),
     )
 
     try:

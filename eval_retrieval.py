@@ -61,7 +61,7 @@ IN_SCOPE: list[tuple[str, str]] = [
     ("I got a suspicious email claiming to be from you", "Recognising phishing"),
     ("what is the mobile cheque deposit limit", "Mobile app"),
 
-    # business-banking-schedule.docx — a converted Word document with three
+    # business-banking-schedule.docx - a converted Word document with three
     # heading levels and a fee table. The questions are worded the way a
     # customer would ask, not the way the document is written, which is where a
     # single lexical signal starts to fail.
@@ -76,7 +76,7 @@ IN_SCOPE: list[tuple[str, str]] = [
     ("my business account has gone inactive how do I use it again", "Dormancy"),
     ("is there a penalty for closing the account early", "Closing an account"),
 
-    # deposit-account-agreement.md — a Regulation DD style disclosure: a dense
+    # deposit-account-agreement.md - a Regulation DD style disclosure: a dense
     # fee table whose conditions live several paragraphs away. The hard cases
     # here are questions whose answer is a table row plus a qualifying rule.
     ("what is the fee for stopping a cheque", "Consumer deposit fee schedule"),
@@ -90,7 +90,7 @@ IN_SCOPE: list[tuple[str, str]] = [
     ("how is interest on my savings worked out", "Interest and how it is calculated"),
     ("if I have fifty thousand saved what rate do I get", "Interest and how it is calculated"),
 
-    # complaints-and-regulatory.md — process and rights, where the answer is a
+    # complaints-and-regulatory.md - process and rights, where the answer is a
     # deadline and the question rarely uses the document's vocabulary.
     ("how do I make a complaint and how long will it take", "Raising a complaint"),
     ("I'm unhappy with how you handled my complaint, what now",
@@ -117,7 +117,7 @@ OUT_OF_SCOPE: list[str] = [
     # "do you provide business payroll services" was here until the business
     # banking schedule was added to the corpus, which made it a question the
     # corpus genuinely answers. A labelled set is only valid against the corpus
-    # it was written for — re-check it whenever documents are added.
+    # it was written for - re-check it whenever documents are added.
 ]
 
 
@@ -228,7 +228,7 @@ def main() -> int:
         print(f"\n  Reranking with {info['provider']} / {info['model']} "
               f"(pool={rerank.CANDIDATE_POOL}, gate={rerank.RECALL_GATE}, "
               f"min_score={rerank.MIN_SCORE})")
-        print("  This makes one API call per question — it will take a minute.")
+        print("  This makes one API call per question - it will take a minute.")
         print_report(
             evaluate(_RerankedKB(kb), top_k=3, label="+ LLM reranking"),
             verbose=verbose,

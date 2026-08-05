@@ -1,4 +1,4 @@
-"""LLM reranking — the semantic stage of the retrieval pipeline.
+"""LLM reranking - the semantic stage of the retrieval pipeline.
 
 Lexical retrieval on this corpus has a measurable ceiling. Questions like "what
 happens when a salary payment bounces" fail against a document that says
@@ -13,7 +13,7 @@ stage is worth an extra call. It does two jobs:
   1. Reorders candidates by actual relevance.
   2. Acts as the rejection gate. When it is enabled, stage one runs with a
      deliberately loose lexical threshold and this stage decides what was
-     really relevant — including deciding that nothing was.
+     really relevant - including deciding that nothing was.
 
 Off by default (LLM_RERANK=1 to enable) because it adds a round trip to every
 knowledge question, and the demo's latency budget matters.
@@ -52,8 +52,8 @@ For every passage you are given, output a score from 0 to 10:
 
 Judge only whether the passage answers THIS question. Ignore how well written \
 it is, and do not reward a passage for being about banking. A passage on a \
-neighbouring topic — a different fee, a different product, a different process \
-— scores low even though it looks relevant.
+neighbouring topic - a different fee, a different product, a different process \
+- scores low even though it looks relevant.
 
 Return only a JSON array of objects, one per passage, in the order given:
 [{"i": 1, "score": 8}, {"i": 2, "score": 0}]
@@ -119,7 +119,7 @@ def rerank(query: str, candidates: list[RetrievedPassage],
            top_k: int = 3) -> tuple[list[RetrievedPassage], str]:
     """Reorder and filter candidates. Returns (results, note-for-the-audit-trail).
 
-    Any failure — no provider, a refusal, unparseable output — falls back to the
+    Any failure - no provider, a refusal, unparseable output - falls back to the
     lexical order rather than dropping the turn. The note records which
     happened, so the audit trail never implies a rerank that did not occur.
     """

@@ -72,6 +72,8 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
     }
     if os.environ.get("LLM_REASONING_EFFORT"):
         kwargs["reasoning_effort"] = _EFFORT.get(effort, "low")
+    if request.temperature is not None:
+        kwargs["temperature"] = request.temperature
 
     try:
         response = client.chat.completions.create(**kwargs)

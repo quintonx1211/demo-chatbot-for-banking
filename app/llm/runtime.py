@@ -24,10 +24,12 @@ from __future__ import annotations
 import os
 
 from . import PROVIDER_ORDER, PROVIDERS
+from .base import TONES
 
 # Settings the console may change. Anything not in here cannot be written
 # through the API - the handler is not a general environment editor.
-_WRITABLE = ("LLM_PROVIDER", "LLM_MODEL", "LLM_EFFORT", "OPENAI_BASE_URL")
+_WRITABLE = ("LLM_PROVIDER", "LLM_MODEL", "LLM_EFFORT", "OPENAI_BASE_URL",
+             "LLM_TONE", "LLM_TEMPERATURE")
 
 VALID_EFFORTS = ("low", "medium", "high")
 
@@ -91,6 +93,8 @@ def configure(
     model: str | None = None,
     effort: str | None = None,
     base_url: str | None = None,
+    tone: str | None = None,
+    temperature: str | float | None = None,
 ) -> None:
     """Apply console settings. Every field is optional; None means "leave alone".
 
@@ -113,6 +117,33 @@ def configure(
             raise ConfigError(
                 f"Effort must be one of: {', '.join(VALID_EFFORTS)}")
         _set("LLM_EFFORT", level)
+
+    if tone is not None:
+        name = tone.strip().lower()
+        # Closed set, checked here as well as at the point of use. The console
+        # only ever sends one of these, but the check belongs at the boundary:
+        # this value is concatenated into the system prompt, and "the UI would
+        # never send that" is not a control.
+        if name and name not in TONES:
+            raise ConfigError(
+                f"Tone must be one of: {', '.join(TONES)}")
+        _set("LLM_TONE", name)
+
+    if temperature is not None:
+        raw = str(temperature).strip()
+        if raw:
+            try:
+                value = float(raw)
+            except ValueError:
+                raise ConfigError(
+                    "Temperature must be a number between 0 and 2.") from None
+            if not 0.0 <= value <= 2.0:
+                raise ConfigError("Temperature must be between 0 and 2.")
+            _set("LLM_TEMPERATURE", f"{value:g}")
+        else:
+            # Cleared, not zeroed. 0.0 is a real setting and an empty box is
+            # the operator asking for the provider's default back.
+            _set("LLM_TEMPERATURE", "")
 
     if model is not None:
         _set("LLM_MODEL", model.strip())

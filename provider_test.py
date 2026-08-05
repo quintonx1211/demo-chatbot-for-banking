@@ -128,7 +128,7 @@ def main() -> int:
     check(not result.generated, "not marked as generated")
     # Assert the fallback is verbatim corpus text, not that it contains any
     # particular words. The earlier version hardcoded a phrase from the passage
-    # it expected to win, so adding a document to the corpus broke it — the
+    # it expected to win, so adding a document to the corpus broke it - the
     # check was really testing retrieval ranking, which is eval_retrieval.py's
     # job and is measured there against a labelled set.
     corpus = " ".join(p.text for p in router.kb.passages)
@@ -150,7 +150,7 @@ def main() -> int:
     router = Router()
     session = router.sessions.create()
     result = router.handle_turn(session, QUESTION)
-    # A failed grounding check now *offers* a handoff rather than forcing one —
+    # A failed grounding check now *offers* a handoff rather than forcing one -
     # the customer decides whether their time is better spent in a queue.
     check(result.route == "escalation_offered", f"offered a handoff (got {result.route})")
     check("grounding" in (result.escalation_reason or "").lower(),

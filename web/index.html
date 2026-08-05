@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Regional Trust Bank — Virtual Assistant</title>
+  <title>ABC Bank - Virtual Assistant</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -19,7 +19,7 @@
         </svg>
       </span>
       <div class="brand-text">
-        <strong>Regional Trust Bank</strong>
+        <strong>ABC Bank</strong>
         <span class="sub" id="brand-sub">Virtual assistant</span>
       </div>
     </div>
@@ -29,13 +29,13 @@
       <span id="staff-pill" class="pill hidden"></span>
       <button id="view-customer-btn" class="ghost small hidden" type="button">Customer chat</button>
       <button id="view-console-btn" class="ghost small hidden" type="button">Console</button>
-      <button id="login-btn" class="ghost small">Staff sign-in</button>
+      <button id="login-btn" class="ghost small">Sign-in</button>
       <button id="logout" class="ghost small hidden" type="button">Sign out</button>
     </div>
   </header>
 
   <!-- ============================================================
-       CUSTOMER — the default. No sign-in, no tabs, just the chat.
+       CUSTOMER - the default. No sign-in, no tabs, just the chat.
        ============================================================ -->
   <main id="screen-customer" class="screen">
     <section class="chat-panel">
@@ -60,10 +60,10 @@
       </div>
       <div id="raw-banner" class="raw-banner hidden">
         <div>
-          <strong>Raw LLM mode — demo only</strong>
+          <strong>Raw LLM mode - demo only</strong>
           <p>Everything below this line is bypassed: routing, guardrails, retrieval,
             PII redaction, the grounding check. This is the model answering from the
-            conversation history alone — the baseline the rest of the assistant is
+            conversation history alone - the baseline the rest of the assistant is
             built to improve on.</p>
         </div>
       </div>
@@ -78,7 +78,7 @@
 
     <aside class="panel inspector">
       <h2>Routing inspector</h2>
-      <p class="hint">How the last turn was decided — the audit view a compliance
+      <p class="hint">How the last turn was decided - the audit view a compliance
         reviewer would see.</p>
       <div id="inspector">
         <p class="empty">Send a message to see the routing decision.</p>
@@ -86,7 +86,7 @@
       <h3 style="margin-top:18px">Decision path</h3>
       <p class="hint">Every gate this turn passed through, and the rule applied
         at each one.</p>
-      <div id="trace"><p class="empty">—</p></div>
+      <div id="trace"><p class="empty">-</p></div>
     </aside>
   </main>
 
@@ -95,7 +95,7 @@
        ============================================================ -->
   <main id="screen-login" class="screen hidden">
     <section class="panel">
-      <h2>Staff sign-in</h2>
+      <h2>Sign-in</h2>
       <p class="hint">The customer chat needs no sign-in. This screen is for
         contact-centre staff.</p>
       <form id="login-form">
@@ -120,7 +120,7 @@
     <section class="panel warn">
       <h3>How this is enforced</h3>
       <p>Every staff endpoint checks the session server-side before doing any
-        work. Hiding a screen in JavaScript is not a control — the routes answer
+        work. Hiding a screen in JavaScript is not a control - the routes answer
         anyone who calls them directly, so the check lives in the handler.</p>
       <p>Demo-grade: the account is PBKDF2-hashed in source, sessions are in
         memory and clear on restart, and the cookie is HttpOnly + SameSite=Lax
@@ -130,7 +130,7 @@
   </main>
 
   <!-- ============================================================
-       AGENT — a separate screen, not a tab on the customer view.
+       AGENT - a separate screen, not a tab on the customer view.
        ============================================================ -->
   <main id="screen-agent" class="screen hidden">
     <nav class="subtabs">
@@ -149,7 +149,7 @@
       <div class="row-between">
         <div>
           <h2>Operations</h2>
-          <p class="hint" id="dash-scope">—</p>
+          <p class="hint" id="dash-scope">-</p>
         </div>
         <div class="row-gap">
           <button id="seed-btn" class="ghost small">Seed demo traffic</button>
@@ -200,11 +200,11 @@
           <div id="handover-empty" class="empty-state">
             <h2>No conversation selected</h2>
             <p>Pick a conversation to see the handover brief, the transcript and
-              the audit trail — and to reply to the customer.</p>
+              the audit trail - and to reply to the customer.</p>
           </div>
           <div id="handover" class="stack hidden">
             <div class="row-between">
-              <h2 id="handover-title">—</h2>
+              <h2 id="handover-title">-</h2>
               <button id="regen" class="ghost small">Regenerate brief</button>
             </div>
             <div class="panel">
@@ -213,7 +213,7 @@
             </div>
             <div class="panel">
               <h3>Reply to the customer <span id="handled-by" class="tag"></span></h3>
-              <p class="hint">The assistant stops answering as soon as you reply —
+              <p class="hint">The assistant stops answering as soon as you reply -
                 the customer sees one voice, not two.</p>
               <form id="reply-form" class="composer-inline" autocomplete="off">
                 <input id="reply-input" type="text"
@@ -238,7 +238,7 @@
     <!-- ---------- GROUNDING CHECK ---------- -->
     <section id="panel-compare" class="agent-panel hidden">
       <div class="panel">
-        <h2>Same model, same question — with and without the knowledge base</h2>
+        <h2>Same model, same question - with and without the knowledge base</h2>
         <p class="hint">The only difference between the two answers below is that
           one was given the bank's verified passages and told to use nothing
           else. This is the argument for the whole architecture, run live rather
@@ -254,12 +254,12 @@
       <div id="compare-result" class="hidden">
         <div class="split-even">
           <div class="panel compare-bad">
-            <h3>Ungrounded — no knowledge base</h3>
+            <h3>Ungrounded - no knowledge base</h3>
             <div id="ungrounded-text" class="answer"></div>
             <div id="ungrounded-meta" class="kv-block"></div>
           </div>
           <div class="panel compare-good">
-            <h3>Grounded — this assistant</h3>
+            <h3>Grounded - this assistant</h3>
             <div id="grounded-text" class="answer"></div>
             <div id="grounded-meta" class="kv-block"></div>
           </div>
@@ -289,12 +289,12 @@
               <button id="kb-new" class="primary small">Write new</button>
             </div>
           </div>
-          <p class="hint" id="kb-stats">—</p>
+          <p class="hint" id="kb-stats">-</p>
           <input id="kb-file" type="file" accept=".md,.txt,.docx" class="hidden" />
           <div id="kb-drop" class="dropzone">
             Drop a <b>.md</b>, <b>.txt</b> or <b>.docx</b> here
             <small>Word files are unzipped and their headings, lists and tables
-              extracted — the review pane shows exactly what gets indexed.</small>
+              extracted - the review pane shows exactly what gets indexed.</small>
           </div>
           <div id="kb-upload-error" class="error hidden"></div>
           <div id="kb-list" class="queue"></div>
@@ -304,11 +304,11 @@
           <div id="kb-empty" class="empty-state">
             <h2>No document selected</h2>
             <p>Pick a document to review the passages the retriever extracted,
-              or add one. Uploads are indexed immediately — no restart.</p>
+              or add one. Uploads are indexed immediately - no restart.</p>
           </div>
           <div id="kb-view" class="stack hidden">
             <div class="row-between">
-              <h2 id="kb-title">—</h2>
+              <h2 id="kb-title">-</h2>
               <div class="row-gap">
                 <button id="kb-edit" class="ghost small">Edit</button>
                 <button id="kb-delete" class="danger small">Delete</button>
@@ -335,7 +335,7 @@
               <input id="kb-filename" type="text" placeholder="travel-insurance.md" />
             </label>
             <label class="field">
-              <span>Markdown — each <code>## Section</code> becomes a passage</span>
+              <span>Markdown - each <code>## Section</code> becomes a passage</span>
               <textarea id="kb-content" rows="16" spellcheck="false"></textarea>
             </label>
             <div id="kb-error" class="error hidden"></div>
@@ -366,22 +366,22 @@
             <label class="field">
               <span>Provider</span>
               <select id="cfg-provider">
-                <option value="auto">auto — first one configured</option>
+                <option value="auto">auto - first one configured</option>
                 <option value="anthropic">anthropic</option>
                 <option value="openai">openai</option>
                 <option value="gemini">gemini</option>
-                <option value="groq">groq — free tier</option>
+                <option value="groq">groq - free tier</option>
               </select>
             </label>
             <label class="field">
-              <span>API key <em id="cfg-key-hint">— stored in memory only</em></span>
+              <span>API key <em id="cfg-key-hint">- stored in memory only</em></span>
               <div class="row-gap">
                 <input id="cfg-key" type="password" placeholder="paste key, or leave blank to keep" />
                 <button id="cfg-key-toggle" class="ghost small" type="button">Show</button>
               </div>
             </label>
             <label class="field">
-              <span>Model <em>— blank uses the provider default</em></span>
+              <span>Model <em>- blank uses the provider default</em></span>
               <input id="cfg-model" type="text" />
             </label>
             <div class="grid-2">
@@ -394,10 +394,33 @@
                 </select>
               </label>
               <label class="field">
-                <span>Base URL <em>— openai adapter only</em></span>
+                <span>Base URL <em>- openai adapter only</em></span>
                 <input id="cfg-base" type="text" placeholder="https://…/v1" />
               </label>
             </div>
+            <div class="grid-2">
+              <label class="field">
+                <span>Tone</span>
+                <select id="cfg-tone">
+                  <option value="professional">professional - precise, economical</option>
+                  <option value="friendly">friendly - warm, plain words</option>
+                  <option value="concise">concise - answer first, no softeners</option>
+                  <option value="empathetic">empathetic - patient, for fraud and loss</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Temperature <em>- blank uses the provider default</em></span>
+                <input id="cfg-temp" type="number" min="0" max="2" step="0.1"
+                       placeholder="e.g. 0.3" />
+              </label>
+            </div>
+            <p class="hint">
+              Tone is a fixed set of presets, not free text. Whatever is chosen
+              here is written into the system prompt above the retrieved
+              passages, so an open box would be a way to overwrite the
+              grounding rules from the console. Tone changes the voice only -
+              it can never change what the assistant is allowed to claim.
+            </p>
             <div id="cfg-error" class="error hidden"></div>
             <div class="row-gap">
               <button id="cfg-save" class="primary">Apply</button>
@@ -406,7 +429,7 @@
           </div>
           <div class="panel warn">
             <h3>About key handling</h3>
-            <p>A key entered here is held in this process's memory only — never
+            <p>A key entered here is held in this process's memory only - never
               written to disk, and no endpoint returns it. The catalogue shows a
               mask (<code>sk-a…4f2c</code>), never the value.</p>
             <p>It is still plaintext in the process environment. Fine for a demo,

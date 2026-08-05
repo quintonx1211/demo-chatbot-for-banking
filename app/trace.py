@@ -1,11 +1,11 @@
-"""Decision trace — why a turn took the route it did.
+"""Decision trace - why a turn took the route it did.
 
 The audit trail already records *what* happened. This records the reasoning:
 every gate the turn passed through, what it saw, and which threshold it was
 compared against. Two audiences need it for different reasons.
 
 A reviewer needs to answer "why did the assistant say that" months later, and
-"the classifier was confident" is not an answer — "intent `block_card` scored
+"the classifier was confident" is not an answer - "intent `block_card` scored
 0.91 against a 0.55 threshold, so the scripted flow ran and no model was
 involved" is.
 
@@ -64,7 +64,7 @@ STAGE_RULES = {
     "guardrail": "Regulated topics are refused here, before any model sees the "
                  "text.",
     "campaign": "A campaign the customer is eligible for, from the overnight "
-                "batch file. Deterministic — no model involved.",
+                "batch file. Deterministic - no model involved.",
     "nlu": "Intent confidence at or above 0.55 runs a scripted flow that reads "
            "the record. Below that, the question goes to the knowledge base.",
     "retrieval": "Passages must clear a relevance floor. Nothing above it means "

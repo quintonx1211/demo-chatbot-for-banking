@@ -147,13 +147,13 @@ class TfidfIndex:
         `_vectorize` drops out-of-vocabulary terms, which is right for indexing
         a document but badly wrong for a query. It made a question of five
         content words, four of them unknown, collapse to the single word the
-        corpus recognised — and then match an example containing only that word
+        corpus recognised - and then match an example containing only that word
         at cosine 1.00. "Do you offer crop insurance for vineyards in Portugal"
         scored a perfect match against "do you have any offers for me".
 
         Unknown terms are kept here at the ceiling idf. They can never match
         anything, so they contribute nothing to the numerator, but they do
-        contribute to the norm — which is exactly the intended effect: a query
+        contribute to the norm - which is exactly the intended effect: a query
         mostly made of words the corpus has never seen should match weakly.
         """
         terms = Counter(featurize(text))

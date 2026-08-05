@@ -2,7 +2,7 @@
 
 Scratch harness, not part of the app. It reimplements the candidate ranking
 against the live index so alternatives can be measured before any of them is
-written into `retriever.py` — the first hybrid attempt scored *worse* than the
+written into `retriever.py` - the first hybrid attempt scored *worse* than the
 baseline, which is exactly the kind of thing that gets shipped when a change is
 reasoned about instead of measured.
 """
@@ -58,7 +58,7 @@ def s_rrf_coverage_floor(sig: Signals, top_k: int) -> list[int]:
 
 
 def s_rrf_only(sig: Signals, top_k: int) -> list[int]:
-    """RRF order, no second filter — trust the fusion."""
+    """RRF order, no second filter - trust the fusion."""
     fused = reciprocal_rank_fusion(
         {"c": sig.coverage, "s": sig.cosine, "b": sig.bm25})
     order = sorted(range(len(fused)), key=lambda i: (fused[i], sig.coverage[i]),
@@ -75,7 +75,7 @@ def s_rrf_no_cosine(sig: Signals, top_k: int) -> list[int]:
 
 
 def s_rrf_soft_floor(sig: Signals, top_k: int) -> list[int]:
-    """RRF order with a much looser coverage floor — noise guard, not a ranker."""
+    """RRF order with a much looser coverage floor - noise guard, not a ranker."""
     fused = reciprocal_rank_fusion(
         {"c": sig.coverage, "s": sig.cosine, "b": sig.bm25})
     order = sorted(range(len(fused)), key=lambda i: (fused[i], sig.coverage[i]),

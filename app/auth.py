@@ -1,6 +1,6 @@
 """Staff authentication for the privileged surfaces.
 
-Two trust zones, not one. The customer chat is deliberately unauthenticated —
+Two trust zones, not one. The customer chat is deliberately unauthenticated -
 it sits on a public page, and identity is established *inside* the conversation
 only when an action needs it (see `flows.py`). Everything else is the opposite:
 the agent console shows other customers' transcripts, the knowledge base decides
@@ -8,13 +8,13 @@ what the assistant is allowed to claim, and the settings screen accepts an API
 key. Those are staff surfaces and are gated here.
 
 The rule this module exists to enforce: **authorise at the API, not in the UI.**
-Hiding a tab in JavaScript is not a control — the endpoint still answers anyone
+Hiding a tab in JavaScript is not a control - the endpoint still answers anyone
 who calls it directly.
 
 Demo-grade, deliberately:
 
   * Credentials live in a dict below, hashed with PBKDF2. A real deployment
-    authenticates against the bank's IdP over OIDC — staff already have a
+    authenticates against the bank's IdP over OIDC - staff already have a
     corporate identity, and building a second one to manage and leak is the
     wrong move.
   * Sessions are in memory, so a restart logs everyone out.
@@ -52,13 +52,13 @@ class StaffUser:
 # One demo account. The password is stated openly because writing a credential
 # into source is only defensible when it protects nothing real, and pretending
 # otherwise would be worse than saying so.
-_SALT = b"regional-trust-demo-salt"
+_SALT = b"banking-chatbot-demo-salt"
 DEMO_USERNAME = "agent"
 DEMO_PASSWORD = "demo1234"
 _STAFF: dict[str, tuple[bytes, StaffUser]] = {
     DEMO_USERNAME: (
         _hash(DEMO_PASSWORD, _SALT),
-        StaffUser(DEMO_USERNAME, "Priya Raman", "contact-centre agent"),
+        StaffUser(DEMO_USERNAME, "Le Van A", "contact-centre agent"),
     ),
 }
 

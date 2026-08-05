@@ -14,7 +14,7 @@ const KB_TEMPLATE = `# Document title
 
 ## First section
 Each "## Section" becomes one retrievable passage. Write the answer a customer
-needs, with the concrete figures and timeframes in the prose — the assistant may
+needs, with the concrete figures and timeframes in the prose - the assistant may
 only state what is written here.
 
 ## Second section
@@ -55,7 +55,7 @@ const SAFEGUARDS = [
     detail: "Card numbers, SSNs, emails and phone numbers are stripped before " +
             "anything reaches the audit trail.",
     probe: "My card 4111 1111 1111 1111 was charged twice",
-    expect: "Handled — and the audit trail stores [CARD_REDACTED], not the number.",
+    expect: "Handled - and the audit trail stores [CARD_REDACTED], not the number.",
   },
 ];
 
@@ -80,7 +80,7 @@ async function api(path, options) {
     response = await fetch(path, options);
   } catch {
     throw new Error(
-      "Cannot reach the server — is `python server.py` still running? " +
+      "Cannot reach the server - is `python server.py` still running? " +
       "An API key entered in Settings lives in that process only, so it needs " +
       "re-entering after a restart."
     );
@@ -137,29 +137,12 @@ function addMessage(role, text, meta, author) {
   bubble.innerHTML = render(text);
   wrap.appendChild(bubble);
 
-  if (meta) {
-    const row = document.createElement("div");
-    row.className = "msg-meta";
-    row.innerHTML = `
-      <span class="chip ${meta.route}">${meta.route}</span>
-      <span class="chip">${escapeHtml(meta.intent)} · ${meta.confidence.toFixed(2)}</span>
-      <span class="chip">${meta.latency_ms} ms</span>
-      ${meta.generated ? '<span class="chip">LLM</span>' : ""}`;
-    wrap.appendChild(row);
-
-    if (meta.sources && meta.sources.length) {
-      const sources = document.createElement("div");
-      sources.className = "sources";
-      sources.innerHTML = "<b>Grounded in:</b><ul>" +
-        meta.sources.map((s) => {
-          const rr = (s.rerank !== null && s.rerank !== undefined)
-            ? ` · rerank ${s.rerank}/10` : "";
-          return `<li>${escapeHtml(s.breadcrumb || s.citation)}` +
-                 ` <em>(cov ${s.score.toFixed(2)}${rr})</em></li>`;
-        }).join("") + "</ul>";
-      wrap.appendChild(sources);
-    }
-  }
+  // Route, intent, confidence, latency and the grounding citations all live in
+  // the routing inspector beside this pane. They were repeated under every
+  // bubble as well, which made the conversation read like a debug log rather
+  // than a bank talking to a customer - and the customer-facing half of the
+  // demo is meant to look like the product, not the instrumentation. The
+  // inspector is the one place that owns them now.
 
   $("messages").appendChild(wrap);
   $("messages").scrollTop = $("messages").scrollHeight;
@@ -167,7 +150,7 @@ function addMessage(role, text, meta, author) {
 
 function updateInspector(data) {
   const source = data.route === "raw_llm"
-    ? "Plain LLM — no retrieval, no guardrails, no grounding check"
+    ? "Plain LLM - no retrieval, no guardrails, no grounding check"
     : data.generated ? "LLM over retrieved passages" : "Deterministic / extractive";
   const rows = [
     ["Route", data.route],
@@ -232,7 +215,7 @@ async function toggleRawMode(enabled) {
     sessionId = data.session_id;
     applyRawMode(data.raw_mode);
   } catch (error) {
-    applyRawMode(!enabled); // revert the switch — the request didn't take
+    applyRawMode(!enabled); // revert the switch - the request didn't take
     addMessage("system", `Could not change mode: ${error.message}`);
   }
 }
@@ -249,7 +232,7 @@ async function send(message) {
     if (data.route === "agent") {
       addMessage("system", data.handled_by
         ? `Sent to ${data.handled_by}.`
-        : "Sent to the specialist queue — someone will pick this up.");
+        : "Sent to the specialist queue - someone will pick this up.");
     } else {
       addMessage("assistant", data.reply, data);
     }
@@ -314,7 +297,7 @@ function renderChatActions(data) {
       <button class="primary small" data-say="yes">Yes, connect me</button>
       <button class="ghost small" data-say="no thanks">No, keep helping</button>`;
   }
-  // No "leave" button here any more — the handoff banner owns that, and owns it
+  // No "leave" button here any more - the handoff banner owns that, and owns it
   // permanently. Two copies of the same escape hatch, one of which vanishes on
   // the next turn, is worse than one that stays put.
 
@@ -364,7 +347,7 @@ async function refreshDashboard() {
   const m = data.metrics;
 
   $("dash-scope").textContent =
-    `${m.conversations} conversations · ${m.turns} turns — every figure below ` +
+    `${m.conversations} conversations · ${m.turns} turns - every figure below ` +
     `counted from this running process`;
 
   const median = m.median_latency_ms;
@@ -400,7 +383,7 @@ async function refreshDashboard() {
       <strong>${escapeHtml(a.last_utterance || "(no message)")}</strong>
       <small>${escapeHtml(a.customer_name || "unidentified")} · ${a.turns} turns ·
         last route <b>${escapeHtml(a.last_route)}</b> · ${a.age_seconds}s ago</small>
-      ${a.escalated ? `<small>escalated — ${escapeHtml(a.reason || "")}</small>` : ""}
+      ${a.escalated ? `<small>escalated - ${escapeHtml(a.reason || "")}</small>` : ""}
     </button>`).join("") ||
     '<p class="empty">No conversations yet. Use "Seed demo traffic", or chat as a customer.</p>';
 
@@ -530,7 +513,7 @@ async function runCompare(question) {
     $("ungrounded-meta").innerHTML = u.error ? "" : `
       <div class="kv"><span>Sources</span><span><b>none</b></span></div>
       <div class="kv"><span>Supported by the corpus</span><span>${
-        u.overlap_with_corpus !== undefined ? pct(u.overlap_with_corpus) : "—"}</span></div>
+        u.overlap_with_corpus !== undefined ? pct(u.overlap_with_corpus) : "-"}</span></div>
       <div class="kv"><span>Checked before shipping?</span><span><b>no</b></span></div>`;
 
     const g = d.grounded;
@@ -539,9 +522,9 @@ async function runCompare(question) {
       <div class="kv"><span>Sources</span><span>${
         g.sources.map((s) => escapeHtml(s.citation)).join("<br>") || "<b>none</b>"}</span></div>
       <div class="kv"><span>Grounding score</span><span>${
-        g.grounding === null ? "—" : g.grounding.toFixed(2)}</span></div>
+        g.grounding === null ? "-" : g.grounding.toFixed(2)}</span></div>
       <div class="kv"><span>Passed the gate?</span><span><b>${
-        g.passed_gate ? "yes" : "no — would escalate"}</b></span></div>`;
+        g.passed_gate ? "yes" : "no - would escalate"}</b></span></div>`;
 
     $("compare-caveat").textContent =
       `${d.caveat}${d.model ? ` Model: ${d.model}.` : ""}`;
@@ -590,7 +573,7 @@ function renderSafeguards() {
             <span class="chip">${escapeHtml(d.intent)}</span>
             ${d.grounding !== null && d.grounding !== undefined
               ? `<span class="chip">grounding ${d.grounding.toFixed(2)}</span>` : ""}</div>
-          <div class="answer">${render(d.reply || "(escalated — no answer attempted)")}</div>
+          <div class="answer">${render(d.reply || "(escalated - no answer attempted)")}</div>
           <p class="hint" style="margin:8px 0 0">Expected: ${escapeHtml(s.expect)}</p>`;
       } catch (error) {
         out.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
@@ -679,7 +662,7 @@ async function deleteDoc() {
 
 // The browser reads the file and posts it as base64 in JSON. Multipart would
 // need a hand-written parser server-side (Python 3.14 removed `cgi`), and at a
-// 256 KB cap its only real advantage — streaming — does not apply.
+// 256 KB cap its only real advantage - streaming - does not apply.
 function readAsBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -719,7 +702,7 @@ async function refreshProviders() {
   $("provider-list").innerHTML = data.providers.map((p) => {
     const status = p.available ? "ready"
       : !p.sdk_installed ? `pip install ${p.package}`
-      : `no key — set ${p.env_key}`;
+      : `no key - set ${p.env_key}`;
     return `<button class="queue-item ${active.provider === p.name ? "active" : ""}"
               data-name="${escapeHtml(p.name)}">
       <strong>${escapeHtml(p.name)}${active.provider === p.name ? " · in use" : ""}</strong>
@@ -732,8 +715,12 @@ async function refreshProviders() {
     b.onclick = () => { $("cfg-provider").value = b.dataset.name; $("cfg-key").focus(); };
   });
 
-  const rows = [["Mode", active.mode], ["Provider", active.provider || "—"],
-                ["Model", active.model || "—"], ["Effort", active.effort || "—"]];
+  const rows = [["Mode", active.mode], ["Provider", active.provider || "-"],
+                ["Model", active.model || "-"], ["Effort", active.effort || "-"]];
+  if (active.tone) rows.push(["Tone", active.tone]);
+  rows.push(["Temperature",
+    active.temperature === null || active.temperature === undefined
+      ? "provider default" : String(active.temperature)]);
   if (active.endpoint) rows.push(["Endpoint", active.endpoint]);
   if (active.detail) rows.push(["Detail", active.detail]);
   $("active-config").innerHTML = rows.map(([k, v]) =>
@@ -741,9 +728,15 @@ async function refreshProviders() {
 
   if (active.requested) $("cfg-provider").value = active.requested;
   if (active.effort) $("cfg-effort").value = active.effort;
+  if (active.tone) $("cfg-tone").value = active.tone;
+  // Left blank when unset, because blank is what means "provider default" on
+  // the way back in. Writing a number here would silently pin it.
+  $("cfg-temp").value =
+    active.temperature === null || active.temperature === undefined
+      ? "" : active.temperature;
   const selected = data.providers.find((p) => p.name === $("cfg-provider").value);
   $("cfg-key-hint").textContent = selected && selected.key_set
-    ? `— ${selected.key_masked} stored; blank keeps it` : "— stored in memory only";
+    ? `- ${selected.key_masked} stored; blank keeps it` : "- stored in memory only";
   $("cfg-model").placeholder = selected ? selected.default_model : "";
 }
 
@@ -754,6 +747,7 @@ async function saveConfig(clearKey) {
     const body = {
       provider: $("cfg-provider").value, model: $("cfg-model").value,
       effort: $("cfg-effort").value, base_url: $("cfg-base").value,
+      tone: $("cfg-tone").value, temperature: $("cfg-temp").value,
     };
     if (clearKey) body.api_key = "";
     else if ($("cfg-key").value.trim()) body.api_key = $("cfg-key").value;
@@ -912,7 +906,7 @@ $("cfg-key-toggle").onclick = () => {
   renderSafeguards();
   loadCompareSuggestions();
   addMessage("assistant",
-    "Hello! I'm the virtual assistant for Regional Trust Bank. I can check " +
+    "Hello! I'm the virtual assistant for ABC Bank. I can check " +
     "balances and transactions, block a lost card, look up a loan application, " +
     "or answer questions about our products and fees. What do you need?");
   if (staff) { showScreen("agent"); showPanel("dashboard"); }

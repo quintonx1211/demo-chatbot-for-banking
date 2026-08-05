@@ -55,22 +55,33 @@ def _verification_prompt(session: Session, intent: str) -> FlowResult:
     session.slots["target_intent"] = intent
     return FlowResult(
         text=(
-            "Before I can look at account details I need to verify your identity. "
-            "Please give me the **last 4 digits of your registered phone number** "
-            "and the **last 4 digits of your national ID (CCCD)**, separated by a space.\n\n"
-            "_Demo hint: Maria `4471 0512` · Daniel `9032 8847` · Linh `3390 2266`_"
+            "Happy to help with that. First, a quick security check so I know "
+            "it's really you.\n\n"
+            "Could you send me the **last 4 digits of your registered phone "
+            "number** and the **last 4 digits of your national ID (CCCD)**, "
+            "with a space between them?"
         ),
         note="verification_started",
     )
 
 
 def _handle_verification(session: Session, text: str) -> FlowResult:
-    digits = re.findall(r"\b\d{4}\b", text)
-    if len(digits) < 2:
+    # The message has to *be* the two codes, not merely contain them.
+    #
+    # Scraping the first two 4-digit groups out of free text let a customer who
+    # pasted a card number verify themselves on its opening digits - the part
+    # of a card that is printed on statements and shared with every merchant,
+    # and identical for everyone holding the same product. Anything that is not
+    # exactly two groups is far more likely to be a customer typing a sentence,
+    # or pasting something they should not, than an identity check.
+    digits = re.findall(r"\d{4}", re.sub(r"[^0-9]+", " ", text))
+    if len(digits) != 2 or re.search(r"\d{5,}", re.sub(r"[^0-9]+", " ", text)):
         return FlowResult(
-            text=("I need two 4-digit codes - the last 4 digits of your phone "
-                  "number, then the last 4 digits of your national ID (CCCD). "
-                  "For example: `4471 0512`."),
+            text=("Not quite - I need just the two 4-digit codes on their own: "
+                  "the last 4 of your phone number, then the last 4 of your "
+                  "CCCD. Something like `1234 5678`.\n\n"
+                  "Please don't send your full card number or PIN - I'll never "
+                  "need either of those."),
             note="verification_retry",
         )
 
@@ -90,7 +101,9 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
         if attempts >= 3:
             session.reset_flow()
             return FlowResult(
-                text="I wasn't able to verify those details.",
+                text=("I'm sorry - I haven't been able to verify those details, "
+                      "and I'm not able to keep trying from here. Let me pass "
+                      "you to a colleague who can sort this out properly."),
                 escalate=True,
                 escalation_reason="Identity verification failed three times",
                 note="verification_failed",
@@ -151,11 +164,11 @@ def _account_summary(session: Session) -> FlowResult:
     for account in customer["accounts"]:
         lines.append(f"- **{account['type']}** {account['mask']}")
     for card in customer["cards"]:
-        state = "" if card["status"] == "active" else f" — {card['status']}"
+        state = "" if card["status"] == "active" else f" - {card['status']}"
         lines.append(f"- **{card['type']} card** {card['mask']}{state}")
     for loan in customer.get("loans", []):
         lines.append(f"- **{loan['product']}** application {loan['application_id']} "
-                     f"— {loan['status']}")
+                     f"- {loan['status']}")
     lines.append("")
     lines.append("I can go into any of these in more detail.")
     return FlowResult(text="\n".join(lines), note="account_summary_from_core")
@@ -187,7 +200,7 @@ def _activate_card(session: Session) -> FlowResult:
         text=(
             f"Your **{card['type']} card {card['mask']}** is issued but not yet "
             f"activated.\n\n"
-            f"**{campaign.get('cta', 'Activate in the mobile app')}** — "
+            f"**{campaign.get('cta', 'Activate in the mobile app')}** - "
             f"{campaign.get('deeplink', '')}\n\n"
             f"Or: {campaign.get('sms_alternative', 'call the number on the card')}.\n\n"
             "_I won't ever ask you for a one-time passcode in this chat. If "
@@ -234,7 +247,7 @@ def _card_offers(session: Session) -> FlowResult:
 def proactive_offer(session: Session) -> FlowResult | None:
     """An offer worth raising unprompted, once identity is established.
 
-    Only service-blocking situations qualify — a card that will not work
+    Only service-blocking situations qualify - a card that will not work
     because it was never activated, or one that has gone dormant. Cross-sell is
     never volunteered: a customer who came to ask about a fee has not asked to
     be sold to, and interrupting them with an upgrade is how these systems get
@@ -390,7 +403,7 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
         return _block_card(session, text)
     if intent == "greeting":
         return FlowResult(
-            text=("Hello! I'm the virtual assistant for Regional Trust Bank. I can "
+            text=("Hello! I'm the virtual assistant for ABC Bank. I can "
                   "check balances and transactions, block a lost card, look up a "
                   "loan application, or answer questions about our products and "
                   "fees. What do you need?"),

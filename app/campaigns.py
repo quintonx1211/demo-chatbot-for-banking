@@ -2,7 +2,7 @@
 
 The client's answers set the shape of this precisely: no real-time core banking
 query, a daily CRM push, and a tolerated one-day lag. So eligibility is never
-computed here — it is *looked up*. The assistant does not decide who should be
+computed here - it is *looked up*. The assistant does not decide who should be
 offered a card upgrade; the bank's CRM decided that overnight and this module
 reads the answer.
 
@@ -60,7 +60,7 @@ class CampaignBook:
 
     @property
     def age_hours(self) -> float | None:
-        """How stale the batch is. Shown rather than hidden — a one-day lag is
+        """How stale the batch is. Shown rather than hidden - a one-day lag is
         acceptable to the client, but only if everyone can see it."""
         if not self.generated_at:
             return None
@@ -104,7 +104,7 @@ class CampaignBook:
         if kind == "activation":
             mask = context.get("card_mask", "your new card")
             return (
-                f"I can see your card **{mask}** hasn't been activated yet — it "
+                f"I can see your card **{mask}** hasn't been activated yet - it "
                 f"was issued on {context.get('issued_on', 'recently')}.\n\n"
                 f"You can activate it in the app, or {spec.get('sms_alternative', '')}."
             )

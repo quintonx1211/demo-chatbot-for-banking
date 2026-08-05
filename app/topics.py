@@ -9,8 +9,8 @@ about it.
 Similarity is Jaccard overlap of stemmed content words, not the idf-weighted
 cosine the retriever uses. That was the first attempt and it failed for an
 instructive reason: idf is computed over the unanswered questions themselves,
-so a word appearing in every member of a cluster — "insurance", across five
-people asking about travel insurance — gets an idf near zero and contributes
+so a word appearing in every member of a cluster - "insurance", across five
+people asking about travel insurance - gets an idf near zero and contributes
 almost nothing. The very term that defines the cluster is the one the metric
 discounts. Worse, at a threshold low enough to group those five, "crop
 insurance for vineyards" merged in with them too.
@@ -34,7 +34,7 @@ from .textmodel import tokenize
 SIMILARITY_THRESHOLD = 0.30
 
 # Below this a cluster is a one-off, not a topic. Shown separately rather than
-# hidden — a single question can still be the important one.
+# hidden - a single question can still be the important one.
 MIN_CLUSTER_SIZE = 2
 
 # Routes that mean "the assistant did not answer this".
@@ -80,7 +80,7 @@ def cluster_unresolved(sessions: list[Session]) -> dict:
                 entries.append((entry.utterance.strip(),
                                 entry.note or entry.route))
 
-    # De-duplicate identical questions but keep the count — a question asked
+    # De-duplicate identical questions but keep the count - a question asked
     # ten times is a bigger gap than ten different ones.
     tally: dict[str, list[str]] = {}
     for text, reason in entries:

@@ -48,6 +48,9 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
             }],
             output_config={"effort": _EFFORT.get(effort, "low")},
             messages=[{"role": "user", "content": request.user}],
+            # Omitted entirely when unset, so the provider default stands.
+            **({"temperature": request.temperature}
+               if request.temperature is not None else {}),
         )
     except Exception as exc:  # network, auth, rate limit - degrade, don't crash
         return LLMResult(text="", generated=False, provider=NAME, model=model,

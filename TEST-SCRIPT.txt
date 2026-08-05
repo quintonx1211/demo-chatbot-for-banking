@@ -1,5 +1,5 @@
 ================================================================================
-REGIONAL TRUST BANK - VIRTUAL ASSISTANT
+ABC BANK - VIRTUAL ASSISTANT
 Manual test script: questions and expected behaviour
 ================================================================================
 
