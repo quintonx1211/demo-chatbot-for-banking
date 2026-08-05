@@ -138,8 +138,6 @@
       <button class="subtab" data-panel="queue">
         Queue <span id="queue-count" class="badge zero">0</span>
       </button>
-      <button class="subtab" data-panel="compare">Grounding check</button>
-      <button class="subtab" data-panel="safeguards">Safeguards</button>
       <button class="subtab" data-panel="kb">Knowledge base</button>
       <button class="subtab" data-panel="settings">Settings</button>
     </nav>
@@ -236,48 +234,6 @@
     </section>
 
     <!-- ---------- GROUNDING CHECK ---------- -->
-    <section id="panel-compare" class="agent-panel hidden">
-      <div class="panel">
-        <h2>Same model, same question - with and without the knowledge base</h2>
-        <p class="hint">The only difference between the two answers below is that
-          one was given the bank's verified passages and told to use nothing
-          else. This is the argument for the whole architecture, run live rather
-          than asserted.</p>
-        <form id="compare-form" class="composer-inline" autocomplete="off">
-          <input id="compare-input" type="text"
-                 placeholder="Ask a bank-policy question…" />
-          <button class="primary" type="submit">Run both</button>
-        </form>
-        <div id="compare-suggestions" class="suggestions" style="padding:12px 0 0"></div>
-        <div id="compare-error" class="error hidden"></div>
-      </div>
-      <div id="compare-result" class="hidden">
-        <div class="split-even">
-          <div class="panel compare-bad">
-            <h3>Ungrounded - no knowledge base</h3>
-            <div id="ungrounded-text" class="answer"></div>
-            <div id="ungrounded-meta" class="kv-block"></div>
-          </div>
-          <div class="panel compare-good">
-            <h3>Grounded - this assistant</h3>
-            <div id="grounded-text" class="answer"></div>
-            <div id="grounded-meta" class="kv-block"></div>
-          </div>
-        </div>
-        <p class="hint" id="compare-caveat" style="margin-top:12px"></p>
-      </div>
-    </section>
-
-    <!-- ---------- SAFEGUARDS ---------- -->
-    <section id="panel-safeguards" class="agent-panel hidden">
-      <div class="panel">
-        <h2>What happens when it's wrong</h2>
-        <p class="hint">Four failure modes and the mechanism that catches each.
-          Run any of them against the live system.</p>
-      </div>
-      <div id="safeguards" class="stack"></div>
-    </section>
-
     <!-- ---------- KNOWLEDGE BASE ---------- -->
     <section id="panel-kb" class="agent-panel hidden">
       <div class="split">

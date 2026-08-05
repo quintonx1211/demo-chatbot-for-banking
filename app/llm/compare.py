@@ -56,6 +56,17 @@ def compare(question: str, kb: KnowledgeBase) -> dict:
         grounded = {
             "text": grounded_result.text,
             "generated": grounded_result.generated,
+            # Carried explicitly, because `answer_from_kb` degrades to
+            # extractive text on any provider failure and returns something
+            # that reads like a working answer. In the product that is the
+            # right behaviour - the customer gets verified text instead of an
+            # error. Here it is actively misleading: if the model was
+            # unreachable, this panel would show a confident grounded column
+            # beside an ungrounded column reading "provider_unreachable", and
+            # look like proof that grounding won. It would be proof of nothing
+            # - the model never ran on either side. The panel has to be able
+            # to say so.
+            "error": grounded_result.error,
             "grounding": grounding,
             "passed_gate": grounding >= guardrails.MIN_GROUNDING,
             "sources": [
@@ -101,10 +112,24 @@ def compare(question: str, kb: KnowledgeBase) -> dict:
                 guardrails.grounding_score(result.text, corpus), 3
             )
 
+    # A comparison is only evidence when the same model answered both sides.
+    # Anything else - no provider, a transport failure, a refusal - makes the
+    # two columns incomparable, and the panel says so instead of letting the
+    # viewer draw the flattering conclusion.
+    both_ran = bool(grounded.get("generated")) and bool(ungrounded.get("generated"))
+    # "No provider" is checked first and reported as a code, not as the prose
+    # already sitting in `ungrounded["error"]` for that case - the UI phrases
+    # it, and a sentence arriving where a reason code is expected reads as a
+    # failure of the failure handling.
+    blocked_by = ("no_provider" if provider is None
+                  else grounded.get("error") or ungrounded.get("error"))
+
     return {
         "question": question,
         "grounded": grounded,
         "ungrounded": ungrounded,
+        "comparable": both_ran,
+        "blocked_by": None if both_ran else blocked_by,
         "provider": provider.NAME if provider else None,
         "model": provider.model_name() if provider else None,
         "caveat": (

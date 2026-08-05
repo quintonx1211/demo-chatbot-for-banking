@@ -21,8 +21,6 @@ Endpoints
     GET  /api/dashboard        operational metrics + queue + activity (staff)
     POST /api/replay           seed realistic traffic through the real router
     POST /api/sessions/clear   drop every conversation (staff)
-    POST /api/compare          {question} -> grounded vs ungrounded answers
-    GET  /api/compare/suggestions  questions where invention is likely
     GET  /api/auth/me          current staff session, or null
     POST /api/auth/login       {username, password} -> sets the staff cookie
     POST /api/auth/logout      clears it
@@ -49,7 +47,7 @@ from urllib.parse import parse_qs, urlparse
 from app import (auth, campaigns as campaign_mod, llm, memory, metrics,
                  policy, replay, topics)
 from app.kbstore import KBError, KnowledgeBaseStore
-from app.llm import compare, runtime
+from app.llm import runtime
 from app.router import Router
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
@@ -240,9 +238,6 @@ class Handler(BaseHTTPRequestHandler):
                 "memory": memory.store.stats,
             })
 
-        elif path == "/api/compare/suggestions":
-            self._send_json({"questions": compare.SUGGESTED})
-
         elif path == "/api/auth/me":
             # Unauthenticated by design: the UI calls this on load to decide
             # what to render, so it must answer "nobody" rather than 401.
@@ -303,15 +298,6 @@ class Handler(BaseHTTPRequestHandler):
                 "messages": session.messages_since(0),
                 "audit": [a.__dict__ for a in session.audit],
             })
-
-        elif path == "/api/compare":
-            if not self._require_staff():
-                return
-            question = (payload.get("question") or "").strip()
-            if not question:
-                self._send_json({"error": "question is required"}, status=400)
-                return
-            self._send_json(compare.compare(question, router.kb))
 
         elif path == "/api/sessions/clear":
             if not self._require_staff():

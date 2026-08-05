@@ -306,16 +306,21 @@ Sign in: agent / demo1234
      WHY     Confirms the dashboard numbers come from real sessions, not from
              seeded constants.
 
-8.3  Grounding check tab: click any suggested question.
-     EXPECT  Two answers side by side. The ungrounded one has no sources and
-             a low "supported by the corpus" percentage. The grounded one
-             cites documents and shows a grounding score.
-     NOTE    The ungrounded model sometimes declines to answer instead of
-             inventing. That is shown as-is and is not a bug.
+8.3  Grounding check and the safeguard probes have moved OUT of the console.
+     They were demonstrations, not operating tools, and an experiment about
+     the architecture sitting beside a live escalation queue is an invitation
+     to run it during a real shift.
 
-8.4  Safeguards tab: press "Run it" on each of the four cards.
-     EXPECT  Each runs live against the real pipeline and shows the route it
-             took. Compare against the "Expected" line under each result.
+       python compare_grounding.py          side-by-side, grounded vs not
+       KICH-BAN-TEST.txt section B4b        the four safeguard probes, typed
+                                            straight into the customer chat
+
+     BEFORE DEMOING THE COMPARISON: check that "answered by" on the GROUNDED
+     side reads "the model". If it reads "extractive fallback - THE MODEL DID
+     NOT RUN", the provider is down and the comparison proves nothing - the
+     grounded path degrades to verbatim knowledge-base text, which reads like
+     a working answer beside an ungrounded error. The script detects this and
+     prints a warning, but check it yourself.
 
 8.5  Knowledge base tab: click business-banking-schedule.docx
      EXPECT  Seven passages with three-level breadcrumbs. The "Extracted text"

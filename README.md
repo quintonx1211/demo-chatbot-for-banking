@@ -47,8 +47,8 @@ sign-in: `agent` or `admin`, password `demo1234`. The customer chat does not.
 
 **Customer** is the default - no sign-in, no tabs, just the chat and the routing
 inspector. **Staff sign-in** (top right, `agent` / `demo1234`) replaces it with
-the contact-centre console: dashboard, escalation queue, grounding check,
-safeguards, knowledge base and settings.
+the contact-centre console: dashboard, escalation queue, knowledge base and
+settings.
 
 The split is deliberate. Identity is established *inside* the customer
 conversation only when an action needs it; everything on the staff side holds
@@ -70,21 +70,34 @@ number as a measured one is where a demo loses the room under questioning.
 
 ## Grounding check - the argument, run live
 
-The **Grounding check** panel asks the same question twice, of the same model at
-the same settings. One call gets the retrieved passages and is told to use
-nothing else; the other gets nothing. The ungrounded answer is scored for how
-much of it the corpus actually supports.
+```bash
+python compare_grounding.py                     # the suggested set
+python compare_grounding.py "your question"     # one question
+```
+
+The same question is asked twice, of the same model at the same settings. One
+call gets the retrieved passages and is told to use nothing else; the other gets
+nothing. The ungrounded answer is then scored for how much of it the corpus
+actually supports.
 
 This is the whole case for the architecture, demonstrated instead of asserted.
 It is not rigged: the ungrounded model sometimes declines to guess rather than
 inventing, and that outcome is shown as-is.
 
-## Raw mode - the whole architecture, on or off, in the same window
+It is a **script, not a console tab**, and that placement is the point. It was a
+tab once. A contact-centre console is where escalations get worked; an
+experiment about the architecture parked beside the live queue is an invitation
+to run it mid-shift. Demonstrations belong in the demo script.
 
-The **Full architecture / Raw LLM mode** switch above the customer chat is a
-second version of the grounding-check argument, run live in the actual
-conversation rather than in a side panel. Flip it on and every gate the
-router normally applies - the compliance guardrail, intent classification and
+The script refuses to present an invalid comparison. `answer_from_kb` degrades
+to verbatim knowledge-base text on *any* provider failure - correct in the
+product, where the customer gets verified information instead of an error, and
+actively misleading here: beside an ungrounded column reading
+`provider_unreachable`, a grounded column of fluent verified text looks like
+proof that grounding won a contest that never took place. The script reports
+`answered by: the model` or `extractive fallback - THE MODEL DID NOT RUN`, and
+counts how many comparisons were actually valid.
+
 scripted flows, retrieval, PII redaction, the grounding check - is skipped for
 that conversation. What is left is a plain LLM call over the message and the
 conversation history, nothing else: `Router._raw_turn` in `app/router.py`.

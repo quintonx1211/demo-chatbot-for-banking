@@ -406,3 +406,16 @@ button:disabled { opacity: .5; cursor: default; filter: none; }
   font-size: 11.5px;
 }
 .handoff-banner button { flex: none; }
+
+/* ---------- invalid-comparison warning ---------- */
+.compare-warning {
+  margin: 12px 0; padding: 12px 14px; border-radius: 10px;
+  background: #fdecec; border: 1px solid #d9534f; color: #7d1f1c;
+}
+.compare-warning p { margin: 5px 0 0; font-size: 13px; }
+.compare-warning code {
+  background: rgba(0,0,0,.08); padding: 1px 5px; border-radius: 4px;
+}
+@media (prefers-color-scheme: dark) {
+  .compare-warning { background: #3a1c1c; border-color: #a94442; color: #f3c9c7; }
+}
