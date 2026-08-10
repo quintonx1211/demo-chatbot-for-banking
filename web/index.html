@@ -4,41 +4,88 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ABC Bank - Virtual Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap"
+        rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header class="topbar">
+
+<!-- ============================================================
+     APP SHELL - left nav (chrome) + the active screen.
+     ============================================================ -->
+<div class="app-shell">
+
+  <div class="nav-scrim" id="nav-scrim" hidden></div>
+
+  <aside class="sidenav" id="sidenav">
     <div class="brand">
-      <span class="mark" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="24" height="24">
-          <path d="M16 3 3 9v8c0 7 5.6 10.9 13 12 7.4-1.1 13-5 13-12V9L16 3z"
-                fill="none" stroke="currentColor" stroke-width="2.4"
-                stroke-linejoin="round"/>
-          <path d="M11 16.2l3.4 3.4L21.5 12" fill="none" stroke="currentColor"
-                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </span>
-      <div class="brand-text">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-text">
         <strong>ABC Bank</strong>
         <span class="sub" id="brand-sub">Virtual assistant</span>
+      </span>
+    </div>
+
+    <nav class="nav-list" aria-label="Main">
+      <button type="button" class="nav-item active" id="nav-assistant">Assistant</button>
+      <!-- The design's remaining sections have nothing behind them in this
+           demo. They stay as inert chrome rather than buttons that lie. -->
+      <span class="nav-item muted" aria-disabled="true">Accounts</span>
+      <span class="nav-item muted" aria-disabled="true">Payments</span>
+      <span class="nav-item muted" aria-disabled="true">Cards</span>
+      <span class="nav-item muted" aria-disabled="true">Support</span>
+    </nav>
+
+    <div class="nav-section">
+      <span class="nav-eyebrow">Session</span>
+      <div class="nav-meta">
+        <span id="mode-pill" class="pill">checking…</span>
+        <span id="staff-pill" class="pill hidden"></span>
       </div>
     </div>
 
-    <div class="modes">
-      <span id="mode-pill" class="pill">checking…</span>
-      <span id="staff-pill" class="pill hidden"></span>
+    <div class="nav-foot">
       <button id="view-customer-btn" class="ghost small hidden" type="button">Customer chat</button>
       <button id="view-console-btn" class="ghost small hidden" type="button">Console</button>
-      <button id="login-btn" class="ghost small">Sign-in</button>
+      <button id="login-btn" class="ghost small" type="button">Sign-in</button>
       <button id="logout" class="ghost small hidden" type="button">Sign out</button>
     </div>
-  </header>
+  </aside>
+
+  <div class="app-main">
 
   <!-- ============================================================
        CUSTOMER - the default. No sign-in, no tabs, just the chat.
        ============================================================ -->
-  <main id="screen-customer" class="screen">
+  <main id="screen-customer" class="screen screen-chat">
     <section class="chat-panel">
+
+      <header class="chat-header">
+        <!-- Mock only: the surrounding banking app owns where "back" goes, so
+             here it is a real, focusable control that deliberately navigates
+             nowhere. Replace the handler when this is embedded. -->
+        <button type="button" class="icon-btn back-btn" id="back-btn" aria-label="Back">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <div class="chat-id">
+          <span class="chat-name">Virtual ABCssistant</span>
+          <span class="chat-status ok" id="chat-status">
+            <i class="dot" aria-hidden="true"></i><span id="chat-status-text">Active</span>
+          </span>
+        </div>
+        <button type="button" class="link-btn" id="talk-to-person">Talk to a person</button>
+        <button type="button" class="icon-btn rail-toggle" id="rail-toggle"
+                aria-label="Routing inspector">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round"><path d="M12 16v-5M12 8h.01"/>
+            <circle cx="12" cy="12" r="9"/></svg>
+        </button>
+      </header>
+
       <div class="arch-toggle hidden" id="arch-toggle-box">
         <div class="arch-toggle-text">
           <strong id="arch-toggle-title">Full architecture</strong>
@@ -49,15 +96,9 @@
           <span class="switch-track"><span class="switch-thumb"></span></span>
         </label>
       </div>
-      <div id="messages" class="messages"></div>
-      <div class="suggestions" id="suggestions">
-        <button>What are your fees for international transfers?</button>
-        <button>I lost my debit card</button>
-        <button>Check my balance</button>
-        <button>How long do I have to dispute a transaction?</button>
-        <button>Should I invest my savings in tech stocks?</button>
-        <button>Do you offer crop insurance for vineyards?</button>
-      </div>
+
+      <div id="messages" class="messages" role="log" aria-live="polite" aria-label="Conversation"></div>
+
       <div id="raw-banner" class="raw-banner hidden">
         <div>
           <strong>Raw LLM mode - demo only</strong>
@@ -69,31 +110,51 @@
       </div>
       <div id="handoff-banner" class="handoff-banner hidden"></div>
       <div id="chat-actions" class="chat-actions hidden"></div>
+
+      <div class="suggestions" id="suggestions" role="group" aria-label="Suggested questions">
+        <button type="button">What are your fees for international transfers?</button>
+        <button type="button">I lost my debit card</button>
+        <button type="button">Check my balance</button>
+        <button type="button">How long do I have to dispute a transaction?</button>
+        <button type="button">Should I invest my savings in tech stocks?</button>
+        <button type="button">Do you offer crop insurance for vineyards?</button>
+      </div>
+
       <form id="composer" class="composer" autocomplete="off">
-        <input id="input" type="text"
-               placeholder="Ask a question, or use @agent / @bot to address one directly…" />
-        <button type="submit" id="send">Send</button>
+        <input id="input" type="text" placeholder="Ask about your money…" />
+        <button type="submit" id="send" class="send-btn" aria-label="Send">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h13M12 5l7 7-7 7"/></svg>
+        </button>
       </form>
     </section>
 
-    <aside class="panel inspector">
-      <h2>Routing inspector</h2>
-      <p class="hint">How the last turn was decided - the audit view a compliance
-        reviewer would see.</p>
-      <div id="inspector">
-        <p class="empty">Send a message to see the routing decision.</p>
+    <aside class="context-rail" id="context-rail">
+      <div class="rail-block">
+        <span class="rail-eyebrow">In this conversation</span>
+        <p class="hint">How the last turn was decided - the audit view a compliance
+          reviewer would see.</p>
+        <div id="inspector">
+          <p class="empty">Send a message to see the routing decision.</p>
+        </div>
       </div>
-      <h3 style="margin-top:18px">Decision path</h3>
-      <p class="hint">Every gate this turn passed through, and the rule applied
-        at each one.</p>
-      <div id="trace"><p class="empty">-</p></div>
+      <div class="rail-block">
+        <span class="rail-eyebrow">Decision path</span>
+        <p class="hint">Every gate this turn passed through, and the rule applied
+          at each one.</p>
+        <div id="trace"><p class="empty">-</p></div>
+      </div>
+      <p class="rail-note">The assistant can read your accounts but never your full
+        card number. Anything that moves money or changes a card asks you to
+        confirm first.</p>
     </aside>
   </main>
 
   <!-- ============================================================
        STAFF SIGN-IN
        ============================================================ -->
-  <main id="screen-login" class="screen hidden">
+  <main id="screen-login" class="screen screen-doc hidden">
     <section class="panel">
       <h2>Sign-in</h2>
       <p class="hint">The customer chat needs no sign-in. This screen is for
@@ -132,7 +193,7 @@
   <!-- ============================================================
        AGENT - a separate screen, not a tab on the customer view.
        ============================================================ -->
-  <main id="screen-agent" class="screen hidden">
+  <main id="screen-agent" class="screen screen-doc hidden">
     <nav class="subtabs">
       <button class="subtab active" data-panel="dashboard">Dashboard</button>
       <button class="subtab" data-panel="queue">
@@ -242,7 +303,6 @@
       </div>
     </section>
 
-    <!-- ---------- GROUNDING CHECK ---------- -->
     <!-- ---------- KNOWLEDGE BASE ---------- -->
     <section id="panel-kb" class="agent-panel hidden">
       <div class="split">
@@ -404,6 +464,9 @@
       </div>
     </section>
   </main>
+
+  </div><!-- /app-main -->
+</div><!-- /app-shell -->
 
   <script src="/app.js"></script>
 </body>
