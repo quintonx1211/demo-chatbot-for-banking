@@ -1076,7 +1076,7 @@ async function finishRecording() {
   try {
     const wav = encodeWav(merged, sourceRate, RECORD_SAMPLE_RATE);
     const audioBase64 = await readAsBase64(wav);
-    const data = await postJson("/api/voice/stt", { audio_base64: audioBase64 });
+    const data = await postJson("/api/stt", { audio_b64: audioBase64 });
     if (data.error) throw new Error(data.error);
     // Fills the composer rather than sending straight away - a misheard digit
     // in a verification code is exactly the kind of STT error a customer
