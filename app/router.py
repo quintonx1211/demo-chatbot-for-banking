@@ -374,15 +374,12 @@ class Router:
             return "explicit-cancel"
 
         # Verification flow: chỉ giữ nguyên nếu input trông như mã xác minh
-        # (có nhóm 4 chữ số). Nếu user hỏi câu khác hoàn toàn (không có số),
-        # bỏ verify flow và route câu hỏi mới — tránh kẹt vòng lặp xác minh.
+        # (có nhóm 4 chữ số). Nếu không có số → rõ ràng là câu hỏi mới,
+        # bỏ verify và route lại ngay.
         if session.pending_flow == "verify":
             import re as _re
             if not _re.search(r"\b\d{4}\b", text):
-                prediction = self.classifier.predict(text)
-                if (prediction.confidence >= LOW_CONFIDENCE
-                        and prediction.intent != "unknown"):
-                    return f"new-intent:{prediction.intent}@{prediction.confidence:.2f}"
+                return "new-question-during-verify"
             return None
 
         if session.flow_misses >= flows.MAX_FLOW_MISSES:
