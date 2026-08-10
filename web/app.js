@@ -123,8 +123,18 @@ function addMessage(role, text, meta, author) {
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  bubble.innerHTML = render(text);
+  // System messages are generated status/error text, not assistant prose -
+  // they were never meant to carry markdown. Running them through render()
+  // let its `_..._` -> italic rule eat the underscores out of any
+  // snake_case error code (voice_bad_request rendered as "voicebadrequest"
+  // with "bad" italicised), which is worse than showing no formatting at
+  // all: it silently changes what the operator reads off the code.
+  bubble.innerHTML = role === "system" ? escapeHtml(text) : render(text);
   body.appendChild(bubble);
+
+  if (role === "assistant" && voiceAvailable && text.trim()) {
+    body.appendChild(makeVoiceButton(text));
+  }
 
   if (role !== "system") {
     const time = document.createElement("div");
@@ -270,8 +280,8 @@ async function send(message) {
     applyRawMode(Boolean(data.raw_mode));
     if (data.route === "agent") {
       addMessage("system", data.handled_by
-        ? `Sent to ${data.handled_by}.`
-        : "Sent to the specialist queue - someone will pick this up.");
+        ? `Đã gửi đến ${data.handled_by}.`
+        : "Đã gửi vào hàng chờ chuyên viên - sẽ có người tiếp nhận sớm.");
     } else {
       addMessage("assistant", data.reply, data);
     }
@@ -389,25 +399,25 @@ async function refreshDashboard() {
   const m = data.metrics;
 
   $("dash-scope").textContent =
-    `${m.conversations} conversations · ${m.turns} turns - every figure below ` +
-    `counted from this running process`;
+    `${m.conversations} hội thoại · ${m.turns} lượt trao đổi - mọi số liệu dưới đây ` +
+    `được tính từ chính tiến trình đang chạy`;
 
   const median = m.median_latency_ms;
   const latency = median >= 1000 ? `${(median / 1000).toFixed(1)}s` : `${median} ms`;
 
   $("stat-grid").innerHTML = [
-    statTile("Deflection rate", pct(m.deflection_rate),
-             `${m.deflected} resolved without a human`, "good"),
-    statTile("Median response", latency,
-             `call-centre baseline ${m.baseline_response_seconds}s`, "good"),
-    statTile("Answers with a citation", pct(m.grounding_rate),
-             `${m.grounded_answers} of ${m.knowledge_answers} knowledge answers`),
-    statTile("Escalated to a human", String(m.escalated),
-             "each with a written brief"),
-    statTile("Regulated requests blocked", String(m.guardrail_blocks),
-             "refused before any model ran"),
-    statTile("Agent time saved", `${(m.estimated_minutes_saved / 60).toFixed(1)} h`,
-             `estimate · ${m.assumptions.handle_minutes_per_deflected_conversation} min per conversation`,
+    statTile("Tỷ lệ tự xử lý", pct(m.deflection_rate),
+             `${m.deflected} được giải quyết không cần nhân viên`, "good"),
+    statTile("Thời gian phản hồi trung vị", latency,
+             `mốc tổng đài truyền thống ${m.baseline_response_seconds}s`, "good"),
+    statTile("Câu trả lời có dẫn nguồn", pct(m.grounding_rate),
+             `${m.grounded_answers}/${m.knowledge_answers} câu trả lời tra cứu`),
+    statTile("Chuyển cho nhân viên", String(m.escalated),
+             "mỗi ca đều có bản tóm tắt bàn giao"),
+    statTile("Yêu cầu bị chặn theo quy định", String(m.guardrail_blocks),
+             "từ chối trước khi model xử lý"),
+    statTile("Thời gian nhân viên tiết kiệm được", `${(m.estimated_minutes_saved / 60).toFixed(1)} h`,
+             `ước tính · ${m.assumptions.handle_minutes_per_deflected_conversation} phút/hội thoại`,
              "estimate"),
   ].join("");
 
@@ -422,12 +432,12 @@ async function refreshDashboard() {
 
   $("activity").innerHTML = data.activity.map((a) => `
     <button class="queue-item ${a.escalated ? "alert" : ""}" data-id="${escapeHtml(a.session_id)}">
-      <strong>${escapeHtml(a.last_utterance || "(no message)")}</strong>
-      <small>${escapeHtml(a.customer_name || "unidentified")} · ${a.turns} turns ·
-        last route <b>${escapeHtml(a.last_route)}</b> · ${a.age_seconds}s ago</small>
-      ${a.escalated ? `<small>escalated - ${escapeHtml(a.reason || "")}</small>` : ""}
+      <strong>${escapeHtml(a.last_utterance || "(không có tin nhắn)")}</strong>
+      <small>${escapeHtml(a.customer_name || "chưa xác định")} · ${a.turns} lượt ·
+        route gần nhất <b>${escapeHtml(a.last_route)}</b> · ${a.age_seconds}s trước</small>
+      ${a.escalated ? `<small>đã chuyển nhân viên - ${escapeHtml(a.reason || "")}</small>` : ""}
     </button>`).join("") ||
-    '<p class="empty">No conversations yet. Use "Seed demo traffic", or chat as a customer.</p>';
+    '<p class="empty">Chưa có hội thoại nào. Dùng "Nạp dữ liệu demo", hoặc chat thử với vai khách hàng.</p>';
 
   $("activity").querySelectorAll(".queue-item").forEach((b) => {
     b.onclick = () => { showPanel("queue"); openSession(b.dataset.id); };
@@ -438,7 +448,7 @@ async function refreshDashboard() {
 
   const t = data.topics || { topics: [], singletons: [] };
   $("topic-count").textContent =
-    `${t.total_unresolved || 0} unresolved turns, ${t.distinct_questions || 0} distinct`;
+    `${t.total_unresolved || 0} lượt chưa trả lời được, ${t.distinct_questions || 0} câu hỏi khác nhau`;
   $("topics").innerHTML =
     (t.topics.length
       ? t.topics.map((c) => `
@@ -449,37 +459,37 @@ async function refreshDashboard() {
             </div>
             <ul>${c.questions.map((q) => `<li>${escapeHtml(q)}</li>`).join("")}</ul>
           </div>`).join("")
-      : '<p class="empty">No repeated gaps yet - every unanswered question so far was a one-off.</p>')
+      : '<p class="empty">Chưa có khoảng trống lặp lại nào - mọi câu chưa trả lời được đến giờ đều là ca đơn lẻ.</p>')
     + (t.singletons.length
-      ? `<p class="hint" style="margin-top:10px">Plus ${t.singletons.length} one-off question(s): `
+      ? `<p class="hint" style="margin-top:10px">Và ${t.singletons.length} câu hỏi đơn lẻ khác: `
         + t.singletons.map((c) => escapeHtml(c.questions[0])).join("; ") + "</p>"
       : "");
 
   const p = data.policy || {};
   $("policy-box").innerHTML = [
-    ["Strictness", p.strictness], ["Source", p.source],
-    ["Grounding floor", p.min_grounding], ["Relevance floor", p.min_relevance],
-    ["Intent threshold", p.high_confidence],
+    ["Mức độ nghiêm ngặt", p.strictness], ["Nguồn cấu hình", p.source],
+    ["Ngưỡng dẫn nguồn", p.min_grounding], ["Ngưỡng liên quan", p.min_relevance],
+    ["Ngưỡng nhận diện ý định", p.high_confidence],
   ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
-   + '<p class="hint" style="margin:10px 0 0">Higher = refuses more, wrong less. '
-   + 'Lower = answers more, wrong more. Edit config.json; applies on refresh.</p>';
+   + '<p class="hint" style="margin:10px 0 0">Càng cao thì càng hay từ chối, càng ít sai. '
+   + 'Càng thấp thì trả lời nhiều hơn, sai nhiều hơn. Sửa trong config.json; áp dụng khi tải lại.</p>';
 
   const c = data.campaigns || {};
   $("campaign-box").innerHTML = [
-    ["Campaigns", c.campaigns], ["Customers targeted", c.customers_targeted],
-    ["Source", c.source], ["Batch age", c.age_hours != null ? `${c.age_hours} h` : "-"],
+    ["Chương trình", c.campaigns], ["Khách hàng được nhắm tới", c.customers_targeted],
+    ["Nguồn dữ liệu", c.source], ["Tuổi dữ liệu", c.age_hours != null ? `${c.age_hours} giờ` : "-"],
   ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
-   + '<p class="hint" style="margin:10px 0 0">Overnight CRM extract. Eligibility is '
-   + 'read, never inferred - the bank decides who is targeted.</p>';
+   + '<p class="hint" style="margin:10px 0 0">Trích xuất CRM qua đêm. Điều kiện tham gia được '
+   + 'đọc từ dữ liệu, không suy diễn - ngân hàng quyết định ai được nhắm tới.</p>';
 
   const mem = data.memory || {};
   $("memory-box").innerHTML = [
-    ["Customers remembered", mem.customers], ["Notes held", mem.notes],
-    ["Retention", mem.ttl_days != null ? `${mem.ttl_days} days` : "-"],
-    ["Stored", mem.retains],
+    ["Khách hàng được ghi nhớ", mem.customers], ["Ghi chú lưu lại", mem.notes],
+    ["Thời hạn lưu", mem.ttl_days != null ? `${mem.ttl_days} ngày` : "-"],
+    ["Lưu trữ", mem.retains],
   ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
-   + '<p class="hint" style="margin:10px 0 0">Written only after verification, '
-   + 'and cleared with the sessions.</p>';
+   + '<p class="hint" style="margin:10px 0 0">Chỉ ghi sau khi đã xác thực, '
+   + 'và xoá cùng với các phiên hội thoại.</p>';
 
   const rt = data.router || {};
   $("router-mode").textContent = `chế độ: ${rt.mode || "nlu"}`;
@@ -510,13 +520,13 @@ async function refreshDashboard() {
   const dbs = data.database || {};
   const byStatus = dbs.cards_by_status || {};
   $("db-box").innerHTML = [
-    ["Customers", dbs.customers], ["Cards", dbs.cards],
-    ["Card state changes", dbs.card_events],
+    ["Khách hàng", dbs.customers], ["Thẻ", dbs.cards],
+    ["Thay đổi trạng thái thẻ", dbs.card_events],
   ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
    + Object.entries(byStatus).map(([k, v]) =>
        `<div class="kv"><span>&nbsp;&nbsp;${escapeHtml(k)}</span><span>${v}</span></div>`).join("")
-   + '<p class="hint" style="margin:10px 0 0">sqlite, reseeded by Clear sessions '
-   + 'and by Seed demo traffic.</p>';
+   + '<p class="hint" style="margin:10px 0 0">sqlite, được nạp lại bởi Xoá toàn bộ phiên '
+   + 'và Nạp dữ liệu demo.</p>';
 
   const events = data.card_events || [];
   $("card-events").innerHTML = events.length
@@ -543,10 +553,10 @@ async function refreshQueue() {
   $("queue").innerHTML = data.sessions.map((s) => `
     <button class="queue-item alert ${s.session_id === selectedSession ? "active" : ""}"
             data-id="${escapeHtml(s.session_id)}">
-      <strong>${escapeHtml(s.customer_name || "Unidentified caller")}</strong>
-      <small>${s.turns} turns · ${s.verified ? "verified" : "not verified"}</small>
+      <strong>${escapeHtml(s.customer_name || "Khách chưa xác định")}</strong>
+      <small>${s.turns} lượt · ${s.verified ? "đã xác thực" : "chưa xác thực"}</small>
       <small>${escapeHtml(s.reason || "")}</small>
-    </button>`).join("") || '<p class="empty">Nothing waiting.</p>';
+    </button>`).join("") || '<p class="empty">Không có ca nào đang chờ.</p>';
 
   $("queue").querySelectorAll(".queue-item").forEach((b) => {
     b.onclick = () => openSession(b.dataset.id);
@@ -557,15 +567,15 @@ async function openSession(id) {
   selectedSession = id;
   $("handover-empty").classList.add("hidden");
   $("handover").classList.remove("hidden");
-  $("handover-title").textContent = "Conversation";
-  $("summary").textContent = "Generating handover brief…";
+  $("handover-title").textContent = "Hội thoại";
+  $("summary").textContent = "Đang tạo bản tóm tắt bàn giao…";
 
   const data = await postJson("/api/summary", { session_id: id });
   $("summary").innerHTML = render(data.summary);
   $("summary-source").textContent = data.generated
-    ? `written by ${data.model}` : "offline template";
+    ? `viết bởi ${data.model}` : "mẫu offline";
   $("transcript").textContent = data.transcript;
-  $("handled-by").textContent = data.handled_by ? `handled by ${data.handled_by}` : "";
+  $("handled-by").textContent = data.handled_by ? `đang xử lý bởi ${data.handled_by}` : "";
   $("audit").innerHTML = data.audit.map((row) => `
     <div class="audit-row">
       <span class="turn">#${row.turn}</span>
@@ -642,7 +652,7 @@ function openEditor(filename, content) {
   $("kb-empty").classList.add("hidden");
   $("kb-view").classList.add("hidden");
   $("kb-editor").classList.remove("hidden");
-  $("kb-editor-title").textContent = filename ? `Edit ${filename}` : "Add document";
+  $("kb-editor-title").textContent = filename ? `Sửa ${filename}` : "Thêm tài liệu";
   $("kb-filename").value = filename || "";
   $("kb-filename").disabled = Boolean(filename);
   $("kb-content").value = content || "";
@@ -667,7 +677,7 @@ async function saveDoc() {
 
 async function deleteDoc() {
   if (!selectedDoc) return;
-  if (!confirm(`Delete ${selectedDoc}? Its passages stop being retrievable immediately.`)) return;
+  if (!confirm(`Xoá ${selectedDoc}? Các đoạn trích từ tài liệu này sẽ ngừng được truy xuất ngay lập tức.`)) return;
   await postJson("/api/kb/delete", { filename: selectedDoc });
   selectedDoc = null;
   $("kb-view").classList.add("hidden");
@@ -681,7 +691,7 @@ async function deleteDoc() {
 function readAsBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Could not read that file"));
+    reader.onerror = () => reject(new Error("Không đọc được tệp này"));
     reader.onload = () => {
       const comma = reader.result.indexOf(",");
       resolve(comma === -1 ? reader.result : reader.result.slice(comma + 1));
@@ -715,12 +725,12 @@ async function refreshProviders() {
   const active = data.active;
 
   $("provider-list").innerHTML = data.providers.map((p) => {
-    const status = p.available ? "ready"
+    const status = p.available ? "sẵn sàng"
       : !p.sdk_installed ? `pip install ${p.package}`
-      : `no key - set ${p.env_key}`;
+      : `chưa có key - đặt ${p.env_key}`;
     return `<button class="queue-item ${active.provider === p.name ? "active" : ""}"
               data-name="${escapeHtml(p.name)}">
-      <strong>${escapeHtml(p.name)}${active.provider === p.name ? " · in use" : ""}</strong>
+      <strong>${escapeHtml(p.name)}${active.provider === p.name ? " · đang dùng" : ""}</strong>
       <small>${escapeHtml(p.default_model)}</small>
       <small>${escapeHtml(status)}${p.key_masked ? ` · key ${escapeHtml(p.key_masked)}` : ""}</small>
     </button>`;
@@ -730,14 +740,14 @@ async function refreshProviders() {
     b.onclick = () => { $("cfg-provider").value = b.dataset.name; $("cfg-key").focus(); };
   });
 
-  const rows = [["Mode", active.mode], ["Provider", active.provider || "-"],
+  const rows = [["Chế độ", active.mode], ["Provider", active.provider || "-"],
                 ["Model", active.model || "-"], ["Effort", active.effort || "-"]];
-  if (active.tone) rows.push(["Tone", active.tone]);
+  if (active.tone) rows.push(["Văn phong", active.tone]);
   rows.push(["Temperature",
     active.temperature === null || active.temperature === undefined
-      ? "provider default" : String(active.temperature)]);
+      ? "mặc định của provider" : String(active.temperature)]);
   if (active.endpoint) rows.push(["Endpoint", active.endpoint]);
-  if (active.detail) rows.push(["Detail", active.detail]);
+  if (active.detail) rows.push(["Chi tiết", active.detail]);
   $("active-config").innerHTML = rows.map(([k, v]) =>
     `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("");
 
@@ -829,9 +839,220 @@ async function logout() {
 async function refreshHealth() {
   const h = await api("/api/health");
   const pill = $("mode-pill");
-  pill.textContent = h.mode === "live" ? `${h.provider}: ${h.model}` : "LLM: offline";
+  pill.textContent = h.mode === "live" ? `${h.provider}: ${h.model}` : "Model: ngoại tuyến";
   pill.title = h.detail || `effort: ${h.effort}`;
   pill.className = `pill ${h.mode}`;
+}
+
+/* ---------- voice (Vbee STT/TTS) ---------- */
+
+let voiceAvailable = false;
+let currentAudio = null;
+
+async function checkVoiceStatus() {
+  try {
+    const data = await api("/api/voice/status");
+    voiceAvailable = Boolean(data.available);
+  } catch {
+    voiceAvailable = false;
+  }
+  $("mic-btn").classList.toggle("hidden", !voiceAvailable);
+}
+
+function makeVoiceButton(text) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "voice-btn";
+  btn.title = "Nghe câu trả lời";
+  btn.textContent = "🔊";
+  btn.onclick = () => playReply(text, btn);
+  return btn;
+}
+
+function stopCurrentAudio() {
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+}
+
+// Vbee's realtime TTS caps a single request at 300 characters, so a long
+// reply comes back as several chunks (see app/voice.py _chunk_text). They are
+// played back to back with one <audio> element rather than all at once, so
+// the customer hears one continuous reply instead of overlapping voices.
+function playChunks(chunks, format) {
+  return new Promise((resolve) => {
+    if (!chunks.length) { resolve(); return; }
+    let i = 0;
+    const audio = new Audio();
+    currentAudio = audio;
+    audio.onended = () => { i += 1; if (i < chunks.length) playNext(); else resolve(); };
+    audio.onerror = () => resolve();
+    function playNext() {
+      audio.src = `data:audio/${format};base64,${chunks[i]}`;
+      audio.play().catch(() => resolve());
+    }
+    playNext();
+  });
+}
+
+async function playReply(text, btn) {
+  stopCurrentAudio();
+  btn.disabled = true;
+  btn.classList.add("playing");
+  // Vbee's TTS runs as a background job now (see app/voice.py) - the request
+  // can take a few seconds before any audio exists, so the button says so
+  // rather than showing the pause icon before there is anything to pause.
+  btn.textContent = "⏳";
+  try {
+    // Markdown marks (**bold**, `code`) read out as literal asterisks and
+    // backticks otherwise - stripped here rather than in the reply text
+    // itself, which still needs them for the on-screen rendering.
+    const spoken = text.replace(/[*_`]/g, "");
+    const data = await postJson("/api/voice/tts", { text: spoken });
+    if (data.error && (!data.chunks || !data.chunks.length)) throw new Error(data.error);
+    btn.textContent = "⏸";
+    await playChunks(data.chunks || [], data.format || "mp3");
+  } catch (error) {
+    addMessage("system", `Không phát được giọng nói: ${error.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove("playing");
+    btn.textContent = "🔊";
+  }
+}
+
+/* ---- voice input: mic -> WAV -> Vbee STT -> fills the composer ---- */
+
+// Matches Vbee Realtime STT's own ceiling - stopping locally means the
+// customer sees "recording stopped" instantly instead of waiting on a round
+// trip just to be told afterwards that the clip was too long.
+const MAX_RECORD_MS = 10000;
+// One of Vbee's accepted sample rates, and roughly a third the size of the
+// browser's native 44.1/48 kHz - smaller upload, faster round trip.
+const RECORD_SAMPLE_RATE = 16000;
+
+let recorder = null;
+
+function encodeWav(samples, sourceRate, targetRate) {
+  const ratio = sourceRate / targetRate;
+  const outLength = Math.floor(samples.length / ratio);
+  const resampled = new Float32Array(outLength);
+  for (let i = 0; i < outLength; i++) {
+    const srcIndex = i * ratio;
+    const lo = Math.floor(srcIndex);
+    const hi = Math.min(lo + 1, samples.length - 1);
+    const frac = srcIndex - lo;
+    resampled[i] = samples[lo] + (samples[hi] - samples[lo]) * frac;
+  }
+
+  const pcm = new Int16Array(resampled.length);
+  for (let i = 0; i < resampled.length; i++) {
+    const s = Math.max(-1, Math.min(1, resampled[i]));
+    pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+
+  const buffer = new ArrayBuffer(44 + pcm.length * 2);
+  const view = new DataView(buffer);
+  const writeStr = (offset, str) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + pcm.length * 2, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);           // PCM
+  view.setUint16(22, 1, true);           // mono
+  view.setUint32(24, targetRate, true);
+  view.setUint32(28, targetRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, "data");
+  view.setUint32(40, pcm.length * 2, true);
+  new Int16Array(buffer, 44).set(pcm);
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+function setMicUI(state) {
+  const btn = $("mic-btn");
+  btn.classList.toggle("recording", state === "recording");
+  btn.disabled = state === "processing";
+  btn.title = state === "recording" ? "Đang ghi âm - bấm để dừng"
+    : state === "processing" ? "Đang nhận diện giọng nói…"
+    : "Nhập bằng giọng nói";
+  btn.textContent = state === "recording" ? "⏹" : "🎙️";
+}
+
+async function startRecording() {
+  stopCurrentAudio(); // avoid the mic picking up the assistant's own voice
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    addMessage("system", "Không truy cập được micro - hãy kiểm tra quyền truy cập trình duyệt.");
+    return;
+  }
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AudioCtx();
+  const source = ctx.createMediaStreamSource(stream);
+  const processor = ctx.createScriptProcessor(4096, 1, 1);
+  // Routed to destination through a silent gain node: onaudioprocess needs a
+  // connected graph to fire in some browsers, but connecting the mic straight
+  // to destination would play the customer's own voice back to them.
+  const mute = ctx.createGain();
+  mute.gain.value = 0;
+  const samples = [];
+
+  processor.onaudioprocess = (e) => samples.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+  source.connect(processor);
+  processor.connect(mute);
+  mute.connect(ctx.destination);
+
+  recorder = { stream, ctx, source, processor, mute, samples,
+              timeout: setTimeout(finishRecording, MAX_RECORD_MS) };
+  setMicUI("recording");
+}
+
+async function finishRecording() {
+  if (!recorder) return;
+  const { stream, ctx, source, processor, mute, samples, timeout } = recorder;
+  recorder = null;
+  clearTimeout(timeout);
+  processor.disconnect();
+  source.disconnect();
+  mute.disconnect();
+  stream.getTracks().forEach((t) => t.stop());
+
+  const total = samples.reduce((sum, s) => sum + s.length, 0);
+  const merged = new Float32Array(total);
+  let offset = 0;
+  for (const chunk of samples) { merged.set(chunk, offset); offset += chunk.length; }
+  const sourceRate = ctx.sampleRate;
+  await ctx.close();
+
+  if (total / sourceRate < 0.3) {
+    setMicUI("idle"); // too short to be a real question - most likely a mis-tap
+    return;
+  }
+
+  setMicUI("processing");
+  try {
+    const wav = encodeWav(merged, sourceRate, RECORD_SAMPLE_RATE);
+    const audioBase64 = await readAsBase64(wav);
+    const data = await postJson("/api/voice/stt", { audio_base64: audioBase64 });
+    if (data.error) throw new Error(data.error);
+    // Fills the composer rather than sending straight away - a misheard digit
+    // in a verification code is exactly the kind of STT error a customer
+    // needs the chance to see and fix before it goes anywhere.
+    $("input").value = (data.text || "").trim();
+    $("input").focus();
+  } catch (error) {
+    addMessage("system", `Không nhận diện được giọng nói: ${error.message}`);
+  } finally {
+    setMicUI("idle");
+  }
+}
+
+function toggleRecording() {
+  if (recorder) finishRecording(); else startRecording();
 }
 
 /* ---------- wiring ---------- */
@@ -839,6 +1060,7 @@ async function refreshHealth() {
 $("raw-toggle").onchange = (e) => toggleRawMode(e.target.checked);
 
 $("composer").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
+$("mic-btn").onclick = toggleRecording;
 
 // Starting over drops the server-side session too. Clearing only the visible
 // transcript would leave the customer talking to a conversation they cannot
@@ -880,8 +1102,8 @@ document.querySelectorAll(".subtab").forEach((t) => {
 
 $("dash-refresh").onclick = refreshDashboard;
 $("clear-btn").onclick = async () => {
-  if (!confirm("Delete every conversation in this process? " +
-               "The dashboard resets to zero and transcripts are gone.")) return;
+  if (!confirm("Xoá toàn bộ hội thoại trong tiến trình này? " +
+               "Bảng điều khiển sẽ về 0 và các bản ghi hội thoại sẽ mất.")) return;
   const d = await postJson("/api/sessions/clear", {});
   sessionId = null;
   renderedCount = 0;
@@ -889,7 +1111,7 @@ $("clear-btn").onclick = async () => {
   $("handover").classList.add("hidden");
   $("handover-empty").classList.remove("hidden");
   await refreshDashboard();
-  alert(`Cleared ${d.removed} conversation(s).`);
+  alert(`Đã xoá ${d.removed} hội thoại.`);
 };
 $("seed-btn").onclick = async () => {
   $("seed-btn").disabled = true;
@@ -932,7 +1154,7 @@ $("cfg-key-toggle").onclick = () => {
   const f = $("cfg-key");
   const hidden = f.type === "password";
   f.type = hidden ? "text" : "password";
-  $("cfg-key-toggle").textContent = hidden ? "Hide" : "Show";
+  $("cfg-key-toggle").textContent = hidden ? "Ẩn" : "Hiện";
 };
 
 function greet() {
@@ -955,6 +1177,7 @@ function setRailUser(customer) {
 (async function init() {
   await refreshHealth();
   await refreshStaff();
+  await checkVoiceStatus();
   greet();
   if (staff) { showScreen("agent"); showPanel("dashboard"); }
 })();

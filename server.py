@@ -24,6 +24,12 @@ Endpoints
     GET  /api/auth/me          current staff session, or null
     POST /api/auth/login       {username, password} -> sets the staff cookie
     POST /api/auth/logout      clears it
+    GET  /api/voice/status     whether Vbee is configured (public)
+    POST /api/voice/tts        {text} -> {chunks: [base64 mp3, …]} (public)
+    POST /api/voice/stt        {audio_base64} -> {text} (public)
+    POST /api/voice/webhook/tts  Vbee's TTS callback target (public, see
+                                app/voice.py - the result is fetched by
+                                polling, not read from here)
 
 Two trust zones. `/`, `/api/health` and `/api/chat` are public - the customer
 chat is a widget on a public page, and identity is established inside the
@@ -44,8 +50,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import base64
+
 from app import (auth, campaigns as campaign_mod, db, llm, memory, metrics,
-                 policy, replay, topics)
+                 policy, replay, topics, voice)
 from app.kbstore import KBError, KnowledgeBaseStore
 from app.llm import runtime
 from app.router import Router
@@ -54,8 +62,11 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 HOST = "127.0.0.1"
 PORT = 8000
 
-# Requests bigger than this are refused before being read into memory.
-MAX_BODY_BYTES = 1024 * 1024
+# Requests bigger than this are refused before being read into memory. Voice
+# is the reason this is 2 MB rather than 1: a 10-second clip at 16 kHz/16-bit
+# mono is ~320 KB raw, ~430 KB base64-encoded - comfortable, but a 1 MB cap
+# sized for JSON chat payloads left too little headroom.
+MAX_BODY_BYTES = 2 * 1024 * 1024
 
 router = Router()
 kb_store = KnowledgeBaseStore(router.kb)
@@ -240,6 +251,12 @@ class Handler(BaseHTTPRequestHandler):
                 "database": db.stats(),
                 "card_events": db.card_events(limit=12),
             })
+
+        elif path == "/api/voice/status":
+            # Public and cheap: the client calls this once on load to decide
+            # whether to show the mic and speaker controls at all, rather
+            # than show them and have the first tap fail.
+            self._send_json({"available": voice.available()})
 
         elif path == "/api/auth/me":
             # Unauthenticated by design: the UI calls this on load to decide
@@ -426,6 +443,47 @@ class Handler(BaseHTTPRequestHandler):
                 "raw_mode": session.raw_mode,
                 "debug": result.debug,
             })
+
+        elif path == "/api/voice/tts":
+            # Public, same trust zone as /api/chat: this reads back a reply
+            # the customer already received, not anything privileged.
+            text = (payload.get("text") or "").strip()
+            if not text:
+                self._send_json({"error": "text is required"}, status=400)
+                return
+            if not voice.available():
+                self._send_json({"error": "voice_not_configured"}, status=503)
+                return
+            chunks, error = voice.synthesize(text)
+            self._send_json({
+                "chunks": [base64.b64encode(c).decode("ascii") for c in chunks],
+                "format": "mp3",
+                "error": error,
+            })
+
+        elif path == "/api/voice/stt":
+            if not voice.available():
+                self._send_json({"error": "voice_not_configured"}, status=503)
+                return
+            audio_b64 = payload.get("audio_base64") or ""
+            try:
+                wav_bytes = base64.b64decode(audio_b64, validate=True)
+            except Exception:
+                self._send_json({"error": "audio_base64 is not valid base64"},
+                                status=400)
+                return
+            text, error = voice.transcribe(wav_bytes)
+            self._send_json({"text": text, "error": error})
+
+        elif path == "/api/voice/webhook/tts":
+            # Vbee's Batch TTS requires a webhookUrl and will POST here when a
+            # job finishes. `voice.synthesize` doesn't wait for this - it
+            # polls Vbee's own Get Request endpoint instead, so nothing here
+            # needs to be read or correlated back to a request. This exists
+            # only to give Vbee somewhere valid to deliver to; logging the
+            # arrival is enough to confirm the tunnel is actually working.
+            print(f"  [voice webhook] {payload}", file=sys.stderr)
+            self._send_json({"received": True})
 
         elif path == "/api/summary":
             if not self._require_staff():

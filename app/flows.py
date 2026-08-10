@@ -275,7 +275,7 @@ def proactive_offer(session: Session) -> FlowResult | None:
     session.slots["campaign_offered"] = "1"
     offer = offers[0]
     return FlowResult(
-        text=(f"\n\n---\n**While you're here:** {offer.body}\n\n"
+        text=(f"\n\n---\n**Nhân tiện:** {offer.body}\n\n"
               f"→ {offer.cta}: {offer.deeplink}"),
         note=f"proactive:{offer.campaign_id}",
     )
@@ -526,7 +526,7 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
             text="Rất vui được hỗ trợ anh/chị. Chúc anh/chị một ngày tốt lành!", note="goodbye")
     if intent == "human_agent":
         return FlowResult(
-            text="Of course.",
+            text="Dạ được ạ, để tôi kết nối anh/chị với chuyên viên ngay.",
             escalate=True,
             escalation_reason="Customer explicitly asked for a human agent",
             note="explicit_handoff_request",

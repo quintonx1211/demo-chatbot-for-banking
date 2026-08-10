@@ -154,7 +154,7 @@
         <input id="input" type="text"
                placeholder="Nhập câu hỏi, hoặc dùng @agent / @bot để gọi trực tiếp…" />
         <button type="button" class="icon-btn ghost-ic" title="Biểu tượng cảm xúc" data-demo>😊</button>
-        <button type="button" class="icon-btn ghost-ic" title="Nhập bằng giọng nói" data-demo>🎙️</button>
+        <button type="button" id="mic-btn" class="icon-btn ghost-ic hidden" title="Nhập bằng giọng nói">🎙️</button>
         <button type="submit" id="send" class="send-btn" title="Gửi">
           <!-- Filled and symmetric about the horizontal axis, so its bounding
                box centre and its visual centre coincide. The previous outline
@@ -212,13 +212,14 @@
     </section>
     <section class="panel warn">
       <h3>Cơ chế phân quyền</h3>
-      <p>Every staff endpoint checks the session server-side before doing any
-        work. Hiding a screen in JavaScript is not a control - the routes answer
-        anyone who calls them directly, so the check lives in the handler.</p>
-      <p>Demo-grade: the account is PBKDF2-hashed in source, sessions are in
-        memory and clear on restart, and the cookie is HttpOnly + SameSite=Lax
-        but not Secure because this runs over plain HTTP on localhost. A real
-        deployment authenticates against the bank's identity provider.</p>
+      <p>Mọi endpoint dành cho nhân viên đều kiểm tra phiên đăng nhập ở phía máy
+        chủ trước khi xử lý. Ẩn một màn hình trong JavaScript không phải là một
+        biện pháp bảo mật - các route vẫn trả lời bất kỳ ai gọi trực tiếp, nên
+        việc kiểm tra phải nằm trong handler.</p>
+      <p>Mức độ demo: tài khoản được băm bằng PBKDF2 trong mã nguồn, phiên đăng
+        nhập lưu trong bộ nhớ và mất khi khởi động lại, cookie có HttpOnly +
+        SameSite=Lax nhưng không có Secure vì chạy trên HTTP thường ở localhost.
+        Một hệ thống thật sẽ xác thực qua nhà cung cấp định danh của ngân hàng.</p>
     </section>
   </main>
 
@@ -285,13 +286,13 @@
         </div>
       </div>
       <div class="panel" style="margin-top:16px">
-        <h3>Where turns went</h3>
+        <h3>Phân bố các route</h3>
         <div id="route-bars"></div>
       </div>
       <div class="panel" style="margin-top:16px">
-        <h3>Recent conversations</h3>
-        <p class="hint">Every figure above is counted from these. Click any row
-          to open it.</p>
+        <h3>Hội thoại gần đây</h3>
+        <p class="hint">Mọi số liệu ở trên đều được tính từ đây. Bấm vào một dòng
+          để mở hội thoại đó.</p>
         <div id="activity" class="queue"></div>
       </div>
     </section>
@@ -300,42 +301,42 @@
     <section id="panel-queue" class="agent-panel hidden">
       <div class="split">
         <div class="panel">
-          <h2>Escalation queue</h2>
-          <p class="hint">Conversations the assistant handed off.</p>
+          <h2>Hàng chờ chuyển tiếp</h2>
+          <p class="hint">Các hội thoại trợ lý đã chuyển cho nhân viên.</p>
           <div id="queue" class="queue"></div>
         </div>
         <div class="stack">
           <div id="handover-empty" class="empty-state">
-            <h2>No conversation selected</h2>
-            <p>Pick a conversation to see the handover brief, the transcript and
-              the audit trail - and to reply to the customer.</p>
+            <h2>Chưa chọn hội thoại nào</h2>
+            <p>Chọn một hội thoại để xem bản tóm tắt bàn giao, bản ghi đầy đủ
+              và nhật ký kiểm toán - và để trả lời khách hàng.</p>
           </div>
           <div id="handover" class="stack hidden">
             <div class="row-between">
               <h2 id="handover-title">-</h2>
-              <button id="regen" class="ghost small">Regenerate brief</button>
+              <button id="regen" class="ghost small">Tạo lại bản tóm tắt</button>
             </div>
             <div class="panel">
-              <h3>Handover brief <span id="summary-source" class="tag"></span></h3>
+              <h3>Tóm tắt bàn giao <span id="summary-source" class="tag"></span></h3>
               <div id="summary" class="summary"></div>
             </div>
             <div class="panel">
-              <h3>Reply to the customer <span id="handled-by" class="tag"></span></h3>
-              <p class="hint">The assistant stops answering as soon as you reply -
-                the customer sees one voice, not two.</p>
+              <h3>Trả lời khách hàng <span id="handled-by" class="tag"></span></h3>
+              <p class="hint">Trợ lý sẽ ngừng trả lời ngay khi bạn nhắn - khách hàng
+                chỉ nghe một tiếng nói, không phải hai.</p>
               <form id="reply-form" class="composer-inline" autocomplete="off">
                 <input id="reply-input" type="text"
-                       placeholder="Type your reply…" />
-                <button class="primary" type="submit">Send</button>
+                       placeholder="Nhập câu trả lời…" />
+                <button class="primary" type="submit">Gửi</button>
               </form>
               <div id="reply-error" class="error hidden"></div>
             </div>
             <div class="panel">
-              <h3>Full transcript</h3>
+              <h3>Toàn bộ bản ghi</h3>
               <pre id="transcript" class="transcript"></pre>
             </div>
             <div class="panel">
-              <h3>Audit trail</h3>
+              <h3>Nhật ký kiểm toán</h3>
               <div id="audit" class="audit"></div>
             </div>
           </div>
@@ -343,24 +344,23 @@
       </div>
     </section>
 
-    <!-- ---------- GROUNDING CHECK ---------- -->
     <!-- ---------- KNOWLEDGE BASE ---------- -->
     <section id="panel-kb" class="agent-panel hidden">
       <div class="split">
         <div class="panel">
           <div class="row-between">
-            <h2>Documents</h2>
+            <h2>Tài liệu</h2>
             <div class="row-gap">
-              <button id="kb-upload-btn" class="ghost small">Upload</button>
-              <button id="kb-new" class="primary small">Write new</button>
+              <button id="kb-upload-btn" class="ghost small">Tải lên</button>
+              <button id="kb-new" class="primary small">Soạn mới</button>
             </div>
           </div>
           <p class="hint" id="kb-stats">-</p>
           <input id="kb-file" type="file" accept=".md,.txt,.docx" class="hidden" />
           <div id="kb-drop" class="dropzone">
-            Drop a <b>.md</b>, <b>.txt</b> or <b>.docx</b> here
-            <small>Word files are unzipped and their headings, lists and tables
-              extracted - the review pane shows exactly what gets indexed.</small>
+            Kéo thả tệp <b>.md</b>, <b>.txt</b> hoặc <b>.docx</b> vào đây
+            <small>Tệp Word sẽ được giải nén và trích xuất tiêu đề, danh sách, bảng biểu -
+              khung xem lại hiển thị đúng những gì được đánh index.</small>
           </div>
           <div id="kb-upload-error" class="error hidden"></div>
           <div id="kb-list" class="queue"></div>
@@ -368,46 +368,47 @@
 
         <div class="stack">
           <div id="kb-empty" class="empty-state">
-            <h2>No document selected</h2>
-            <p>Pick a document to review the passages the retriever extracted,
-              or add one. Uploads are indexed immediately - no restart.</p>
+            <h2>Chưa chọn tài liệu nào</h2>
+            <p>Chọn một tài liệu để xem các đoạn trích mà bộ truy xuất đã tách ra,
+              hoặc thêm tài liệu mới. Tài liệu tải lên được đánh index ngay - không
+              cần khởi động lại.</p>
           </div>
           <div id="kb-view" class="stack hidden">
             <div class="row-between">
               <h2 id="kb-title">-</h2>
               <div class="row-gap">
-                <button id="kb-edit" class="ghost small">Edit</button>
-                <button id="kb-delete" class="danger small">Delete</button>
+                <button id="kb-edit" class="ghost small">Sửa</button>
+                <button id="kb-delete" class="danger small">Xoá</button>
               </div>
             </div>
             <div class="panel">
-              <h3>Extracted passages <span id="kb-passage-count" class="tag"></span></h3>
-              <p class="hint">These are the retrieval units. A section the
-                retriever can't see is a question it can't answer.</p>
+              <h3>Đoạn trích đã tách <span id="kb-passage-count" class="tag"></span></h3>
+              <p class="hint">Đây là các đơn vị truy xuất. Một phần nội dung mà bộ
+                truy xuất không thấy được là một câu hỏi nó không trả lời được.</p>
               <div id="kb-passages" class="passages"></div>
             </div>
             <div class="panel">
-              <h3>Extracted text</h3>
+              <h3>Văn bản đã trích xuất</h3>
               <pre id="kb-raw" class="transcript"></pre>
             </div>
           </div>
           <div id="kb-editor" class="panel hidden">
             <div class="row-between">
-              <h3 id="kb-editor-title">Add document</h3>
-              <button id="kb-cancel" class="ghost small">Cancel</button>
+              <h3 id="kb-editor-title">Thêm tài liệu</h3>
+              <button id="kb-cancel" class="ghost small">Huỷ</button>
             </div>
             <label class="field">
-              <span>Filename</span>
-              <input id="kb-filename" type="text" placeholder="travel-insurance.md" />
+              <span>Tên tệp</span>
+              <input id="kb-filename" type="text" placeholder="bao-hiem-du-lich.md" />
             </label>
             <label class="field">
-              <span>Markdown - each <code>## Section</code> becomes a passage</span>
+              <span>Markdown - mỗi <code>## Mục</code> trở thành một đoạn trích</span>
               <textarea id="kb-content" rows="16" spellcheck="false"></textarea>
             </label>
             <div id="kb-error" class="error hidden"></div>
             <div class="row-gap">
-              <button id="kb-save" class="primary">Save &amp; reindex</button>
-              <button id="kb-template" class="ghost">Insert template</button>
+              <button id="kb-save" class="primary">Lưu &amp; đánh index lại</button>
+              <button id="kb-template" class="ghost">Chèn mẫu</button>
             </div>
           </div>
         </div>
@@ -418,29 +419,29 @@
     <section id="panel-settings" class="agent-panel hidden">
       <div class="split">
         <div class="panel">
-          <h2>LLM provider</h2>
-          <p class="hint">Applies immediately, to this running process only.</p>
+          <h2>Nhà cung cấp LLM</h2>
+          <p class="hint">Áp dụng ngay lập tức, chỉ cho tiến trình đang chạy này.</p>
           <div id="provider-list" class="queue"></div>
         </div>
         <div class="stack">
           <div class="panel">
-            <h3>Active configuration</h3>
+            <h3>Cấu hình đang dùng</h3>
             <div id="active-config"></div>
           </div>
           <div class="panel">
-            <h3>Configure</h3>
+            <h3>Cấu hình</h3>
             <label class="field">
               <span>Provider</span>
               <select id="cfg-provider">
-                <option value="auto">auto - first one configured</option>
+                <option value="auto">auto - dùng provider đầu tiên đã cấu hình</option>
                 <option value="anthropic">anthropic</option>
                 <option value="openai">openai</option>
                 <option value="gemini">gemini</option>
-                <option value="groq">groq - free tier</option>
+                <option value="groq">groq - có gói miễn phí</option>
               </select>
             </label>
             <label class="field">
-              <span>API key <em id="cfg-key-hint">- stored in memory only</em></span>
+              <span>API key <em id="cfg-key-hint">- chỉ lưu trong bộ nhớ</em></span>
               <div class="row-gap">
                 <input id="cfg-key" type="password" placeholder="dán key, để trống nếu giữ nguyên" />
                 <button id="cfg-key-toggle" class="ghost small" type="button">Hiện</button>
@@ -481,11 +482,11 @@
               </label>
             </div>
             <p class="hint">
-              Tone is a fixed set of presets, not free text. Whatever is chosen
-              here is written into the system prompt above the retrieved
-              passages, so an open box would be a way to overwrite the
-              grounding rules from the console. Tone changes the voice only -
-              it can never change what the assistant is allowed to claim.
+              Giọng điệu là một tập preset cố định, không phải văn bản tự do.
+              Bất kể chọn gì ở đây cũng được ghi vào system prompt phía trên các
+              đoạn trích đã truy xuất, nên một ô nhập tự do sẽ là cách để ghi đè
+              luật dẫn nguồn ngay từ bảng điều khiển. Giọng điệu chỉ đổi cách nói -
+              không bao giờ đổi được những gì trợ lý được phép khẳng định.
             </p>
             <div id="cfg-error" class="error hidden"></div>
             <div class="row-gap">
@@ -494,12 +495,13 @@
             </div>
           </div>
           <div class="panel warn">
-            <h3>About key handling</h3>
-            <p>A key entered here is held in this process's memory only - never
-              written to disk, and no endpoint returns it. The catalogue shows a
-              mask (<code>sk-a…4f2c</code>), never the value.</p>
-            <p>It is still plaintext in the process environment. Fine for a demo,
-              <b>not</b> how to handle credentials in production.</p>
+            <h3>Về việc xử lý API key</h3>
+            <p>Key nhập ở đây chỉ tồn tại trong bộ nhớ của tiến trình này - không
+              bao giờ ghi ra đĩa, và không endpoint nào trả về nó. Danh mục chỉ
+              hiển thị dạng che (<code>sk-a…4f2c</code>), không bao giờ hiện giá trị thật.</p>
+            <p>Tuy vậy nó vẫn ở dạng plaintext trong biến môi trường của tiến
+              trình. Phù hợp cho demo, <b>không</b> phải cách xử lý thông tin xác
+              thực trong môi trường production.</p>
           </div>
         </div>
       </div>
