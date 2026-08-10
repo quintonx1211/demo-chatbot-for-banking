@@ -43,9 +43,11 @@ _LEAVE_RE = re.compile(r"^\s*(/leave|/bot|/back|end chat|leave chat)\s*$",
 
 _AFFIRM_RE = re.compile(
     r"^\s*(yes|yeah|yep|yup|ok(ay)?|sure|please|go ahead|do it|connect me|"
-    r"put me through|transfer me|i do)(?=[\s.!,]|$)", re.IGNORECASE)
+    r"put me through|transfer me|i do|"
+    r"có|được|đồng ý|kết nối|vâng|ừ|oke|ok)(?=[\s.!,]|$)", re.IGNORECASE)
 _DECLINE_RE = re.compile(
-    r"^\s*(no|nope|not now|no thanks|nah|don'?t|cancel)(?=[\s.!,]|$)", re.IGNORECASE)
+    r"^\s*(no|nope|not now|no thanks|nah|don'?t|cancel|"
+    r"không|thôi|không cần|không muốn|tiếp tục)(?=[\s.!,]|$)", re.IGNORECASE)
 
 
 def split_mention(text: str) -> tuple[str | None, str]:

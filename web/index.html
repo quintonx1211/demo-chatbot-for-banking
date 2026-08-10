@@ -149,6 +149,15 @@
       <div id="handoff-banner" class="handoff-banner hidden"></div>
       <div id="chat-actions" class="chat-actions hidden"></div>
 
+      <div class="suggestions" id="suggestions" role="group" aria-label="Câu hỏi gợi ý">
+        <button type="button">Phí chuyển khoản quốc tế là bao nhiêu?</button>
+        <button type="button">Tôi bị mất thẻ ghi nợ</button>
+        <button type="button">Kiểm tra số dư tài khoản</button>
+        <button type="button">Tôi có bao lâu để khiếu nại giao dịch?</button>
+        <button type="button">Điều kiện mở thẻ tín dụng là gì?</button>
+        <button type="button">Hạn mức chuyển khoản trong ngày là bao nhiêu?</button>
+      </div>
+
       <div class="tts-bar" id="tts-bar">
         <span class="tts-bar-label">Giọng:</span>
         <select id="tts-bar-provider" title="Nhà cung cấp TTS">
@@ -172,7 +181,20 @@
         <input id="input" type="text"
                placeholder="Nhập câu hỏi, hoặc dùng @agent / @bot để gọi trực tiếp…" />
         <button type="button" class="icon-btn ghost-ic" title="Biểu tượng cảm xúc" data-demo>😊</button>
-        <button type="button" id="mic-btn" class="icon-btn ghost-ic hidden" title="Nhập bằng giọng nói">🎙️</button>
+        <button type="button" id="tts-stop-btn" class="icon-btn ghost-ic hidden" title="Dừng phát âm">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+          </svg>
+        </button>
+        <button type="button" id="mic-btn" class="icon-btn ghost-ic hidden" title="Nhập bằng giọng nói">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="2" width="6" height="12" rx="3"/>
+            <path d="M5 10a7 7 0 0 0 14 0M12 19v3M8 22h8"/>
+          </svg>
+        </button>
         <button type="submit" id="send" class="send-btn" title="Gửi">
           <!-- Filled and symmetric about the horizontal axis, so its bounding
                box centre and its visual centre coincide. The previous outline

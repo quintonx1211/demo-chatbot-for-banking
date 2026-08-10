@@ -871,6 +871,7 @@ function makeVoiceButton(text) {
 
 function stopCurrentAudio() {
   if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  if ($("tts-stop-btn")) $("tts-stop-btn").classList.add("hidden");
 }
 
 // Vbee's realtime TTS caps a single request at 300 characters, so a long
@@ -895,6 +896,7 @@ function playChunks(chunks, format) {
 
 async function playReply(text, btn) {
   stopCurrentAudio();
+  if ($("tts-stop-btn")) $("tts-stop-btn").classList.remove("hidden");
   btn.disabled = true;
   btn.classList.add("playing");
   // Vbee's TTS runs as a background job now (see app/voice.py) - the request
@@ -1061,6 +1063,19 @@ $("raw-toggle").onchange = (e) => toggleRawMode(e.target.checked);
 
 $("composer").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
 $("mic-btn").onclick = toggleRecording;
+
+// Nút dừng TTS
+if ($("tts-stop-btn")) {
+  $("tts-stop-btn").onclick = stopCurrentAudio;
+}
+
+// Suggestions: ẩn khi user gửi tin nhắn đầu tiên
+document.querySelectorAll("#suggestions button").forEach((btn) => {
+  btn.onclick = () => {
+    send(btn.textContent.trim());
+    $("suggestions").style.display = "none";
+  };
+});
 
 // Starting over drops the server-side session too. Clearing only the visible
 // transcript would leave the customer talking to a conversation they cannot

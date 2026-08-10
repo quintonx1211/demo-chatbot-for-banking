@@ -313,9 +313,24 @@ code {
 .sources ul { margin: 4px 0 0; padding-left: 17px; }
 
 /* ---------- tts bar ---------- */
+/* ---------- suggestions ---------- */
+.suggestions {
+  display: flex; gap: 8px; padding: 8px 14px 4px;
+  overflow-x: auto; scrollbar-width: none;
+  background: var(--panel);
+}
+.suggestions::-webkit-scrollbar { display: none; }
+.suggestions button {
+  flex: none; white-space: nowrap; font-size: 12.5px;
+  padding: 6px 13px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel-2);
+  color: var(--text); cursor: pointer; transition: background .12s;
+}
+.suggestions button:hover { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-700); }
+
 .tts-bar {
   flex: none; display: flex; align-items: center; gap: 8px;
-  padding: 6px 14px 0;
+  padding: 4px 14px 0;
   background: var(--panel);
 }
 .tts-bar-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
