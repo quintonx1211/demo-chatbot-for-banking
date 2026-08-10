@@ -220,11 +220,12 @@ code {
   50% { box-shadow: 0 0 0 6px rgba(200, 50, 43, 0); }
 }
 .voice-btn {
-  width: 26px; height: 26px; border-radius: 50%; border: none;
+  width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line);
   background: var(--panel-2); color: var(--muted); cursor: pointer;
   display: inline-grid; place-items: center; font-size: 12px;
   margin-top: 6px; transition: background .15s, color .15s;
 }
+.voice-btn svg { display: block; }
 .voice-btn:hover { background: var(--brand-soft); color: var(--brand); }
 .voice-btn.playing { color: var(--brand); background: var(--brand-soft); }
 .voice-btn:disabled { opacity: .5; cursor: default; }

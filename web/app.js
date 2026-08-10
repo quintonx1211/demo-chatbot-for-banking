@@ -132,7 +132,7 @@ function addMessage(role, text, meta, author) {
   bubble.innerHTML = role === "system" ? escapeHtml(text) : render(text);
   body.appendChild(bubble);
 
-  if (role === "assistant" && voiceAvailable && text.trim()) {
+  if (role === "assistant" && text.trim()) {
     body.appendChild(makeVoiceButton(text));
   }
 
@@ -844,19 +844,18 @@ async function refreshHealth() {
   pill.className = `pill ${h.mode}`;
 }
 
-/* ---------- voice (Vbee STT/TTS) ---------- */
+/* ---------- voice (TTS/STT) ---------- */
 
-let voiceAvailable = false;
+let voiceAvailable = true;   // luôn hiện mic & loa, lỗi sẽ báo sau
 let currentAudio = null;
 
 async function checkVoiceStatus() {
+  // Kiểm tra TTS của chúng ta (không cần Vbee voice.py)
   try {
-    const data = await api("/api/voice/status");
-    voiceAvailable = Boolean(data.available);
-  } catch {
-    voiceAvailable = false;
-  }
-  $("mic-btn").classList.toggle("hidden", !voiceAvailable);
+    const s = await api("/api/tts/provider");
+    voiceAvailable = Boolean(s.gtts_available || s.vbee_available);
+  } catch { voiceAvailable = true; }
+  $("mic-btn").classList.toggle("hidden", false); // luôn hiện mic
 }
 
 function makeVoiceButton(text) {
@@ -864,9 +863,47 @@ function makeVoiceButton(text) {
   btn.type = "button";
   btn.className = "voice-btn";
   btn.title = "Nghe câu trả lời";
-  btn.textContent = "🔊";
-  btn.onclick = () => playReply(text, btn);
+  btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+    <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>
+  </svg>`;
+  btn.onclick = () => playTts(text, btn);
   return btn;
+}
+
+// Phát TTS qua endpoint /api/tts (trả về binary audio)
+async function playTts(text, btn) {
+  stopCurrentAudio();
+  if ($("tts-stop-btn")) $("tts-stop-btn").classList.remove("hidden");
+  const origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+    <line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>`;
+  try {
+    const resp = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text.replace(/[*_`#]/g, "") }),
+    });
+    if (!resp.ok) throw new Error(`TTS lỗi ${resp.status}`);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    currentAudio = audio;
+    audio.onended = () => { URL.revokeObjectURL(url); stopCurrentAudio(); };
+    audio.onerror = () => { URL.revokeObjectURL(url); stopCurrentAudio(); };
+    await audio.play();
+  } catch (err) {
+    addMessage("system", `Không phát được giọng nói: ${err.message}`);
+    stopCurrentAudio();
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+  }
 }
 
 function stopCurrentAudio() {
