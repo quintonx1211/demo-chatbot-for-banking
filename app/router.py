@@ -373,18 +373,16 @@ class Router:
         if flows.wants_out(text):
             return "explicit-cancel"
 
-        # Verification owns its own retry ceiling: `_handle_verification`
-        # escalates with "Identity verification failed three times" on the
-        # third wrong attempt. That check has to run *before* the generic
-        # no-progress rule below, because MAX_FLOW_MISSES (2) is reached one
-        # turn earlier than verification's own three strikes - the generic
-        # rule fired first, silently abandoning the identity check and
-        # answering the third bad guess as if it were a fresh question,
-        # which drops the security-relevant escalation on the floor instead
-        # of raising it. The exemption is checked first for the same reason
-        # the flow itself is exempt from the "different intent" rule further
-        # down: it is a gate in front of something the customer asked for.
+        # Verification flow: chỉ giữ nguyên nếu input trông như mã xác minh
+        # (có nhóm 4 chữ số). Nếu user hỏi câu khác hoàn toàn (không có số),
+        # bỏ verify flow và route câu hỏi mới — tránh kẹt vòng lặp xác minh.
         if session.pending_flow == "verify":
+            import re as _re
+            if not _re.search(r"\b\d{4}\b", text):
+                prediction = self.classifier.predict(text)
+                if (prediction.confidence >= LOW_CONFIDENCE
+                        and prediction.intent != "unknown"):
+                    return f"new-intent:{prediction.intent}@{prediction.confidence:.2f}"
             return None
 
         if session.flow_misses >= flows.MAX_FLOW_MISSES:
