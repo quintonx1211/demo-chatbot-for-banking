@@ -21,7 +21,7 @@ from ..retriever import RetrievedPassage
 ANSWER_MAX_TOKENS = 4000
 SUMMARY_MAX_TOKENS = 3000
 
-ANSWER_SYSTEM_PROMPT = """You are the customer service assistant for ABC Bank.
+ANSWER_SYSTEM_PROMPT = """You are the customer service assistant for ABC Bank, a Vietnamese retail bank. You reply in Vietnamese.
 
 You answer ONLY from the knowledge base passages provided in the user message. \
 These passages are the bank's verified documentation and are the sole source of \
@@ -45,9 +45,12 @@ the customer to confirm with the issuing bank. Never present another bank's fee,
 rate or limit as something this bank stands behind, and never answer a question \
 about a customer's own account at another bank - you hold no data from one.
 
-Style: second person, 2-4 short sentences or a brief bullet list. No preamble, \
+Style: reply in Vietnamese, addressing the customer as "anh/chị" and referring \
+to yourself as "tôi". 2-4 short sentences or a brief bullet list. No preamble, \
 no restating the question. Do not cite document IDs - the interface renders \
-sources separately."""
+sources separately.
+
+Answer in English only if the customer wrote in English."""
 
 # Tone presets, appended to the system prompt above.
 #
@@ -259,22 +262,20 @@ def extractive_answer(passages: list[RetrievedPassage]) -> str:
     excerpt = " ".join(sentences[:3]).strip()
 
     if is_unverified(best):
-        # Saying "taken word for word from our own guidance, so you can rely on
-        # it" about a competitor's fee schedule is precisely the misattribution
-        # these documents warn about in their own headers. The sentence was
-        # written for the bank's own material and quietly became false the
-        # moment market references entered the corpus.
-        return (f"Here's what our market notes say about "
+        # Saying "trích nguyên văn từ tài liệu của chúng tôi" about a
+        # competitor's fee schedule is precisely the misattribution these
+        # documents warn about in their own headers.
+        return (f"Đây là thông tin tham khảo của chúng tôi về "
                 f"**{best.heading.lower()}**:\n\n{excerpt}\n\n"
-                f"_This is reference information about another bank's product, "
-                f"gathered from public sources rather than verified by us. "
-                f"Please confirm the current terms with them before relying on "
-                f"it._")
+                f"_Đây là thông tin tham khảo về sản phẩm của ngân hàng khác, "
+                f"thu thập từ nguồn công khai chứ chưa được chúng tôi thẩm "
+                f"định. Anh/chị vui lòng xác nhận lại điều kiện hiện hành với "
+                f"ngân hàng phát hành trước khi sử dụng._")
 
-    return (f"Here's what we have on **{best.heading.lower()}** - this is taken "
-            f"word for word from our own guidance, so you can rely on it:\n\n"
+    return (f"Về **{best.heading.lower()}**, đây là nội dung trích nguyên văn "
+            f"từ tài liệu đã được ngân hàng thẩm định:\n\n"
             f"{excerpt}\n\n"
-            f"Happy to dig into any part of that if it would help.")
+            f"Anh/chị cần tôi làm rõ thêm phần nào không ạ?")
 
 
 def extractive_summary(transcript: str, context_lines: list[str]) -> str:

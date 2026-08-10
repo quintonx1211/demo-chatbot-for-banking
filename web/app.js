@@ -43,9 +43,9 @@ async function api(path, options) {
     response = await fetch(path, options);
   } catch {
     throw new Error(
-      "Cannot reach the server - is `python server.py` still running? " +
-      "An API key entered in Settings lives in that process only, so it needs " +
-      "re-entering after a restart."
+      "Không kết nối được máy chủ - `python server.py` còn đang chạy không? " +
+      "API key nhập trong Cấu hình chỉ tồn tại trong tiến trình đó, nên phải " +
+      "nhập lại sau mỗi lần khởi động lại."
     );
   }
   const data = await response.json().catch(() => ({}));
@@ -69,7 +69,7 @@ function showScreen(name) {
   ["customer", "login", "agent"].forEach((s) =>
     $(`screen-${s}`).classList.toggle("hidden", s !== name));
   $("brand-sub").textContent =
-    name === "agent" ? "Contact-centre console" : "Virtual assistant";
+    name === "agent" ? "Bảng điều khiển nhân viên" : "Trợ lý ảo";
 }
 
 function showPanel(name) {
@@ -84,21 +84,58 @@ function showPanel(name) {
 
 /* ---------- customer chat ---------- */
 
+function clockNow() {
+  return new Date().toLocaleTimeString("vi-VN",
+    { hour: "2-digit", minute: "2-digit" });
+}
+
+function avatarFor(role) {
+  const span = document.createElement("span");
+  if (role === "customer") {
+    span.className = "avatar sm me";
+    span.textContent = "B";           // "Bạn"
+  } else if (role === "agent") {
+    span.className = "avatar sm";
+    span.textContent = "NV";          // nhân viên
+  } else {
+    span.className = "avatar sm bot";
+    span.textContent = "AB";
+  }
+  return span;
+}
+
 function addMessage(role, text, meta, author) {
   const wrap = document.createElement("div");
   wrap.className = `msg ${role}`;
+
+  if (role !== "system") wrap.appendChild(avatarFor(role));
+
+  const body = document.createElement("div");
+  body.className = "msg-body";
+  wrap.appendChild(body);
 
   if (author) {
     const who = document.createElement("div");
     who.className = "author";
     who.textContent = author;
-    wrap.appendChild(who);
+    body.appendChild(who);
   }
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   bubble.innerHTML = render(text);
-  wrap.appendChild(bubble);
+  body.appendChild(bubble);
+
+  if (role !== "system") {
+    const time = document.createElement("div");
+    time.className = "msg-time";
+    // A double tick on the customer's own message, which is what every
+    // messaging app uses to mean "delivered". Decorative here - there is no
+    // delivery receipt behind it - but its absence is what makes a chat demo
+    // feel unfinished.
+    time.textContent = role === "customer" ? `${clockNow()} ✓✓` : clockNow();
+    body.appendChild(time);
+  }
 
   // Route, intent, confidence, latency and the grounding citations all live in
   // the routing inspector beside this pane. They were repeated under every
@@ -111,53 +148,53 @@ function addMessage(role, text, meta, author) {
   $("messages").scrollTop = $("messages").scrollHeight;
 }
 
+// Where the answer came from, and nothing else.
+//
+// This panel used to carry route, intent, confidence, a confidence meter,
+// latency, per-intent scores and the decision path. All of that is real and
+// worth showing - to staff. On the customer screen it turned a bank chat into
+// an instrumentation readout, which was the complaint. The technical view now
+// lives in the agent console, against the session it describes.
+const SOURCE_LABEL = {
+  raw_llm: "LLM thuần - không truy xuất, không guardrail, không kiểm tra dẫn nguồn",
+  deterministic: "Quy trình nghiệp vụ - đọc thẳng từ hồ sơ, không qua model",
+  guardrail: "Chặn bởi quy định - từ chối trước khi model nhìn thấy câu hỏi",
+  agent: "Nhân viên đang phụ trách hội thoại này",
+};
+
 function updateInspector(data) {
-  const source = data.route === "raw_llm"
-    ? "Plain LLM - no retrieval, no guardrails, no grounding check"
-    : data.generated ? "LLM over retrieved passages" : "Deterministic / extractive";
-  const rows = [
-    ["Route", data.route],
-    ["Intent", data.intent],
-    ["Confidence", data.confidence.toFixed(3)],
-    ["Answer source", source],
-    ["Identity verified", data.verified ? "yes" : "no"],
-    ["Latency", `${data.latency_ms} ms`],
-  ];
-  if (data.grounding !== null && data.grounding !== undefined) {
-    rows.push(["Grounding score", data.grounding.toFixed(2)]);
+  let source = SOURCE_LABEL[data.route];
+  if (!source) {
+    source = data.generated
+      ? "Model trả lời dựa trên tài liệu đã truy xuất"
+      : "Trích nguyên văn từ tài liệu đã thẩm định";
   }
-  if (data.escalation_reason) rows.push(["Escalated because", data.escalation_reason]);
-  if (data.debug && data.debug.note) rows.push(["Note", data.debug.note]);
 
-  let html = rows.map(([k, v]) =>
-    `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("");
-  html += `<div class="meter"><i style="width:${Math.min(100, data.confidence * 100)}%"></i></div>`;
+  let html = `<div class="source-head">${escapeHtml(source)}</div>`;
 
-  if (data.debug && data.debug.scores) {
-    html += '<h3 style="margin-top:16px">Intent scores</h3>';
-    html += Object.entries(data.debug.scores).map(([intent, score]) =>
-      `<div class="kv"><span>${escapeHtml(intent)}</span><span>${score.toFixed(3)}</span></div>`
-    ).join("");
+  const sources = data.sources || [];
+  if (sources.length) {
+    // The unverified market-reference documents have to be visibly different
+    // here. A competitor fee schedule listed in the same style as the bank's
+    // own policy is the misattribution the KB-MKT- headers exist to prevent.
+    html += '<div class="source-list">' + sources.map((s) => {
+      const unverified = (s.citation || "").includes("KB-MKT-");
+      return `<div class="source-item${unverified ? " unverified" : ""}">
+        <span class="ic">${unverified ? "🌐" : "📄"}</span>
+        <span>${escapeHtml(s.breadcrumb || s.citation)}
+          ${unverified ? '<em>Tham khảo thị trường - chưa được ngân hàng thẩm định</em>' : ""}
+        </span></div>`;
+    }).join("") + "</div>";
+  } else if (data.route !== "deterministic" && data.route !== "agent") {
+    html += '<p class="empty">Không có tài liệu nào được dẫn cho câu trả lời này.</p>';
   }
+
+  if (data.escalation_reason) {
+    html += `<div class="source-note">Lý do chuyển nhân viên:
+      ${escapeHtml(data.escalation_reason)}</div>`;
+  }
+
   $("inspector").innerHTML = html;
-  renderTrace(data.trace || []);
-}
-
-// The decision path answers the question every prospect asks about a hybrid
-// assistant: how does it decide? Showing the gates beats describing them.
-function renderTrace(steps) {
-  if (!steps.length) {
-    $("trace").innerHTML = '<p class="empty">-</p>';
-    return;
-  }
-  $("trace").innerHTML = steps.map((s) => `
-    <div class="trace-step ${s.decisive ? "decisive" : ""}">
-      <div class="trace-head">
-        <span class="trace-stage">${escapeHtml(s.stage)}</span>
-        <span>${escapeHtml(s.outcome)}</span>
-      </div>
-      ${s.detail ? `<div class="trace-detail">${escapeHtml(s.detail)}</div>` : ""}
-    </div>`).join("");
 }
 
 /* ---------- architecture toggle (demo lever) ---------- */
@@ -165,10 +202,11 @@ function renderTrace(steps) {
 function applyRawMode(enabled) {
   $("raw-toggle").checked = enabled;
   $("arch-toggle-box").classList.toggle("raw", enabled);
-  $("arch-toggle-title").textContent = enabled ? "Raw LLM mode" : "Full architecture";
+  $("arch-toggle-title").textContent =
+    enabled ? "Chế độ LLM thuần" : "Kiến trúc đầy đủ";
   $("arch-toggle-hint").textContent = enabled
-    ? "Routing, guardrails, retrieval and grounding are bypassed for this conversation."
-    : "Routing, guardrails, retrieval and the grounding check are all active.";
+    ? "Định tuyến, guardrail, truy xuất và kiểm tra dẫn nguồn đang bị bỏ qua trong hội thoại này."
+    : "Định tuyến, guardrail, truy xuất và kiểm tra dẫn nguồn đều đang bật.";
   $("raw-banner").classList.toggle("hidden", !enabled);
 }
 
@@ -183,13 +221,51 @@ async function toggleRawMode(enabled) {
   }
 }
 
+// The waiting state, shown as three dots in a bubble where the reply will
+// appear. Retrieval plus a model call is rarely instant, and a chat that sits
+// silent reads as broken rather than busy - the customer's own message is the
+// last thing on screen and nothing acknowledges it.
+//
+// The label changes at three seconds. Not decoration: past a couple of seconds
+// people start wondering whether the send worked, and naming what is happening
+// ("đang tra cứu tài liệu") answers that without promising a finish time.
+let typingTimer = null;
+
+function showTyping() {
+  hideTyping();
+  const wrap = document.createElement("div");
+  wrap.className = "msg assistant typing";
+  wrap.id = "typing";
+  wrap.appendChild(avatarFor("assistant"));
+  const body = document.createElement("div");
+  body.className = "msg-body";
+  body.innerHTML = '<div class="bubble"><i></i><i></i><i></i></div>'
+    + '<div class="typing-label" id="typing-label">Đang soạn câu trả lời…</div>';
+  wrap.appendChild(body);
+  $("messages").appendChild(wrap);
+  $("messages").scrollTop = $("messages").scrollHeight;
+
+  typingTimer = setTimeout(() => {
+    const label = $("typing-label");
+    if (label) label.textContent = "Đang tra cứu tài liệu đã thẩm định…";
+  }, 3000);
+}
+
+function hideTyping() {
+  clearTimeout(typingTimer);
+  const existing = $("typing");
+  if (existing) existing.remove();
+}
+
 async function send(message) {
   if (!message.trim()) return;
   addMessage("customer", message);
   $("input").value = "";
   $("send").disabled = true;
+  showTyping();
   try {
     const data = await postJson("/api/chat", { session_id: sessionId, message });
+    hideTyping();
     sessionId = data.session_id;
     applyRawMode(Boolean(data.raw_mode));
     if (data.route === "agent") {
@@ -206,7 +282,10 @@ async function send(message) {
     renderHandoff(data.in_handoff ? { handled_by: data.handled_by || null } : null);
     if (data.in_handoff) startPolling();
   } catch (error) {
-    addMessage("system", `Request failed: ${error.message}`);
+    // Cleared here as well as on the success path: a failed request that
+    // leaves the dots animating tells the customer a reply is still coming.
+    hideTyping();
+    addMessage("system", `Không gửi được: ${error.message}`);
   } finally {
     $("send").disabled = false;
     $("input").focus();
@@ -228,27 +307,27 @@ function renderHandoff(state) {
   if (!state) {
     box.classList.add("hidden");
     $("input").placeholder =
-      "Ask a question, or use @agent / @bot to address one directly…";
+      "Nhập câu hỏi, hoặc dùng @agent / @bot để gọi trực tiếp…";
     return;
   }
   const who = state.handled_by
-    ? `You're chatting with <b>${escapeHtml(state.handled_by)}</b>.`
-    : "You're in the queue for a specialist.";
+    ? `Anh/chị đang trao đổi với <b>${escapeHtml(state.handled_by)}</b>.`
+    : "Anh/chị đang trong hàng chờ gặp chuyên viên.";
   box.innerHTML = `
     <div>
-      <strong>Handed to a human</strong>
-      <p>${who} The assistant has stood down, so your messages go to them
-         and not to me.</p>
-      <p class="hint">Type <code>/leave</code> to come back to the assistant,
-         or <code>@bot &lt;question&gt;</code> to ask me something without
-         leaving the queue.</p>
+      <strong>Đã chuyển cho chuyên viên</strong>
+      <p>${who} Trợ lý ảo đã tạm dừng, nên tin nhắn của anh/chị sẽ tới chuyên
+         viên chứ không tới tôi.</p>
+      <p class="hint">Gõ <code>/leave</code> để quay lại trợ lý ảo, hoặc
+         <code>@bot &lt;câu hỏi&gt;</code> để hỏi tôi mà vẫn giữ chỗ trong
+         hàng chờ.</p>
     </div>
-    <button class="ghost small" data-say="/leave">Return to the assistant</button>`;
+    <button class="ghost small" data-say="/leave">Quay lại trợ lý ảo</button>`;
   box.classList.remove("hidden");
   box.querySelector("[data-say]").onclick = () => send("/leave");
   $("input").placeholder = state.handled_by
-    ? `Message ${state.handled_by}…  (/leave to return to the assistant)`
-    : "Message the specialist…  (/leave to return to the assistant)";
+    ? `Nhắn cho ${state.handled_by}…  (/leave để quay lại trợ lý ảo)`
+    : "Nhắn cho chuyên viên…  (/leave để quay lại trợ lý ảo)";
 }
 
 function renderChatActions(data) {
@@ -256,9 +335,9 @@ function renderChatActions(data) {
   let html = "";
 
   if (data.offer_escalation) {
-    html = `<span class="action-label">Connect you to a specialist?</span>
-      <button class="primary small" data-say="yes">Yes, connect me</button>
-      <button class="ghost small" data-say="no thanks">No, keep helping</button>`;
+    html = `<span class="action-label">Kết nối anh/chị với chuyên viên nhé?</span>
+      <button class="primary small" data-say="có">Có, kết nối giúp tôi</button>
+      <button class="ghost small" data-say="không, cảm ơn">Không, tiếp tục hỗ trợ</button>`;
   }
   // No "leave" button here any more - the handoff banner owns that, and owns it
   // permanently. Two copies of the same escape hatch, one of which vanishes on
@@ -734,8 +813,32 @@ async function refreshHealth() {
 $("raw-toggle").onchange = (e) => toggleRawMode(e.target.checked);
 
 $("composer").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
-$("suggestions").querySelectorAll("button").forEach((b) => {
-  b.onclick = () => send(b.textContent);
+
+// Starting over drops the server-side session too. Clearing only the visible
+// transcript would leave the customer talking to a conversation they cannot
+// see - including any pending verification or handoff.
+function newConversation() {
+  sessionId = null;
+  renderedCount = 0;
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  hideTyping();
+  $("messages").innerHTML = "";
+  renderChatActions({});
+  renderHandoff(null);
+  $("inspector").innerHTML =
+    '<p class="empty">Gửi một câu hỏi để xem nguồn.</p>';
+  setRailUser(null);
+  greet();
+  $("input").focus();
+}
+$("new-chat").onclick = newConversation;
+$("clear-chat").onclick = newConversation;
+
+// Decorative controls are inert by design. Saying so out loud beats a silent
+// no-op that leaves someone clicking a dead button during a demo.
+document.querySelectorAll("[data-demo]").forEach((el) => {
+  el.title = (el.title ? el.title + " - " : "") + "minh hoạ giao diện, chưa hoạt động";
+  el.addEventListener("click", (e) => e.preventDefault());
 });
 
 $("login-btn").onclick = () => { showScreen("login"); $("login-pass").focus(); };
@@ -806,12 +909,26 @@ $("cfg-key-toggle").onclick = () => {
   $("cfg-key-toggle").textContent = hidden ? "Hide" : "Show";
 };
 
+function greet() {
+  addMessage("assistant",
+    "Xin chào! Tôi là trợ lý ảo của **ABC Bank**. Tôi có thể tra cứu số dư và "
+    + "giao dịch, khoá hoặc mở khoá thẻ, kiểm tra hồ sơ vay, và giải đáp về sản "
+    + "phẩm, biểu phí của ngân hàng.\n\nAnh/chị cần hỗ trợ điều gì ạ?");
+}
+
+// The rail footer names whoever the session has verified, so the demo shows
+// identity being established rather than just asserted in a chat bubble.
+function setRailUser(customer) {
+  $("rail-user").textContent = customer ? customer.name : "Khách";
+  $("rail-user-sub").textContent = customer
+    ? `Đã xác thực · ${customer.segment || "MASS"}` : "Chưa xác thực";
+  const avatar = document.querySelector(".rail-foot .avatar");
+  if (avatar) avatar.textContent = customer ? customer.name.trim().slice(-1) : "K";
+}
+
 (async function init() {
   await refreshHealth();
   await refreshStaff();
-  addMessage("assistant",
-    "Hello! I'm the virtual assistant for ABC Bank. I can check " +
-    "balances and transactions, block a lost card, look up a loan application, " +
-    "or answer questions about our products and fees. What do you need?");
+  greet();
   if (staff) { showScreen("agent"); showPanel("dashboard"); }
 })();

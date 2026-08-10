@@ -19,6 +19,17 @@ only acceptable basis for a demo that will be screen-shared.
 
 from __future__ import annotations
 
+import sys
+
+# The Windows console defaults to cp1252, which cannot encode Vietnamese. Now
+# that the assistant answers in Vietnamese, printing a reply raised
+# UnicodeEncodeError and took the whole test run down - a test suite that dies
+# on its own output reports nothing about the code it was meant to check.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+
 import json
 import random
 import sys
@@ -56,8 +67,8 @@ MERCHANTS = [
 ]
 
 LOAN_PRODUCTS = [
-    ("Auto Loan", 240_000_000), ("Home Loan", 1_800_000_000),
-    ("Personal Loan", 80_000_000), ("Education Loan", 150_000_000),
+    ("Vay mua ô tô", 240_000_000), ("Vay mua nhà", 1_800_000_000),
+    ("Vay tiêu dùng", 80_000_000), ("Vay du học", 150_000_000),
 ]
 
 
@@ -95,7 +106,7 @@ def build() -> dict:
             }.get(profile, rng.uniform(3_000_000, 60_000_000))
             accounts.append({
                 "account_id": checking_id,
-                "type": "Everyday Checking",
+                "type": "Tài khoản thanh toán",
                 "mask": f"****{checking_id[-4:]}",
                 "balance": round(balance, 2),
                 # Available trails the balance by any uncleared amount. Equal
@@ -110,7 +121,7 @@ def build() -> dict:
             savings = rng.uniform(50_000_000, 800_000_000)
             accounts.append({
                 "account_id": savings_id,
-                "type": "Savings",
+                "type": "Tài khoản tiết kiệm",
                 "mask": f"****{savings_id[-4:]}",
                 "balance": round(savings, 2),
                 "available": round(savings, 2),
@@ -125,29 +136,29 @@ def build() -> dict:
             product, amount = LOAN_PRODUCTS[0]
             loans.append({
                 "application_id": f"LN-2026-{rng.randint(10000, 99999)}",
-                "product": product, "amount": amount, "status": "In Review",
+                "product": product, "amount": amount, "status": "Đang thẩm định",
                 "submitted_on": str(today - timedelta(days=7)),
-                "note": "Underwriter has the file. Decision expected within 5 business days.",
+                "note": "Hồ sơ đang ở bộ phận thẩm định. Dự kiến có kết quả trong 5 ngày làm việc.",
             })
         elif profile == "mortgage_approved":
             product, amount = LOAN_PRODUCTS[1]
             loans.append({
                 "application_id": f"LN-2026-{rng.randint(10000, 99999)}",
-                "product": product, "amount": amount, "status": "Approved",
+                "product": product, "amount": amount, "status": "Đã phê duyệt",
                 "submitted_on": str(today - timedelta(days=34)),
-                "note": "Approved. Awaiting signed offer and disbursement date.",
+                "note": "Đã phê duyệt. Chờ khách hàng ký hợp đồng và ấn định ngày giải ngân.",
             })
         elif profile == "loan_declined":
             product, amount = LOAN_PRODUCTS[2]
             loans.append({
                 "application_id": f"LN-2026-{rng.randint(10000, 99999)}",
-                "product": product, "amount": amount, "status": "Declined",
+                "product": product, "amount": amount, "status": "Không được duyệt",
                 # A declined application is a case for a human, not a scripted
                 # explanation. The note says what the assistant may state and
                 # stops there; reasons for a credit decision are not the
                 # assistant's to give.
-                "note": "Declined. Reasons are not disclosed by the assistant - "
-                        "refer the customer to a lending officer.",
+                "note": "Không được duyệt. Trợ lý không giải thích lý do - "
+                        "chuyển khách hàng tới chuyên viên tín dụng.",
                 "submitted_on": str(today - timedelta(days=21)),
             })
 
@@ -160,14 +171,14 @@ def build() -> dict:
             ])
             transactions.append({
                 "date": str(today - timedelta(days=day)),
-                "description": ("SALARY CREDIT" if amount > 0
+                "description": ("LUONG THANG" if amount > 0
                                 else rng.choice(MERCHANTS)),
                 "amount": amount,
             })
         if profile == "dispute_open":
             transactions.insert(0, {
                 "date": str(today - timedelta(days=2)),
-                "description": "UNKNOWN MERCHANT - DISPUTE RAISED",
+                "description": "GIAO DICH LA - DA MO TRA SOAT",
                 "amount": -2_450_000,
             })
 
@@ -210,21 +221,21 @@ def _cards_for(profile: str, stem: str, rng: random.Random,
 
     a, b = f"{rng.randint(1000, 9999)}", f"{rng.randint(1000, 9999)}"
     if profile == "dormant_card":
-        return [card(a, "Debit", "dormant")]
+        return [card(a, "ghi nợ", "dormant")]
     if profile == "inactive_card":
-        return [card(a, "Debit", "inactive")]
+        return [card(a, "ghi nợ", "inactive")]
     if profile == "frozen_card":
-        return [card(a, "Debit", "frozen"), card(b, "Credit", "active")]
+        return [card(a, "ghi nợ", "frozen"), card(b, "tín dụng", "active")]
     if profile == "blocked_and_replaced":
-        return [card(a, "Debit", "blocked"),
-                card(b, "Debit", "inactive", replaces=f"CRD-{a}")]
+        return [card(a, "ghi nợ", "blocked"),
+                card(b, "ghi nợ", "inactive", replaces=f"CRD-{a}")]
     if profile in ("multi_card", "high_balance", "business_owner"):
-        return [card(a, "Debit", "active"), card(b, "Credit", "active")]
+        return [card(a, "ghi nợ", "active"), card(b, "tín dụng", "active")]
     if profile == "new_customer":
-        return [card(a, "Debit", "inactive")]
+        return [card(a, "ghi nợ", "inactive")]
     if profile == "savings_only":
         return []
-    return [card(a, "Debit", "active")]
+    return [card(a, "ghi nợ", "active")]
 
 
 def check(data: dict) -> list[str]:

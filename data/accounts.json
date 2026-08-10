@@ -12,7 +12,7 @@
       "accounts": [
         {
           "account_id": "ACC-9411-3101",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****3101",
           "balance": 35918993.55,
           "available": 33418993.55,
@@ -22,7 +22,7 @@
       "cards": [
         {
           "card_id": "CRD-7062",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****7062",
           "status": "active",
           "linked_account": "ACC-9411-3101"
@@ -37,12 +37,12 @@
         },
         {
           "date": "2026-08-04",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 24713000.0
         },
         {
           "date": "2026-08-03",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 23906000.0
         },
         {
@@ -64,7 +64,7 @@
       "accounts": [
         {
           "account_id": "ACC-8502-8201",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****8201",
           "balance": 16526147.99,
           "available": 16526147.99,
@@ -74,7 +74,7 @@
       "cards": [
         {
           "card_id": "CRD-9414",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****9414",
           "status": "dormant",
           "linked_account": "ACC-8502-8201"
@@ -99,7 +99,7 @@
         },
         {
           "date": "2026-08-02",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 12112000.0
         },
         {
@@ -121,7 +121,7 @@
       "accounts": [
         {
           "account_id": "ACC-7454-4801",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****4801",
           "balance": 32760536.24,
           "available": 32760536.24,
@@ -131,7 +131,7 @@
       "cards": [
         {
           "card_id": "CRD-6387",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****6387",
           "status": "inactive",
           "linked_account": "ACC-7454-4801"
@@ -146,22 +146,22 @@
         },
         {
           "date": "2026-08-04",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 22957000.0
         },
         {
           "date": "2026-08-03",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 21711000.0
         },
         {
           "date": "2026-08-02",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 15337000.0
         },
         {
           "date": "2026-08-01",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 22740000.0
         }
       ]
@@ -178,7 +178,7 @@
       "accounts": [
         {
           "account_id": "ACC-3142-9001",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****9001",
           "balance": 872242026.21,
           "available": 869742026.21,
@@ -186,7 +186,7 @@
         },
         {
           "account_id": "ACC-3142-6288",
-          "type": "Savings",
+          "type": "Tài khoản tiết kiệm",
           "mask": "****6288",
           "balance": 375888496.62,
           "available": 375888496.62,
@@ -196,14 +196,14 @@
       "cards": [
         {
           "card_id": "CRD-5792",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****5792",
           "status": "active",
           "linked_account": "ACC-3142-9001"
         },
         {
           "card_id": "CRD-1208",
-          "type": "Credit",
+          "type": "tín dụng",
           "mask": "****1208",
           "status": "active",
           "linked_account": "ACC-3142-9001"
@@ -213,7 +213,7 @@
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 10894000.0
         },
         {
@@ -223,7 +223,7 @@
         },
         {
           "date": "2026-08-03",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 8683000.0
         },
         {
@@ -238,7 +238,7 @@
         },
         {
           "date": "2026-07-31",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 15170000.0
         },
         {
@@ -265,7 +265,7 @@
       "accounts": [
         {
           "account_id": "ACC-7091-3001",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****3001",
           "balance": 53417688.61,
           "available": 50917688.61,
@@ -275,14 +275,14 @@
       "cards": [
         {
           "card_id": "CRD-4973",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****4973",
           "status": "frozen",
           "linked_account": "ACC-7091-3001"
         },
         {
           "card_id": "CRD-8971",
-          "type": "Credit",
+          "type": "tín dụng",
           "mask": "****8971",
           "status": "active",
           "linked_account": "ACC-7091-3001"
@@ -292,12 +292,12 @@
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 18533000.0
         },
         {
           "date": "2026-08-04",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 21457000.0
         },
         {
@@ -307,7 +307,7 @@
         },
         {
           "date": "2026-08-02",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 12706000.0
         }
       ]
@@ -324,7 +324,7 @@
       "accounts": [
         {
           "account_id": "ACC-9170-2601",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****2601",
           "balance": 28217847.58,
           "available": 25717847.58,
@@ -334,7 +334,7 @@
       "cards": [
         {
           "card_id": "CRD-1201",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****1201",
           "status": "active",
           "linked_account": "ACC-9170-2601"
@@ -343,11 +343,11 @@
       "loans": [
         {
           "application_id": "LN-2026-66939",
-          "product": "Auto Loan",
+          "product": "Vay mua ô tô",
           "amount": 240000000,
-          "status": "In Review",
+          "status": "Đang thẩm định",
           "submitted_on": "2026-07-29",
-          "note": "Underwriter has the file. Decision expected within 5 business days."
+          "note": "Hồ sơ đang ở bộ phận thẩm định. Dự kiến có kết quả trong 5 ngày làm việc."
         }
       ],
       "transactions": [
@@ -358,7 +358,7 @@
         },
         {
           "date": "2026-08-04",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 20709000.0
         },
         {
@@ -368,7 +368,7 @@
         },
         {
           "date": "2026-08-02",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 9613000.0
         },
         {
@@ -378,12 +378,12 @@
         },
         {
           "date": "2026-07-31",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 20398000.0
         },
         {
           "date": "2026-07-30",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 18663000.0
         }
       ]
@@ -400,7 +400,7 @@
       "accounts": [
         {
           "account_id": "ACC-8780-1701",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****1701",
           "balance": -1528989.13,
           "available": -1528989.13,
@@ -410,7 +410,7 @@
       "cards": [
         {
           "card_id": "CRD-5906",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****5906",
           "status": "active",
           "linked_account": "ACC-8780-1701"
@@ -420,7 +420,7 @@
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 13613000.0
         },
         {
@@ -435,7 +435,7 @@
         },
         {
           "date": "2026-08-02",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 20102000.0
         },
         {
@@ -462,7 +462,7 @@
       "accounts": [
         {
           "account_id": "ACC-6850-6401",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****6401",
           "balance": 27177019.48,
           "available": 27177019.48,
@@ -472,14 +472,14 @@
       "cards": [
         {
           "card_id": "CRD-1974",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****1974",
           "status": "blocked",
           "linked_account": "ACC-6850-6401"
         },
         {
           "card_id": "CRD-4326",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****4326",
           "status": "inactive",
           "linked_account": "ACC-6850-6401",
@@ -505,7 +505,7 @@
         },
         {
           "date": "2026-08-02",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 24986000.0
         }
       ]
@@ -522,7 +522,7 @@
       "accounts": [
         {
           "account_id": "ACC-5194-3101",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****3101",
           "balance": 49684525.47,
           "available": 49684525.47,
@@ -530,7 +530,7 @@
         },
         {
           "account_id": "ACC-5194-1488",
-          "type": "Savings",
+          "type": "Tài khoản tiết kiệm",
           "mask": "****1488",
           "balance": 524391134.57,
           "available": 524391134.57,
@@ -540,14 +540,14 @@
       "cards": [
         {
           "card_id": "CRD-6591",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****6591",
           "status": "active",
           "linked_account": "ACC-5194-3101"
         },
         {
           "card_id": "CRD-5743",
-          "type": "Credit",
+          "type": "tín dụng",
           "mask": "****5743",
           "status": "active",
           "linked_account": "ACC-5194-3101"
@@ -557,7 +557,7 @@
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 22937000.0
         },
         {
@@ -577,7 +577,7 @@
         },
         {
           "date": "2026-08-01",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 19872000.0
         },
         {
@@ -599,7 +599,7 @@
       "accounts": [
         {
           "account_id": "ACC-3745-4501",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****4501",
           "balance": 1909109.43,
           "available": 1909109.43,
@@ -609,7 +609,7 @@
       "cards": [
         {
           "card_id": "CRD-9277",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****9277",
           "status": "inactive",
           "linked_account": "ACC-3745-4501"
@@ -644,7 +644,7 @@
         },
         {
           "date": "2026-07-31",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 23014000.0
         },
         {
@@ -666,7 +666,7 @@
       "accounts": [
         {
           "account_id": "ACC-9218-1901",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****1901",
           "balance": 15985666.8,
           "available": 15985666.8,
@@ -674,7 +674,7 @@
         },
         {
           "account_id": "ACC-9218-8988",
-          "type": "Savings",
+          "type": "Tài khoản tiết kiệm",
           "mask": "****8988",
           "balance": 761738291.53,
           "available": 761738291.53,
@@ -684,7 +684,7 @@
       "cards": [
         {
           "card_id": "CRD-9853",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****9853",
           "status": "active",
           "linked_account": "ACC-9218-1901"
@@ -693,17 +693,17 @@
       "loans": [
         {
           "application_id": "LN-2026-52078",
-          "product": "Home Loan",
+          "product": "Vay mua nhà",
           "amount": 1800000000,
-          "status": "Approved",
+          "status": "Đã phê duyệt",
           "submitted_on": "2026-07-02",
-          "note": "Approved. Awaiting signed offer and disbursement date."
+          "note": "Đã phê duyệt. Chờ khách hàng ký hợp đồng và ấn định ngày giải ngân."
         }
       ],
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 18987000.0
         },
         {
@@ -733,7 +733,7 @@
         },
         {
           "date": "2026-07-30",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 22361000.0
         }
       ]
@@ -750,7 +750,7 @@
       "accounts": [
         {
           "account_id": "ACC-6070-2601",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****2601",
           "balance": 13059708.23,
           "available": 12959708.23,
@@ -760,7 +760,7 @@
       "cards": [
         {
           "card_id": "CRD-9323",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****9323",
           "status": "active",
           "linked_account": "ACC-6070-2601"
@@ -770,7 +770,7 @@
       "transactions": [
         {
           "date": "2026-08-03",
-          "description": "UNKNOWN MERCHANT - DISPUTE RAISED",
+          "description": "GIAO DICH LA - DA MO TRA SOAT",
           "amount": -2450000
         },
         {
@@ -785,7 +785,7 @@
         },
         {
           "date": "2026-08-03",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 22988000.0
         },
         {
@@ -812,7 +812,7 @@
       "accounts": [
         {
           "account_id": "ACC-2492-6088",
-          "type": "Savings",
+          "type": "Tài khoản tiết kiệm",
           "mask": "****6088",
           "balance": 739657534.36,
           "available": 739657534.36,
@@ -834,7 +834,7 @@
         },
         {
           "date": "2026-08-03",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 8301000.0
         },
         {
@@ -856,7 +856,7 @@
       "accounts": [
         {
           "account_id": "ACC-4230-2601",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****2601",
           "balance": 505713542.7,
           "available": 505713542.7,
@@ -864,7 +864,7 @@
         },
         {
           "account_id": "ACC-4230-3888",
-          "type": "Savings",
+          "type": "Tài khoản tiết kiệm",
           "mask": "****3888",
           "balance": 51500742.23,
           "available": 51500742.23,
@@ -874,14 +874,14 @@
       "cards": [
         {
           "card_id": "CRD-1531",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****1531",
           "status": "active",
           "linked_account": "ACC-4230-2601"
         },
         {
           "card_id": "CRD-1183",
-          "type": "Credit",
+          "type": "tín dụng",
           "mask": "****1183",
           "status": "active",
           "linked_account": "ACC-4230-2601"
@@ -891,17 +891,17 @@
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 8969000.0
         },
         {
           "date": "2026-08-04",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 9815000.0
         },
         {
           "date": "2026-08-03",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 16723000.0
         },
         {
@@ -928,7 +928,7 @@
       "accounts": [
         {
           "account_id": "ACC-9519-4201",
-          "type": "Everyday Checking",
+          "type": "Tài khoản thanh toán",
           "mask": "****4201",
           "balance": 42578695.35,
           "available": 40078695.35,
@@ -938,7 +938,7 @@
       "cards": [
         {
           "card_id": "CRD-8156",
-          "type": "Debit",
+          "type": "ghi nợ",
           "mask": "****8156",
           "status": "active",
           "linked_account": "ACC-9519-4201"
@@ -947,10 +947,10 @@
       "loans": [
         {
           "application_id": "LN-2026-91029",
-          "product": "Personal Loan",
+          "product": "Vay tiêu dùng",
           "amount": 80000000,
-          "status": "Declined",
-          "note": "Declined. Reasons are not disclosed by the assistant - refer the customer to a lending officer.",
+          "status": "Không được duyệt",
+          "note": "Không được duyệt. Trợ lý không giải thích lý do - chuyển khách hàng tới chuyên viên tín dụng.",
           "submitted_on": "2026-07-15"
         }
       ],
@@ -962,12 +962,12 @@
         },
         {
           "date": "2026-08-04",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 22591000.0
         },
         {
           "date": "2026-08-03",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 19060000.0
         },
         {
@@ -977,12 +977,12 @@
         },
         {
           "date": "2026-08-01",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 11560000.0
         },
         {
           "date": "2026-07-31",
-          "description": "SALARY CREDIT",
+          "description": "LUONG THANG",
           "amount": 13149000.0
         },
         {

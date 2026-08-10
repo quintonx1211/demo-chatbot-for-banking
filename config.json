@@ -22,8 +22,8 @@
   },
 
   "presets": {
-    "strict":   { "min_grounding": 0.70, "min_relevance": 0.34, "high_confidence": 0.50 },
-    "balanced": { "min_grounding": 0.55, "min_relevance": 0.28, "high_confidence": 0.55 },
-    "relaxed":  { "min_grounding": 0.40, "min_relevance": 0.18, "high_confidence": 0.62 }
+    "strict":   { "min_grounding": 0.70, "min_relevance": 0.44, "high_confidence": 0.50 },
+    "balanced": { "min_grounding": 0.55, "min_relevance": 0.36, "high_confidence": 0.55 },
+    "relaxed":  { "min_grounding": 0.40, "min_relevance": 0.24, "high_confidence": 0.62 }
   }
 }

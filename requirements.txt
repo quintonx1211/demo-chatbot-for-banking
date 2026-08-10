@@ -14,3 +14,4 @@
 # with LLM_PROVIDER=auto the first configured one in PROVIDER_ORDER wins.
 
 anthropic>=0.40
+openai>=1.40

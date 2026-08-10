@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ABC Bank - Virtual Assistant</title>
+  <title>ABC Bank - Trợ lý ảo</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -20,17 +20,17 @@
       </span>
       <div class="brand-text">
         <strong>ABC Bank</strong>
-        <span class="sub" id="brand-sub">Virtual assistant</span>
+        <span class="sub" id="brand-sub">Trợ lý ảo</span>
       </div>
     </div>
 
     <div class="modes">
-      <span id="mode-pill" class="pill">checking…</span>
+      <span id="mode-pill" class="pill">đang kiểm tra…</span>
       <span id="staff-pill" class="pill hidden"></span>
-      <button id="view-customer-btn" class="ghost small hidden" type="button">Customer chat</button>
-      <button id="view-console-btn" class="ghost small hidden" type="button">Console</button>
-      <button id="login-btn" class="ghost small">Sign-in</button>
-      <button id="logout" class="ghost small hidden" type="button">Sign out</button>
+      <button id="view-customer-btn" class="ghost small hidden" type="button">Màn hình khách</button>
+      <button id="view-console-btn" class="ghost small hidden" type="button">Bảng điều khiển</button>
+      <button id="login-btn" class="ghost small">Đăng nhập</button>
+      <button id="logout" class="ghost small hidden" type="button">Đăng xuất</button>
     </div>
   </header>
 
@@ -38,55 +38,144 @@
        CUSTOMER - the default. No sign-in, no tabs, just the chat.
        ============================================================ -->
   <main id="screen-customer" class="screen">
+
+    <!-- Left rail. Everything in it except the New-chat button is decorative:
+         a demo of a bank assistant is judged partly on whether it looks like
+         software the bank would ship, and a bare chat box does not. Marked
+         `data-demo` so nobody mistakes it for wired-up behaviour. -->
+    <aside class="rail">
+      <div class="rail-brand">
+        <span class="rail-logo">AB</span>
+        <div>
+          <strong>ABC Bank</strong>
+          <span>Trợ lý số</span>
+        </div>
+      </div>
+
+      <button class="rail-new" id="new-chat">
+        <span class="ic">+</span> Cuộc trò chuyện mới
+      </button>
+
+      <div class="rail-section">Gần đây</div>
+      <nav class="rail-list">
+        <button class="rail-item active" data-demo>
+          <span class="ic">💬</span>
+          <span class="rail-item-text">
+            <b>Cuộc trò chuyện hiện tại</b><em>Vừa xong</em>
+          </span>
+        </button>
+        <button class="rail-item" data-demo>
+          <span class="ic">💳</span>
+          <span class="rail-item-text">
+            <b>Khoá thẻ tạm thời</b><em>Hôm qua</em>
+          </span>
+        </button>
+        <button class="rail-item" data-demo>
+          <span class="ic">📄</span>
+          <span class="rail-item-text">
+            <b>Phí chuyển tiền quốc tế</b><em>3 ngày trước</em>
+          </span>
+        </button>
+        <button class="rail-item" data-demo>
+          <span class="ic">🏦</span>
+          <span class="rail-item-text">
+            <b>Hồ sơ vay mua xe</b><em>Tuần trước</em>
+          </span>
+        </button>
+      </nav>
+
+      <div class="rail-section">Lối tắt</div>
+      <nav class="rail-list compact">
+        <button class="rail-item" data-demo><span class="ic">📊</span>
+          <span class="rail-item-text"><b>Sao kê</b></span></button>
+        <button class="rail-item" data-demo><span class="ic">🎁</span>
+          <span class="rail-item-text"><b>Ưu đãi của tôi</b></span></button>
+        <button class="rail-item" data-demo><span class="ic">🛡️</span>
+          <span class="rail-item-text"><b>Trung tâm an toàn</b></span></button>
+      </nav>
+
+      <div class="rail-foot">
+        <span class="avatar sm">K</span>
+        <div class="rail-item-text">
+          <b id="rail-user">Khách</b><em id="rail-user-sub">Chưa xác thực</em>
+        </div>
+      </div>
+    </aside>
+
     <section class="chat-panel">
+      <header class="chat-head">
+        <span class="avatar bot">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M12 2.6 4 6.2v5.1c0 4.6 3.4 7.2 8 8 4.6-.8 8-3.4 8-8V6.2z"
+                  fill="none" stroke="currentColor" stroke-width="1.9"
+                  stroke-linejoin="round"/>
+            <path d="M8.6 12.1 11 14.5l4.4-4.6" fill="none" stroke="currentColor"
+                  stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <div class="chat-head-text">
+          <strong>Trợ lý ABC Bank</strong>
+          <span class="presence"><i></i> Trực tuyến · Hỗ trợ 24/7</span>
+        </div>
+        <div class="chat-head-actions">
+          <button class="icon-btn" title="Tìm trong hội thoại" data-demo>🔍</button>
+          <button class="icon-btn" title="Gọi tổng đài" data-demo>📞</button>
+          <button class="icon-btn" id="clear-chat" title="Xoá hội thoại">🗑️</button>
+        </div>
+      </header>
+
       <div class="arch-toggle hidden" id="arch-toggle-box">
         <div class="arch-toggle-text">
-          <strong id="arch-toggle-title">Full architecture</strong>
-          <span class="hint" id="arch-toggle-hint">Routing, guardrails, retrieval and the grounding check are all active.</span>
+          <strong id="arch-toggle-title">Kiến trúc đầy đủ</strong>
+          <span class="hint" id="arch-toggle-hint">Định tuyến, guardrail, truy xuất và kiểm tra dẫn nguồn đều đang bật.</span>
         </div>
         <label class="switch">
           <input type="checkbox" id="raw-toggle" />
           <span class="switch-track"><span class="switch-thumb"></span></span>
         </label>
       </div>
+
       <div id="messages" class="messages"></div>
-      <div class="suggestions" id="suggestions">
-        <button>What are your fees for international transfers?</button>
-        <button>I lost my debit card</button>
-        <button>Check my balance</button>
-        <button>How long do I have to dispute a transaction?</button>
-        <button>Should I invest my savings in tech stocks?</button>
-        <button>Do you offer crop insurance for vineyards?</button>
-      </div>
+
       <div id="raw-banner" class="raw-banner hidden">
         <div>
-          <strong>Raw LLM mode - demo only</strong>
-          <p>Everything below this line is bypassed: routing, guardrails, retrieval,
-            PII redaction, the grounding check. This is the model answering from the
-            conversation history alone - the baseline the rest of the assistant is
-            built to improve on.</p>
+          <strong>Chế độ LLM thuần - chỉ dùng để demo</strong>
+          <p>Mọi lớp bên dưới bị bỏ qua: định tuyến, guardrail, truy xuất,
+            che dữ liệu cá nhân, kiểm tra dẫn nguồn. Đây là model trả lời chỉ
+            dựa trên lịch sử hội thoại - chính là mốc so sánh mà phần còn lại
+            của kiến trúc sinh ra để vượt qua.</p>
         </div>
       </div>
       <div id="handoff-banner" class="handoff-banner hidden"></div>
       <div id="chat-actions" class="chat-actions hidden"></div>
+
       <form id="composer" class="composer" autocomplete="off">
+        <button type="button" class="icon-btn ghost-ic" title="Đính kèm" data-demo>📎</button>
         <input id="input" type="text"
-               placeholder="Ask a question, or use @agent / @bot to address one directly…" />
-        <button type="submit" id="send">Send</button>
+               placeholder="Nhập câu hỏi, hoặc dùng @agent / @bot để gọi trực tiếp…" />
+        <button type="button" class="icon-btn ghost-ic" title="Biểu tượng cảm xúc" data-demo>😊</button>
+        <button type="button" class="icon-btn ghost-ic" title="Nhập bằng giọng nói" data-demo>🎙️</button>
+        <button type="submit" id="send" class="send-btn" title="Gửi">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M3.6 11.2 20 4l-7.2 16.4-2.2-6.6z" fill="none"
+                  stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </form>
+      <p class="composer-note">
+        Trợ lý chỉ trả lời dựa trên tài liệu đã được ngân hàng thẩm định.
+        Không bao giờ cung cấp mã OTP, mã PIN hay số thẻ đầy đủ cho bất kỳ ai.
+      </p>
     </section>
 
     <aside class="panel inspector">
-      <h2>Routing inspector</h2>
-      <p class="hint">How the last turn was decided - the audit view a compliance
-        reviewer would see.</p>
+      <h2>Nguồn câu trả lời</h2>
+      <p class="hint">Câu trả lời vừa rồi dựa trên đâu. Kỹ thuật chi tiết -
+        định tuyến, độ tin cậy, đường ra quyết định - đã chuyển sang màn hình
+        nhân viên, nơi người đọc chúng thực sự làm việc.</p>
       <div id="inspector">
-        <p class="empty">Send a message to see the routing decision.</p>
+        <p class="empty">Gửi một câu hỏi để xem nguồn.</p>
       </div>
-      <h3 style="margin-top:18px">Decision path</h3>
-      <p class="hint">Every gate this turn passed through, and the rule applied
-        at each one.</p>
-      <div id="trace"><p class="empty">-</p></div>
     </aside>
   </main>
 
@@ -95,30 +184,30 @@
        ============================================================ -->
   <main id="screen-login" class="screen hidden">
     <section class="panel">
-      <h2>Sign-in</h2>
-      <p class="hint">The customer chat needs no sign-in. This screen is for
-        contact-centre staff.</p>
+      <h2>Đăng nhập</h2>
+      <p class="hint">Màn hình khách không cần đăng nhập. Trang này dành cho nhân viên
+        trung tâm dịch vụ khách hàng.</p>
       <form id="login-form">
         <label class="field">
-          <span>Username</span>
+          <span>Tên đăng nhập</span>
           <input id="login-user" type="text" autocomplete="username" value="agent" />
         </label>
         <label class="field">
-          <span>Password</span>
+          <span>Mật khẩu</span>
           <input id="login-pass" type="password" autocomplete="current-password" />
         </label>
         <div id="login-error" class="error hidden"></div>
         <div class="row-gap">
-          <button class="primary" type="submit">Sign in</button>
-          <button id="login-cancel" class="ghost" type="button">Back to chat</button>
+          <button class="primary" type="submit">Đăng nhập</button>
+          <button id="login-cancel" class="ghost" type="button">Quay lại khung chat</button>
         </div>
       </form>
       <p class="hint" style="margin-top:14px">
-        Demo account: <code>agent</code> / <code>demo1234</code>.
+        Tài khoản demo: <code>agent</code> / <code>demo1234</code>.
       </p>
     </section>
     <section class="panel warn">
-      <h3>How this is enforced</h3>
+      <h3>Cơ chế phân quyền</h3>
       <p>Every staff endpoint checks the session server-side before doing any
         work. Hiding a screen in JavaScript is not a control - the routes answer
         anyone who calls them directly, so the check lives in the handler.</p>
@@ -134,52 +223,52 @@
        ============================================================ -->
   <main id="screen-agent" class="screen hidden">
     <nav class="subtabs">
-      <button class="subtab active" data-panel="dashboard">Dashboard</button>
+      <button class="subtab active" data-panel="dashboard">Tổng quan</button>
       <button class="subtab" data-panel="queue">
-        Queue <span id="queue-count" class="badge zero">0</span>
+        Hàng chờ <span id="queue-count" class="badge zero">0</span>
       </button>
-      <button class="subtab" data-panel="kb">Knowledge base</button>
-      <button class="subtab" data-panel="settings">Settings</button>
+      <button class="subtab" data-panel="kb">Kho tri thức</button>
+      <button class="subtab" data-panel="settings">Cấu hình</button>
     </nav>
 
     <!-- ---------- DASHBOARD ---------- -->
     <section id="panel-dashboard" class="agent-panel">
       <div class="row-between">
         <div>
-          <h2>Operations</h2>
+          <h2>Vận hành</h2>
           <p class="hint" id="dash-scope">-</p>
         </div>
         <div class="row-gap">
-          <button id="seed-btn" class="ghost small">Seed demo traffic</button>
-          <button id="clear-btn" class="danger small">Clear all sessions</button>
-          <button id="dash-refresh" class="ghost small">Refresh</button>
+          <button id="seed-btn" class="ghost small">Nạp dữ liệu demo</button>
+          <button id="clear-btn" class="danger small">Xoá toàn bộ phiên</button>
+          <button id="dash-refresh" class="ghost small">Làm mới</button>
         </div>
       </div>
       <div id="stat-grid" class="stat-grid"></div>
       <div class="panel" style="margin-top:16px">
-        <h3>Card actions <span class="tag">written to the database</span></h3>
-        <p class="hint">Every card state change, with the transition it made and
-          the conversation that asked for it. An account action the bank cannot
-          evidence afterwards may as well not have happened.</p>
+        <h3>Thao tác thẻ <span class="tag">đã ghi vào dữ liệu</span></h3>
+        <p class="hint">Mỗi lần thẻ đổi trạng thái, kèm bước chuyển và hội thoại yêu cầu.
+          Một thao tác tài khoản mà ngân hàng không chứng minh được về sau thì
+          coi như chưa từng xảy ra.</p>
         <div id="card-events"></div>
       </div>
       <div class="panel" style="margin-top:16px">
-        <h3>Unresolved topics <span id="topic-count" class="tag"></span></h3>
-        <p class="hint">Questions the assistant could not answer, grouped. This is
-          a ranked list of what to write next, not just a failure count.</p>
+        <h3>Chủ đề chưa giải quyết <span id="topic-count" class="tag"></span></h3>
+        <p class="hint">Các câu trợ lý chưa trả lời được, đã gom nhóm. Đây là danh sách tài
+          liệu cần viết tiếp, xếp theo mức ưu tiên - không phải bảng đếm lỗi.</p>
         <div id="topics"></div>
       </div>
       <div class="split" style="margin-top:16px">
         <div class="panel">
-          <h3>Policy <span class="tag">config.json</span></h3>
+          <h3>Chính sách <span class="tag">config.json</span></h3>
           <div id="policy-box"></div>
         </div>
         <div class="panel">
-          <h3>Campaign batch</h3>
+          <h3>Dữ liệu chiến dịch</h3>
           <div id="campaign-box"></div>
-          <h3 style="margin-top:16px">Cross-session memory</h3>
+          <h3 style="margin-top:16px">Trí nhớ xuyên phiên</h3>
           <div id="memory-box"></div>
-          <h3 style="margin-top:16px">Database</h3>
+          <h3 style="margin-top:16px">Dữ liệu</h3>
           <div id="db-box"></div>
         </div>
       </div>
@@ -341,17 +430,17 @@
             <label class="field">
               <span>API key <em id="cfg-key-hint">- stored in memory only</em></span>
               <div class="row-gap">
-                <input id="cfg-key" type="password" placeholder="paste key, or leave blank to keep" />
-                <button id="cfg-key-toggle" class="ghost small" type="button">Show</button>
+                <input id="cfg-key" type="password" placeholder="dán key, để trống nếu giữ nguyên" />
+                <button id="cfg-key-toggle" class="ghost small" type="button">Hiện</button>
               </div>
             </label>
             <label class="field">
-              <span>Model <em>- blank uses the provider default</em></span>
+              <span>Model <em>- để trống dùng mặc định của nhà cung cấp</em></span>
               <input id="cfg-model" type="text" />
             </label>
             <div class="grid-2">
               <label class="field">
-                <span>Effort</span>
+                <span>Mức suy luận</span>
                 <select id="cfg-effort">
                   <option value="low">low</option>
                   <option value="medium">medium</option>
@@ -359,22 +448,22 @@
                 </select>
               </label>
               <label class="field">
-                <span>Base URL <em>- openai adapter only</em></span>
+                <span>Base URL <em>- chỉ dùng cho adapter openai</em></span>
                 <input id="cfg-base" type="text" placeholder="https://…/v1" />
               </label>
             </div>
             <div class="grid-2">
               <label class="field">
-                <span>Tone</span>
+                <span>Giọng điệu</span>
                 <select id="cfg-tone">
-                  <option value="professional">professional - precise, economical</option>
-                  <option value="friendly">friendly - warm, plain words</option>
-                  <option value="concise">concise - answer first, no softeners</option>
-                  <option value="empathetic">empathetic - patient, for fraud and loss</option>
+                  <option value="professional">chuyên nghiệp - chính xác, súc tích</option>
+                  <option value="friendly">thân thiện - ấm áp, dùng từ đời thường</option>
+                  <option value="concise">ngắn gọn - trả lời trước, không rào đón</option>
+                  <option value="empathetic">đồng cảm - kiên nhẫn, cho gian lận và mất mát</option>
                 </select>
               </label>
               <label class="field">
-                <span>Temperature <em>- blank uses the provider default</em></span>
+                <span>Temperature <em>- để trống dùng mặc định của nhà cung cấp</em></span>
                 <input id="cfg-temp" type="number" min="0" max="2" step="0.1"
                        placeholder="e.g. 0.3" />
               </label>
@@ -388,8 +477,8 @@
             </p>
             <div id="cfg-error" class="error hidden"></div>
             <div class="row-gap">
-              <button id="cfg-save" class="primary">Apply</button>
-              <button id="cfg-clear" class="ghost">Clear key</button>
+              <button id="cfg-save" class="primary">Áp dụng</button>
+              <button id="cfg-clear" class="ghost">Xoá key</button>
             </div>
           </div>
           <div class="panel warn">

@@ -17,39 +17,65 @@ from .textmodel import tokenize
 
 # Topics the assistant must never answer generatively, however confident the
 # model is. Each maps to the reason recorded in the audit trail.
+# Bilingual, and this is the control that most needed it. When the assistant
+# was translated, these patterns were left in English - so "tôi có nên đầu tư
+# tiết kiệm vào cổ phiếu công nghệ không?" sailed past the compliance gate and
+# was handled as an ordinary question. A guardrail that only guards one of the
+# two languages the product speaks is not a guardrail.
 RESTRICTED_TOPICS: list[tuple[str, re.Pattern, str]] = [
     (
         "investment_advice",
         re.compile(
-            r"\b(should i (invest|buy|sell)|which (stock|fund|crypto)|"
+            r"(\b(should i (invest|buy|sell)|which (stock|fund|crypto)|"
             r"invest(ment)? advice|portfolio allocation|is .* a good investment|"
-            r"will .* (go up|crash)|best (stock|fund|coin)s?)\b",
+            r"will .* (go up|crash)|best (stock|fund|coin)s?)\b"
+            r"|(có nên|nên không|tư vấn)[^?.]{0,40}"
+            r"(đầu tư|cổ phiếu|chứng khoán|trái phiếu|quỹ|vàng|bitcoin|tiền ảo|crypto)"
+            r"|(đầu tư|mua|bán)[^?.]{0,24}(cổ phiếu|chứng khoán|bitcoin|tiền ảo|vàng)"
+            r"[^?.]{0,24}(có nên|được không|nên không|lời không)"
+            r"|(cổ phiếu|mã nào|quỹ nào)[^?.]{0,20}(nên mua|đáng mua|sinh lời)"
+            # "bitcoin bây giờ có đáng đầu tư không" puts the asset first and
+            # the judgement second, which none of the patterns above reach.
+            # Asking whether an asset is worth buying is a recommendation
+            # request however the sentence is ordered.
+            r"|(bitcoin|tiền ảo|crypto|vàng|cổ phiếu|chứng khoán|trái phiếu|quỹ)"
+            r"[^?.]{0,28}(đáng (đầu tư|mua)|có nên|nên mua|nên đầu tư|lãi không|"
+            r"sinh lời|tăng giá|giảm giá))",
             re.IGNORECASE,
         ),
-        "Investment recommendations require a licensed advisor.",
+        "Khuyến nghị đầu tư phải do chuyên gia có chứng chỉ hành nghề đưa ra.",
     ),
     (
         "tax_advice",
         re.compile(
-            r"\b(tax (advice|deduction|loophole)|how (do|can) i (avoid|reduce) tax|"
-            r"write.?off .* on my taxes)\b",
+            r"(\b(tax (advice|deduction|loophole)|how (do|can) i (avoid|reduce) tax|"
+            r"write.?off .* on my taxes)\b"
+            r"|(giảm|né|trốn|lách|tránh)[^?.]{0,20}(thuế|tiền thuế)"
+            r"|tư vấn[^?.]{0,16}thuế"
+            r"|quyết toán thuế[^?.]{0,20}(thế nào|ra sao|giúp))",
             re.IGNORECASE,
         ),
-        "Tax guidance requires a qualified tax professional.",
+        "Tư vấn thuế phải do chuyên gia thuế có chuyên môn thực hiện.",
     ),
     (
         "legal_advice",
-        re.compile(r"\b(should i sue|legal advice|is it legal (for|to)|take you to court)\b",
-                   re.IGNORECASE),
-        "Legal questions must be handled by the bank's legal team.",
+        re.compile(
+            r"(\b(should i sue|legal advice|is it legal (for|to)|take you to court)\b"
+            r"|(có nên|nên không)[^?.]{0,20}(kiện|khởi kiện|thưa ra toà|thưa ra tòa)"
+            r"|tư vấn[^?.]{0,16}(pháp lý|pháp luật)"
+            r"|(có|không)[^?.]{0,12}(vi phạm pháp luật|hợp pháp)[^?.]{0,12}không)",
+            re.IGNORECASE,
+        ),
+        "Câu hỏi pháp lý phải do bộ phận pháp chế của ngân hàng xử lý.",
     ),
 ]
 
 RESTRICTED_RESPONSE = (
-    "I'm not able to give investment, tax, or legal advice - that has to come "
-    "from a licensed professional. I can connect you with a banking specialist "
-    "who can talk through the products we offer, or answer any question about "
-    "your accounts, cards, or applications."
+    "Tôi rất tiếc, tôi không thể tư vấn về đầu tư, thuế hay pháp lý - những nội "
+    "dung này phải do chuyên gia có chứng chỉ hành nghề thực hiện ạ.\n\n"
+    "Tôi có thể kết nối anh/chị với chuyên viên tư vấn của ngân hàng để trao đổi "
+    "về các sản phẩm hiện có, hoặc giải đáp bất kỳ câu hỏi nào liên quan đến tài "
+    "khoản, thẻ và hồ sơ của anh/chị."
 )
 
 # Redaction patterns, applied in order. Card numbers first so their digits are

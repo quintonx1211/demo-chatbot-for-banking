@@ -58,16 +58,22 @@ class StubProvider:
             return LLMResult(text="   ", generated=True, provider=self.NAME,
                              model=self.model_name())
         if self.behaviour == "ungrounded":
+            # Fluent, plausible, and sharing almost no vocabulary with the
+            # corpus - which is exactly what the grounding check is for.
             return LLMResult(
-                text=("Our premium concierge desk waives every fee for platinum "
-                      "clients and settles remittances within nine minutes "
-                      "worldwide."),
+                text=("Bộ phận chăm sóc đặc biệt của chúng tôi miễn toàn bộ phí "
+                      "cho khách hàng bạch kim và hoàn tất lệnh chuyển trong "
+                      "chín phút trên toàn cầu."),
                 generated=True, provider=self.NAME, model=self.model_name(),
                 input_tokens=900, output_tokens=40)
+        # Drawn from the Vietnamese corpus so it passes the grounding check.
+        # An English sentence here shares no content words with the retrieved
+        # passages, scores ~0 on grounding, and escalates - the gate working
+        # correctly, but it made the adapter contract test look broken.
         return LLMResult(
-            text=("International wires cost $45 outgoing and settle in 1 to 5 "
-                  "business days depending on the destination country. The daily "
-                  "cut-off for same-day processing is 4:00 PM ET."),
+            text=("Chuyển tiền quốc tế thu phí 350.000 VND ở chiều đi và thời "
+                  "gian ghi có 1-5 ngày làm việc tuỳ quốc gia thụ hưởng. Thời "
+                  "điểm chốt giao dịch trong ngày là 16:00."),
             generated=True, provider=self.NAME, model=self.model_name(),
             input_tokens=900, output_tokens=42)
 
@@ -81,7 +87,7 @@ def with_stub(behaviour: str):
     return stub
 
 
-QUESTION = "what do you charge for an international wire?"
+QUESTION = "chuyển tiền quốc tế phí bao nhiêu?"
 
 
 def main() -> int:
@@ -155,7 +161,7 @@ def main() -> int:
     check(result.route == "escalation_offered", f"offered a handoff (got {result.route})")
     check("grounding" in (result.escalation_reason or "").lower(),
           f"reason names the grounding gate: {result.escalation_reason!r}")
-    accepted = router.handle_turn(session, "yes")
+    accepted = router.handle_turn(session, "có")
     check(accepted.route == "escalation" and session.escalated,
           f"accepting the offer escalates (got {accepted.route})")
 
@@ -163,7 +169,7 @@ def main() -> int:
     stub = with_stub("ok")
     router = Router()
     session = router.sessions.create()
-    router.handle_turn(session, "let me talk to a real person")
+    router.handle_turn(session, "cho tôi gặp nhân viên")
     check(session.escalated, "session escalated")
     check(any("handover brief" in c.user.lower() or "transcript" in c.user.lower()
               for c in stub.calls),

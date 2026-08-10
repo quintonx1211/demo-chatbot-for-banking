@@ -27,6 +27,11 @@ LOW_CONFIDENCE = 0.28    # below this the intent is not trusted at all
 INTENTS: dict[str, dict] = {
     "balance_inquiry": {
         "utterances": [
+            "số dư tài khoản của tôi còn bao nhiêu",
+            "kiểm tra số dư",
+            "xem số dư tài khoản",
+            "tôi còn bao nhiêu tiền trong tài khoản",
+            "số dư khả dụng của tôi",
             "what is my account balance",
             "how much money do I have",
             "check my balance",
@@ -40,13 +45,19 @@ INTENTS: dict[str, dict] = {
         # policy question about how balances are calculated, not a request to
         # see one - and routing it here sends the customer into an identity
         # check for information that needs no identity at all.
-        "anchors": [r"\b(my|our)\b[^?.]{0,24}\bbalance",
+        "anchors": [
+            r"số dư",r"\b(my|our)\b[^?.]{0,24}\bbalance",
                     r"\bbalance\b[^?.]{0,20}\b(my|our)\b",
                     r"^\s*(check|show|what.s)\b[^?.]{0,16}\bbalance",
                     r"how much (money|funds) do i have"],
     },
     "block_card": {
         "utterances": [
+            "tôi làm mất thẻ",
+            "thẻ của tôi bị đánh cắp",
+            "báo mất thẻ",
+            "khoá thẻ vĩnh viễn giúp tôi",
+            "tôi bị mất ví, khoá thẻ giúp tôi",
             "block my card",
             "I lost my debit card",
             "my credit card was stolen",
@@ -59,13 +70,20 @@ INTENTS: dict[str, dict] = {
         # reversible, the other issues a replacement and can never be undone -
         # and routing both to the same flow is what left customers with a
         # blocked card and no way back.
-        "anchors": [r"\b(block|deactivate)\b.*\bcard\b",
+        "anchors": [
+            r"(mất|đánh cắp|thất lạc)[^?.]{0,16}thẻ",
+            r"thẻ[^?.]{0,16}(bị mất|bị đánh cắp)",
+            r"báo mất thẻ",r"\b(block|deactivate)\b.*\bcard\b",
                     r"\bcard\b.*\b(lost|stolen|missing)\b",
                     r"\b(lost|stolen)\b.*\bcard\b",
                     r"\breport\b.*\bcard\b.*\b(lost|stolen)\b"],
     },
     "freeze_card": {
         "utterances": [
+            "tạm khoá thẻ giúp tôi",
+            "khoá tạm thời thẻ của tôi",
+            "tôi để quên thẻ, tạm dừng thẻ giúp tôi",
+            "tạm dừng thẻ",
             "freeze my card",
             "temporarily lock my card",
             "put a hold on my card",
@@ -73,12 +91,17 @@ INTENTS: dict[str, dict] = {
             "can you suspend my card until I find it",
             "lock my card temporarily",
         ],
-        "anchors": [r"\b(freeze|suspend|pause|lock)\b[^?.]{0,20}\bcard\b",
+        "anchors": [
+            r"(tạm khoá|tạm khóa|tạm dừng|khoá tạm|khóa tạm)",r"\b(freeze|suspend|pause|lock)\b[^?.]{0,20}\bcard\b",
                     r"\bcard\b[^?.]{0,16}\b(freeze|frozen|suspend|paused|locked)\b",
                     r"\btemporar\w+\b[^?.]{0,20}\b(block|lock|stop)\b"],
     },
     "unfreeze_card": {
         "utterances": [
+            "mở khoá thẻ giúp tôi",
+            "tôi tìm thấy thẻ rồi, mở lại giúp tôi",
+            "bỏ tạm khoá thẻ",
+            "kích hoạt lại thẻ đang tạm khoá",
             "unblock my card",
             "unfreeze my card",
             "I found my card, please turn it back on",
@@ -92,7 +115,8 @@ INTENTS: dict[str, dict] = {
         # card" classified as `unknown` and fell through to retrieval, which
         # found nothing, so the assistant offered a human agent for an action
         # it was perfectly able to perform itself.
-        "anchors": [r"\bun(block|freeze|lock|suspend)\w*\b",
+        "anchors": [
+            r"(mở khoá|mở khóa|bỏ khoá|bỏ khóa|mở lại thẻ)",r"\bun(block|freeze|lock|suspend)\w*\b",
                     r"\b(undo|remove|lift|cancel)\b[^?.]{0,20}"
                     r"\b(block|freeze|hold|lock)\b",
                     r"\b(turn|switch)\b[^?.]{0,12}\b(back on|on again)\b",
@@ -100,6 +124,10 @@ INTENTS: dict[str, dict] = {
     },
     "loan_status": {
         "utterances": [
+            "hồ sơ vay của tôi đến đâu rồi",
+            "kiểm tra tình trạng hồ sơ vay",
+            "hồ sơ vay mua nhà của tôi đã duyệt chưa",
+            "khi nào có kết quả khoản vay",
             "what is the status of my loan application",
             "check my loan status",
             "has my mortgage been approved",
@@ -107,21 +135,33 @@ INTENTS: dict[str, dict] = {
             "when will my loan be approved",
             "loan application progress",
         ],
-        "anchors": [r"\bloan\b.*\bstatus\b", r"\bstatus\b.*\b(loan|mortgage)\b",
+        "anchors": [
+            r"hồ sơ vay",
+            r"khoản vay[^?.]{0,16}(đến đâu|thế nào|duyệt)",r"\bloan\b.*\bstatus\b", r"\bstatus\b.*\b(loan|mortgage)\b",
                     r"\b(loan|mortgage)\b.*\b(approved|application)\b"],
     },
     "transaction_history": {
         "utterances": [
+            "xem giao dịch gần đây",
+            "lịch sử giao dịch của tôi",
+            "tôi đã chi tiêu những gì tuần trước",
+            "sao kê giao dịch gần nhất",
             "show my recent transactions",
             "list the last payments on my account",
             "what did I spend last week",
             "recent activity on my account",
             "show me my last five transactions",
         ],
-        "anchors": [r"\b(recent|last|latest)\b.*\btransaction", r"\bspend\b"],
+        "anchors": [
+            r"(giao dịch|chi tiêu)[^?.]{0,12}(gần đây|gần nhất)",
+            r"lịch sử giao dịch",r"\b(recent|last|latest)\b.*\btransaction", r"\bspend\b"],
     },
     "account_summary": {
         "utterances": [
+            "tôi là ai trong hệ thống",
+            "thông tin của tôi",
+            "tôi đang có những sản phẩm gì",
+            "hồ sơ khách hàng của tôi",
             "who am I",
             "what are my details",
             "what accounts and cards do I hold with you",
@@ -129,11 +169,17 @@ INTENTS: dict[str, dict] = {
             "tell me about my profile",
             "what is my customer number",
         ],
-        "anchors": [r"(?<![a-z])who am i(?![a-z])", r"my (details|profile)(?![a-z])",
+        "anchors": [
+            r"tôi là ai",
+            r"(thông tin|hồ sơ)[^?.]{0,10}của tôi",r"(?<![a-z])who am i(?![a-z])", r"my (details|profile)(?![a-z])",
                     r"what .*(accounts?|products?) do i (have|hold)"],
     },
     "activate_card": {
         "utterances": [
+            "làm sao để kích hoạt thẻ mới",
+            "thẻ mới về rồi tôi dùng thế nào",
+            "kích hoạt thẻ",
+            "thẻ chưa kích hoạt",
             "how do I activate my new card",
             "my new card arrived how do I start using it",
             "I need to activate my debit card",
@@ -141,12 +187,17 @@ INTENTS: dict[str, dict] = {
             "my card is not working yet",
             "the card you sent me is inactive",
         ],
-        "anchors": [r"activat(e|ing|ion)",
+        "anchors": [
+            r"kích hoạt",r"activat(e|ing|ion)",
                     r"new card[^?.]{0,24}(start|use|using|work)",
                     r"card[^?.]{0,20}(not|isn.t) (working|active|activated)"],
     },
     "card_offers": {
         "utterances": [
+            "có ưu đãi nào cho tôi không",
+            "có khuyến mãi gì cho tôi",
+            "tôi có đủ điều kiện nâng hạng thẻ không",
+            "ưu đãi trên thẻ của tôi",
             "do you have any offers for me",
             "what deals are available on my card",
             "can I get a better card",
@@ -160,6 +211,8 @@ INTENTS: dict[str, dict] = {
         # "someone" for a handoff: the word is not the intent, the grammar
         # around it is.
         "anchors": [
+            r"(ưu đãi|khuyến mãi|khuyến mại)",
+            r"nâng hạng",
             r"(offers?|deals?|promotions?|rewards?)[^?.]{0,20}"
             r"(for me|available|on my|i can get)",
             r"any[^?.]{0,12}(offers?|deals?|promotions?)",
@@ -169,6 +222,10 @@ INTENTS: dict[str, dict] = {
     },
     "human_agent": {
         "utterances": [
+            "tôi muốn gặp nhân viên",
+            "cho tôi gặp người thật",
+            "chuyển tôi cho tổng đài viên",
+            "nối máy cho chuyên viên",
             "I want to speak to a human",
             "connect me to an agent",
             "transfer me to a representative",
@@ -181,6 +238,8 @@ INTENTS: dict[str, dict] = {
         # permission" - a fraud report, routed to the handoff queue because it
         # contained a pronoun. Nouns alone are not intent.
         "anchors": [
+            r"(gặp|nói chuyện với)[^?.]{0,16}(nhân viên|người thật|chuyên viên|tổng đài)",
+            r"chuyển[^?.]{0,10}(tôi|máy)",
             r"\b(speak|talk|chat)\b[^?.]{0,16}\b(to|with)\b[^?.]{0,16}"
             r"\b(human|person|agent|advisor|someone|somebody|representative)\b",
             r"\b(connect|transfer|put)\b[^?.]{0,12}\bme\b",
@@ -191,31 +250,51 @@ INTENTS: dict[str, dict] = {
     },
     "greeting": {
         "utterances": [
+            "xin chào",
+            "chào bạn",
+            "alo",
             "hello", "hi there", "good morning", "hey", "good evening",
         ],
-        "anchors": [r"^\s*(hi|hello|hey|good (morning|afternoon|evening))\b"],
+        "anchors": [
+            r"^\s*(xin chào|chào|alo)",r"^\s*(hi|hello|hey|good (morning|afternoon|evening))\b"],
     },
     "smalltalk": {
         "utterances": [
+            "cảm ơn",
+            "ok cảm ơn",
+            "hiểu rồi",
+            "vâng ạ",
+            "còn đó không",
             "ok thanks", "thank you", "got it", "understood", "great",
             "are you still there", "hello are you there", "any update",
             "sorry what", "never mind then", "cool",
         ],
-        "anchors": [r"^\s*(ok(ay)?|thanks|thank you|got it|understood|great|"
+        "anchors": [
+            r"^\s*(cảm ơn|cám ơn|ok|hiểu rồi|vâng|dạ)\s*[.!]?\s*$",r"^\s*(ok(ay)?|thanks|thank you|got it|understood|great|"
                     r"cool|nice|perfect|alright|sure)\s*[.!]?\s*$",
                     r"are you (still )?(there|here)",
                     r"^\s*(hmm+|uh+|erm+|\?+)\s*$"],
     },
     "goodbye": {
         "utterances": [
+            "tạm biệt",
+            "cảm ơn, vậy thôi ạ",
+            "hết rồi cảm ơn",
             "thanks that is all", "goodbye", "bye bye", "that's everything thanks",
         ],
-        "anchors": [r"^\s*(bye|goodbye)\b", r"that('s| is) all"],
+        "anchors": [
+            r"^\s*(tạm biệt|chào nhé)",
+            r"vậy thôi",r"^\s*(bye|goodbye)\b", r"that('s| is) all"],
     },
     # Knowledge intents: recognised, but answered from the knowledge base by
     # the RAG layer rather than by a scripted flow.
     "knowledge_query": {
         "utterances": [
+            "phí chuyển tiền quốc tế là bao nhiêu",
+            "chi nhánh mở cửa mấy giờ",
+            "mở tài khoản cần giấy tờ gì",
+            "làm sao để không bị thu phí quản lý tài khoản",
+            "lãi suất tiết kiệm hiện nay",
             "what are your fees for international transfers",
             "how do I reset my online banking password",
             "what documents do I need to open an account",

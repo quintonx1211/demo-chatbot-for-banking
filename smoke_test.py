@@ -4,6 +4,16 @@ Exercises every branch of the router without needing the HTTP server or an API
 key - the generative layer degrades to extractive mode when no key is present.
 """
 
+import sys
+
+# The Windows console defaults to cp1252, which cannot encode Vietnamese. Now
+# that the assistant answers in Vietnamese, printing a reply raised
+# UnicodeEncodeError and took the whole test run down - a test suite that dies
+# on its own output reports nothing about the code it was meant to check.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from app.replay import cred
 from app.router import Router
 
@@ -22,59 +32,59 @@ from app.router import Router
 SCENARIOS: list[tuple[str, list[str], str, bool]] = [
     (
         "Deterministic flow with identity verification",
-        ["hi", "what's my balance?", cred("travel_offer")],
+        ["xin chào", "số dư của tôi còn bao nhiêu?", cred("travel_offer")],
         "deterministic", True,
     ),
     (
         "Card block - two-step confirmation, writes to the record",
-        ["I lost my debit card", cred("multi_card"), "6591", "yes"],
+        ["tôi làm mất thẻ ghi nợ", cred("multi_card"), "6591", "có"],
         "deterministic", True,
     ),
     (
         "Freeze then unfreeze - the reversible path",
-        ["freeze my card", cred("loan_in_review"), "yes",
-         "unblock my card", "yes"],
+        ["tạm khoá thẻ giúp tôi", cred("loan_in_review"), "có",
+         "mở khoá thẻ giúp tôi", "có"],
         "deterministic", True,
     ),
     (
         "Loan status lookup",
-        ["any update on my loan application?", cred("loan_in_review")],
+        ["hồ sơ vay của tôi đến đâu rồi?", cred("loan_in_review")],
         "deterministic", True,
     ),
     (
         "RAG-grounded answer from the knowledge base",
-        ["what do you charge for an international wire?"],
+        ["chuyển tiền quốc tế phí bao nhiêu?"],
         "rag", False,
     ),
     (
         "Guardrail - restricted topic refused before any model call",
-        ["should I invest my savings in tech stocks?"],
+        ["tôi có nên đầu tư tiết kiệm vào cổ phiếu công nghệ không?"],
         "guardrail", False,
     ),
     (
         "Handoff offered - no supporting passage, customer decides",
-        ["do you offer crop insurance for vineyards in Portugal?"],
+        ["ngân hàng có bảo hiểm cây trồng cho vườn nho ở Bồ Đào Nha không?"],
         "escalation_offered", False,
     ),
     (
         "Handoff accepted - the offer is taken up",
-        ["do you offer crop insurance for vineyards in Portugal?", "yes"],
+        ["ngân hàng có bảo hiểm cây trồng cho vườn nho ở Bồ Đào Nha không?", "có"],
         "escalation", False,
     ),
     (
         "Handoff declined - assistant carries on",
-        ["do you offer crop insurance for vineyards in Portugal?", "no thanks",
-         "what are your branch hours?"],
+        ["ngân hàng có bảo hiểm cây trồng cho vườn nho ở Bồ Đào Nha không?", "không, cảm ơn",
+         "chi nhánh mở cửa mấy giờ?"],
         "rag", False,
     ),
     (
         "@agent goes straight to a human",
-        ["@agent I have a problem with a duplicate charge"],
+        ["@agent tôi bị trừ tiền hai lần"],
         "escalation", False,
     ),
     (
         "Escalation - customer asks for a human",
-        ["let me talk to a real person"],
+        ["cho tôi gặp nhân viên"],
         "escalation", False,
     ),
 ]

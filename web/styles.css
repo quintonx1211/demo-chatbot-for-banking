@@ -1,25 +1,49 @@
-/* Brand palette. Everything else in this file derives from these three values,
-   so re-theming the whole UI means changing them and nothing else. */
+/* Palette. Everything else derives from these, so re-theming means changing
+   this block and nothing else.
+
+   Deliberately moved off the pale blue-on-grey it had before: that reads as a
+   developer tool, and the client's note was that the interface looked too
+   plain for a bank. A saturated indigo with a dark rail is the register most
+   consumer messaging apps sit in, and it survives a projector - the old
+   #eef3f8 on #ffffff washed out completely in a lit room. */
 :root {
-  --blue: #1d99d6;
-  --deep: #0056b3;
-  --soft: #849ccd;
+  --brand: #4f46e5;
+  --brand-600: #4338ca;
+  --brand-700: #3730a3;
+  --brand-soft: #eef2ff;
+  --brand-ring: rgba(79, 70, 229, .28);
 
-  --bg: #eef3f8;
+  --rail: #1b1c31;
+  --rail-2: #262844;
+  --rail-text: #c7c9e0;
+  --rail-muted: #8b8fb5;
+
+  --bg: #f4f5fb;
   --panel: #ffffff;
-  --panel-2: #f6f9fc;
-  --line: #dbe4ee;
-  --line-soft: #eaf0f6;
+  --panel-2: #fafaff;
+  --line: #e4e5f0;
+  --line-soft: #eef0f7;
 
-  --text: #16232f;
-  --muted: #5f7387;
+  --text: #191a2b;
+  --muted: #6b6f89;
 
   --green: #0f8a54;
+  --green-soft: #e8f7f0;
   --amber: #b0730c;
-  --red: #c8322b;
+  --amber-soft: #fdf5e6;
+  --red: #d33a33;
 
-  --radius: 12px;
-  --shadow: 0 1px 2px rgba(22, 35, 47, .06), 0 6px 18px rgba(22, 35, 47, .05);
+  /* Kept as aliases so the agent console, written against the old names,
+     re-themes with everything else instead of being left behind. */
+  --blue: var(--brand);
+  --deep: var(--brand-700);
+  --soft: #a5a8c8;
+
+  --radius: 14px;
+  --radius-lg: 20px;
+  --shadow-sm: 0 1px 2px rgba(25, 26, 43, .05);
+  --shadow: 0 1px 3px rgba(25, 26, 43, .07), 0 8px 24px rgba(25, 26, 43, .06);
+  --shadow-lg: 0 12px 40px rgba(25, 26, 43, .14);
 }
 
 * { box-sizing: border-box; }
@@ -28,7 +52,8 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.55 "Segoe UI", system-ui, -apple-system, sans-serif;
+  font: 15px/1.6 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ---------- top bar ---------- */
@@ -90,41 +115,174 @@ code {
   padding: 1px 5px; border-radius: 4px; font-size: 12.5px;
 }
 
+/* ---------- customer screen: rail / chat / inspector ---------- */
+#screen-customer.screen {
+  display: grid; grid-template-columns: 252px minmax(0, 1fr) 300px;
+  gap: 16px; align-items: stretch;
+}
+@media (max-width: 1180px) {
+  #screen-customer.screen { grid-template-columns: minmax(0, 1fr) 290px; }
+  .rail { display: none; }
+}
+@media (max-width: 900px) {
+  #screen-customer.screen { grid-template-columns: minmax(0, 1fr); }
+  #screen-customer .inspector { display: none; }
+}
+
+/* The dark rail is what stops this reading as a developer tool, and it is the
+   cheapest way to make a two-panel demo look like a product: mainstream
+   messaging apps all put navigation in a dark column with the conversation on
+   light, and the eye recognises that shape before it reads a word. */
+.rail {
+  background: var(--rail); color: var(--rail-text);
+  border-radius: var(--radius-lg); padding: 16px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  height: calc(100vh - 132px); min-height: 520px; overflow-y: auto;
+}
+.rail-brand { display: flex; align-items: center; gap: 11px; padding: 4px 6px 14px; }
+.rail-logo {
+  width: 38px; height: 38px; border-radius: 11px; flex: none;
+  background: linear-gradient(140deg, var(--brand), var(--brand-700));
+  color: #fff; font-weight: 700; font-size: 13.5px; letter-spacing: .5px;
+  display: grid; place-items: center;
+}
+.rail-brand strong { display: block; color: #fff; font-size: 14.5px; }
+.rail-brand span { font-size: 11.5px; color: var(--rail-muted); }
+
+.rail-new {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; margin-bottom: 10px; padding: 11px 12px;
+  background: var(--brand); color: #fff; border: none;
+  border-radius: 11px; font: inherit; font-weight: 600; font-size: 13.5px;
+  cursor: pointer; transition: background .15s;
+}
+.rail-new:hover { background: var(--brand-600); }
+.rail-new .ic { font-size: 17px; line-height: 1; }
+
+.rail-section {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px;
+  color: var(--rail-muted); padding: 12px 8px 6px; font-weight: 600;
+}
+.rail-list { display: flex; flex-direction: column; gap: 2px; }
+.rail-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 10px; border-radius: 10px; border: none; cursor: pointer;
+  background: transparent; color: var(--rail-text); font: inherit; text-align: left;
+}
+.rail-item:hover { background: var(--rail-2); }
+.rail-item.active { background: var(--rail-2); color: #fff; }
+.rail-item .ic { font-size: 15px; flex: none; }
+.rail-item-text { min-width: 0; }
+.rail-item-text b {
+  display: block; font-size: 13px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rail-item-text em { font-style: normal; font-size: 11px; color: var(--rail-muted); }
+.rail-list.compact .rail-item { padding: 7px 10px; }
+.rail-foot {
+  margin-top: auto; padding-top: 12px; border-top: 1px solid var(--rail-2);
+  display: flex; align-items: center; gap: 10px;
+}
+
 /* ---------- chat ---------- */
 .chat-panel {
   background: var(--panel); border: 1px solid var(--line);
-  border-radius: var(--radius); box-shadow: var(--shadow);
-  display: flex; flex-direction: column;
-  height: calc(100vh - 178px); min-height: 470px;
+  border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  display: flex; flex-direction: column; overflow: hidden;
+  height: calc(100vh - 132px); min-height: 520px;
 }
-.messages { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 15px; }
+.chat-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 18px; border-bottom: 1px solid var(--line-soft);
+}
+.chat-head-text { flex: 1; min-width: 0; }
+.chat-head-text strong { display: block; font-size: 14.5px; }
+.presence { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.presence i {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--green);
+  box-shadow: 0 0 0 3px var(--green-soft);
+}
+.chat-head-actions { display: flex; gap: 4px; }
+.icon-btn {
+  width: 34px; height: 34px; border-radius: 10px; border: none;
+  background: transparent; cursor: pointer; font-size: 15px;
+  display: grid; place-items: center; color: var(--muted); transition: background .15s;
+}
+.icon-btn:hover { background: var(--brand-soft); }
 
-.msg { max-width: 78%; }
-.msg .bubble { padding: 11px 14px; border-radius: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.msg.customer { align-self: flex-end; }
-.msg.customer .bubble {
-  background: linear-gradient(140deg, var(--blue), var(--deep));
-  color: #fff; border-bottom-right-radius: 3px;
+.avatar {
+  width: 38px; height: 38px; border-radius: 12px; flex: none;
+  display: grid; place-items: center; font-weight: 600; font-size: 13px;
 }
-.msg.customer .bubble code { background: rgba(255,255,255,.2); border-color: transparent; color: #fff; }
+.avatar.bot { background: linear-gradient(140deg, var(--brand), var(--brand-700)); color: #fff; }
+.avatar.sm {
+  width: 32px; height: 32px; border-radius: 10px; font-size: 12px;
+  background: var(--rail-2); color: #fff;
+}
+.avatar.me { background: var(--brand-soft); color: var(--brand-700); }
+
+.messages {
+  flex: 1; overflow-y: auto; padding: 20px 18px;
+  display: flex; flex-direction: column; gap: 14px;
+  background:
+    radial-gradient(900px 300px at 80% -10%, var(--brand-soft), transparent 70%),
+    var(--panel);
+}
+
+.msg { max-width: 74%; display: flex; gap: 10px; align-items: flex-end; }
+.msg .bubble {
+  padding: 11px 15px; border-radius: 18px; white-space: pre-wrap;
+  overflow-wrap: anywhere; box-shadow: var(--shadow-sm);
+}
+.msg.customer { align-self: flex-end; flex-direction: row-reverse; }
+.msg.customer .bubble {
+  background: linear-gradient(140deg, var(--brand), var(--brand-600));
+  color: #fff; border-bottom-right-radius: 5px;
+}
+.msg.customer .bubble code { background: rgba(255,255,255,.22); border-color: transparent; color: #fff; }
 .msg.assistant .bubble {
   background: var(--panel-2); border: 1px solid var(--line);
-  border-bottom-left-radius: 3px;
+  border-bottom-left-radius: 5px;
 }
 .msg.system { align-self: center; max-width: 92%; }
 .msg.system .bubble {
-  background: #fdf6e8; border: 1px solid #f0dcb4; color: #7a5205;
-  font-size: 13px; text-align: center;
+  background: var(--amber-soft); border: 1px solid #f0dcb4; color: #7a5205;
+  font-size: 12.5px; text-align: center; border-radius: 999px; box-shadow: none;
+}
+.msg-body { min-width: 0; }
+.msg-time {
+  font-size: 10.5px; color: var(--muted); margin-top: 4px;
+  display: flex; gap: 5px; align-items: center;
+}
+.msg.customer .msg-time { justify-content: flex-end; }
+
+/* Typing indicator. Three dots on a stagger, which is the convention every
+   messaging app has settled on. A spinner would say "the page is loading";
+   what is actually happening is that someone is composing a reply, and the
+   dots are the only widget that says that. */
+.typing .bubble { display: flex; gap: 4px; padding: 14px 16px; }
+.typing i {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--soft);
+  animation: blink 1.3s infinite ease-in-out;
+}
+.typing i:nth-child(2) { animation-delay: .18s; }
+.typing i:nth-child(3) { animation-delay: .36s; }
+@keyframes blink {
+  0%, 60%, 100% { opacity: .28; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+.typing-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  .typing i { animation: none; opacity: .55; }
 }
 
-.msg-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; font-size: 11.5px; }
 .chip {
   padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line);
-  background: var(--panel-2); color: var(--muted);
+  background: var(--panel-2); color: var(--muted); font-size: 11.5px;
 }
-.chip.deterministic { color: #0b6b3f; border-color: #b9e4cd; background: #eaf8f1; }
-.chip.rag { color: var(--deep); border-color: #bfe0f5; background: #eaf5fc; }
-.chip.guardrail { color: var(--amber); border-color: #f0dcb4; background: #fdf6e8; }
+.chip.deterministic { color: #0b6b3f; border-color: #b9e4cd; background: var(--green-soft); }
+.chip.rag { color: var(--brand-700); border-color: #ccd0fb; background: var(--brand-soft); }
+.chip.guardrail { color: var(--amber); border-color: #f0dcb4; background: var(--amber-soft); }
 .chip.escalation { color: var(--red); border-color: #f3c9c6; background: #fdeeed; }
 .chip.raw_llm { color: var(--red); border-color: #f3c9c6; background: #fdeeed; }
 
@@ -133,15 +291,31 @@ code {
 .sources ul { margin: 4px 0 0; padding-left: 17px; }
 
 /* ---------- composer ---------- */
-.suggestions { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 18px 12px; }
-.suggestions button {
-  background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
-  padding: 6px 12px; border-radius: 999px; font: inherit; font-size: 12.5px; cursor: pointer;
+.composer {
+  display: flex; gap: 6px; align-items: center;
+  padding: 12px 14px; border-top: 1px solid var(--line-soft);
 }
-.suggestions button:hover { color: var(--deep); border-color: var(--blue); background: #eaf5fc; }
-
-.composer { display: flex; gap: 9px; padding: 13px 18px; border-top: 1px solid var(--line); }
-.composer input { flex: 1; }
+.composer input {
+  flex: 1; border-radius: 999px; padding: 11px 16px;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.composer input:focus {
+  outline: none; border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-ring); background: #fff;
+}
+.ghost-ic { font-size: 16px; }
+.send-btn {
+  width: 40px; height: 40px; flex: none; border-radius: 50%; border: none;
+  background: var(--brand); color: #fff; cursor: pointer;
+  display: grid; place-items: center; transition: background .15s, transform .1s;
+}
+.send-btn:hover { background: var(--brand-600); }
+.send-btn:active { transform: scale(.94); }
+.send-btn:disabled { background: var(--soft); cursor: default; }
+.composer-note {
+  margin: 0; padding: 0 20px 13px; font-size: 11px; color: var(--muted);
+  text-align: center;
+}
 
 /* ---------- form controls ---------- */
 input[type=text], input[type=password], textarea, select {
@@ -266,10 +440,10 @@ button:disabled { opacity: .5; cursor: default; filter: none; }
 
 /* ---------- screens ---------- */
 .screen { padding: 18px 22px 28px; }
-#screen-customer {
-  display: grid; gap: 18px; align-items: start;
-  grid-template-columns: minmax(0, 1fr) 340px;
-}
+/* The customer grid is defined once, up in the customer-screen section with
+   its own breakpoints. A second rule down here silently overrode it - the
+   three-column layout collapsed back to two and the rail vanished, which is
+   the sort of thing that only shows up in the browser. */
 #screen-login { display: grid; gap: 18px; align-items: start;
                 grid-template-columns: minmax(0, 420px) minmax(0, 1fr); }
 .split { display: grid; gap: 18px; align-items: start;
@@ -429,3 +603,26 @@ table.events th {
 }
 table.events td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line-soft); }
 table.events code { font-size: 11.5px; }
+
+/* ---------- answer-source panel (customer side) ---------- */
+.source-head {
+  font-size: 13px; font-weight: 600; line-height: 1.5;
+  padding: 11px 13px; border-radius: 12px;
+  background: var(--brand-soft); color: var(--brand-700);
+}
+.source-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.source-item {
+  display: flex; gap: 9px; font-size: 12.5px; line-height: 1.45;
+  padding: 9px 11px; border-radius: 11px;
+  background: var(--panel-2); border: 1px solid var(--line-soft);
+}
+.source-item .ic { flex: none; }
+.source-item em {
+  display: block; font-style: normal; font-size: 11px;
+  color: var(--amber); margin-top: 3px;
+}
+.source-item.unverified { background: var(--amber-soft); border-color: #f0dcb4; }
+.source-note {
+  margin-top: 12px; font-size: 12px; color: var(--muted);
+  padding: 9px 11px; border-radius: 11px; background: var(--panel-2);
+}

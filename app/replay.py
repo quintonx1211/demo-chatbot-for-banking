@@ -49,88 +49,88 @@ FROZEN = cred("frozen_card")
 # Each entry is one conversation: a list of customer messages in order.
 CONVERSATIONS: list[list[str]] = [
     # --- routine knowledge questions (deflect) ---
-    ["What are your branch opening hours?"],
-    ["How do I reset my online banking password?"],
-    ["How much is the overdraft fee?"],
-    ["What documents do I need to open an account?"],
-    ["How long does a mortgage application take?"],
-    ["Can I pay my loan off early without a penalty?"],
-    ["How long do I have to dispute a transaction?"],
-    ["What is the mobile cheque deposit limit?"],
-    ["What does an international wire cost?"],
-    ["How do I avoid the monthly maintenance fee?"],
-    ["I got a suspicious email claiming to be from you"],
-    ["When does contactless ask for a PIN?"],
-    ["How long until a replacement card arrives?"],
-    ["What rate would I get on a car loan?"],
-    ["How long do I have to fight a chargeback?"],
-    ["How far in advance do I send the payroll file?"],
+    ["Chi nhánh mở cửa mấy giờ?"],
+    ["Tôi quên mật khẩu ngân hàng số thì làm sao?"],
+    ["Phí thấu chi là bao nhiêu?"],
+    ["Mở tài khoản cần giấy tờ gì?"],
+    ["Hồ sơ vay mua nhà xử lý bao lâu?"],
+    ["Trả nợ trước hạn có bị phạt không?"],
+    ["Tôi có bao nhiêu ngày để tra soát giao dịch?"],
+    ["Hạn mức nộp séc qua ứng dụng là bao nhiêu?"],
+    ["Chuyển tiền quốc tế phí bao nhiêu?"],
+    ["Làm sao để không bị thu phí quản lý tài khoản?"],
+    ["Tôi nhận được email lạ tự xưng là ngân hàng"],
+    ["Khi nào thanh toán không tiếp xúc bắt nhập PIN?"],
+    ["Bao lâu thì nhận được thẻ thay thế?"],
+    ["Lãi suất vay mua ô tô là bao nhiêu?"],
+    ["Thời hạn gửi yêu cầu bồi hoàn là bao lâu?"],
+    ["Nộp file chi lương trước bao lâu?"],
 
     # --- multi-turn, still deflected ---
-    ["Hello", "What are your fees for international transfers?", "Thanks, that's all"],
-    ["Hi there", "How do I dispute a charge I didn't make?", "goodbye"],
-    ["What happens if I go overdrawn?", "And is there a cap on that?"],
+    ["Xin chào", "Phí chuyển tiền quốc tế thế nào?", "Cảm ơn, vậy thôi ạ"],
+    ["Chào bạn", "Tôi muốn tra soát một giao dịch lạ", "tạm biệt"],
+    ["Nếu tài khoản bị âm thì sao?", "Có giới hạn số lần không?"],
 
     # --- account actions: verification then a scripted flow ---
-    ["Check my balance", TRAVEL],
-    ["Show me my recent transactions", DORMANT],
-    ["What's the status of my loan application?", LOAN],
-    ["What's the status of my mortgage?", MORTGAGE],
-    ["Can you tell me who am I?", TRAVEL],
-    ["I lost my debit card", DORMANT, "yes"],
+    ["Kiểm tra số dư", TRAVEL],
+    ["Xem giao dịch gần đây", DORMANT],
+    ["Hồ sơ vay của tôi đến đâu rồi?", LOAN],
+    ["Hồ sơ vay mua nhà của tôi thế nào?", MORTGAGE],
+    ["Tôi là ai trong hệ thống?", TRAVEL],
+    ["Tôi làm mất thẻ ghi nợ", DORMANT, "có"],
 
     # --- freeze, then change their mind: the reversible path ---
     # Present so the card-event log shows a transition going back, not only
     # one-way blocks. The reversible case is the one customers actually hit.
-    ["freeze my card", TRAVEL, "yes"],
-    ["unblock my card", FROZEN, "yes"],
+    ["tạm khoá thẻ giúp tôi", TRAVEL, "có"],
+    ["mở khoá thẻ giúp tôi", FROZEN, "có"],
 
     # --- customer changes their mind mid-flow (the escape path) ---
-    ["I lost my debit card", TRAVEL, "actually never mind, what are your branch hours?"],
+    ["Tôi làm mất thẻ ghi nợ", TRAVEL, "thôi bỏ đi, chi nhánh mở cửa mấy giờ?"],
 
     # --- regulated topics: blocked before any model runs ---
-    ["Should I invest my savings in tech stocks?"],
-    ["Is bitcoin a good investment right now?"],
-    ["How can I reduce my tax bill?"],
+    ["Tôi có nên đầu tư tiết kiệm vào cổ phiếu công nghệ không?"],
+    ["Bitcoin bây giờ có đáng đầu tư không?"],
+    ["Làm sao để giảm tiền thuế phải nộp?"],
 
     # --- outside the corpus: escalate rather than guess ---
-    ["Do you offer crop insurance for vineyards?"],
-    ["Can I buy cryptocurrency in the app?"],
-    ["Do you provide safe deposit boxes?"],
+    ["Ngân hàng có bảo hiểm cây trồng cho vườn nho không?"],
+    ["Tôi mua tiền điện tử trên app được không?"],
+    ["Ngân hàng có dịch vụ két sắt an toàn không?"],
 
     # --- the same gap, asked several ways ---
     # Real traffic repeats itself, and that repetition is the signal the topic
     # clustering exists to surface: five people asking about travel insurance
     # is a document to write, not five escalations to staff.
-    ["Do you offer travel insurance with the card?"],
-    ["Is travel insurance included on my credit card?"],
-    ["Does my card come with travel insurance cover?"],
-    ["What travel insurance do I get with the card?"],
-    ["Can I add travel insurance to my card?"],
+    ["Thẻ có kèm bảo hiểm du lịch không?"],
+    ["Thẻ tín dụng của tôi có bảo hiểm du lịch không?"],
+    ["Thẻ của tôi có được bảo hiểm du lịch không?"],
+    ["Bảo hiểm du lịch đi kèm thẻ gồm những gì?"],
+    ["Tôi mua thêm bảo hiểm du lịch cho thẻ được không?"],
 
-    ["Can I use my card on the metro in Tokyo?"],
-    ["Will my card work on public transport abroad?"],
-    ["Does contactless work on foreign transit systems?"],
+    ["Thẻ của tôi dùng được ở tàu điện Tokyo không?"],
+    ["Thẻ dùng được cho giao thông công cộng ở nước ngoài không?"],
+    ["Thanh toán không tiếp xúc dùng được ở nước ngoài không?"],
 
     # --- campaign scenarios (the client's three) ---
-    ["How do I activate my new card?", INACTIVE],
-    ["My new card arrived, how do I start using it?", INACTIVE],
-    ["Do you have any offers for me?", TRAVEL],
-    ["Am I eligible for an upgrade?", TRAVEL],
-    ["Any promotions for me?", DORMANT],
-    ["My card hasn't been used in ages, is it still ok?", DORMANT],
+    ["Làm sao để kích hoạt thẻ mới?", INACTIVE],
+    ["Thẻ mới về rồi, tôi bắt đầu dùng thế nào?", INACTIVE],
+    ["Có ưu đãi nào cho tôi không?", TRAVEL],
+    ["Tôi có đủ điều kiện nâng hạng thẻ không?", TRAVEL],
+    ["Có khuyến mãi nào cho tôi không?", DORMANT],
+    ["Thẻ lâu rồi tôi không dùng, còn dùng được không?", DORMANT],
 
     # --- handoff offered, then accepted / declined ---
-    ["Do you offer safe deposit boxes?", "yes"],
-    ["Can I buy cryptocurrency in the app?", "no thanks", "What are your branch hours?"],
-    ["@agent I have a billing problem"],
+    ["Do you offer safe deposit boxes?", "có"],
+    ["Tôi mua tiền điện tử trên app được không?", "không, cảm ơn", "What are your branch hours?"],
+    ["@agent tôi có vấn đề về hoá đơn"],
 
     # --- explicit handoff requests ---
-    ["I want to speak to a human"],
-    ["Let me talk to a real person about a duplicate charge"],
+    ["Tôi muốn gặp nhân viên"],
+    ["Cho tôi gặp người thật về giao dịch bị trừ hai lần"],
 
     # --- verification failure, then handoff ---
-    ["Check my balance", "1111 2222", "3333 4444", "5555 6666"],
+    ["Kiểm tra số dư", "1111 2222", "3333 4444", "5555 6666"],
 ]
 
 

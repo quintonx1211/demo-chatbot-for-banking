@@ -41,11 +41,18 @@ _AGENT_MENTIONS = {"agent", "human", "staff"}
 _LEAVE_RE = re.compile(r"^\s*(/leave|/bot|/back|end chat|leave chat)\s*$",
                        re.IGNORECASE)
 
+# Accepting or declining the offer of a human agent, in both languages.
+# "không" is checked before "có" by the caller, because "không" is the more
+# specific answer and a decline misread as an accept puts a customer in a
+# queue they just said they did not want.
 _AFFIRM_RE = re.compile(
     r"^\s*(yes|yeah|yep|yup|ok(ay)?|sure|please|go ahead|do it|connect me|"
-    r"put me through|transfer me|i do)(?=[\s.!,]|$)", re.IGNORECASE)
+    r"put me through|transfer me|i do"
+    r"|có|dạ|vâng|ừ|đồng ý|nối máy|chuyển giúp|cho tôi gặp)(?=[\s.!,]|$)",
+    re.IGNORECASE)
 _DECLINE_RE = re.compile(
-    r"^\s*(no|nope|not now|no thanks|nah|don'?t|cancel)(?=[\s.!,]|$)", re.IGNORECASE)
+    r"^\s*(no|nope|not now|no thanks|nah|don'?t|cancel"
+    r"|không|khỏi|thôi|chưa cần|để sau)(?=[\s.!,]|$)", re.IGNORECASE)
 
 
 def split_mention(text: str) -> tuple[str | None, str]:
@@ -68,14 +75,14 @@ def _flow_label(name: str | None) -> str:
 
 
 ESCALATION_MESSAGE = (
-    "Let me bring in one of our specialists - they'll have the full context of "
-    "this conversation, so you won't need to repeat anything.\n\n"
-    "**You're now in the queue for a human agent.**"
+    "Tôi xin chuyển anh/chị sang chuyên viên hỗ trợ. Chuyên viên sẽ thấy toàn bộ "
+    "nội dung trao đổi này nên anh/chị không phải trình bày lại từ đầu ạ.\n\n"
+    "**Anh/chị đang trong hàng chờ gặp chuyên viên.**"
 )
 
 REQUEUED_MESSAGE = (
-    "That one's outside what I can answer too - I've added it to the notes for "
-    "the specialist picking this up. **You're still in the queue.**"
+    "Câu này cũng ngoài phạm vi tôi trả lời được. Tôi đã ghi chú lại để chuyên "
+    "viên tiếp nhận nắm được. **Anh/chị vẫn đang trong hàng chờ.**"
 )
 
 
@@ -146,11 +153,12 @@ class Router:
                 note=(f"customer left the chat with {agent_name}" if agent_name
                       else "customer left the handoff queue before it was claimed"),
             )
-            reply = ((f"You're back with the assistant - {agent_name} has been "
-                      "released from this chat. What can I help with?")
+            reply = ((f"Anh/chị đã quay lại với trợ lý ảo - chuyên viên "
+                      f"{agent_name} đã rời cuộc trò chuyện. Tôi có thể hỗ trợ "
+                      "gì thêm ạ?")
                      if agent_name else
-                     ("You're back with the assistant and I've taken you out of "
-                      "the queue. What can I help with?"))
+                     ("Anh/chị đã quay lại với trợ lý ảo và tôi đã rút anh/chị "
+                      "khỏi hàng chờ. Tôi có thể hỗ trợ gì thêm ạ?"))
             session.add_message("assistant", reply)
             return TurnResult(
                 text=reply, route="deterministic", intent="left_agent",
@@ -163,7 +171,7 @@ class Router:
         # it as one offered the customer a handoff, which is the opposite of
         # what they asked for.
         if _LEAVE_RE.match(text):
-            reply = "You're already chatting with the assistant. How can I help?"
+            reply = "Anh/chị đang trò chuyện với trợ lý ảo mà ạ. Tôi giúp gì được không?"
             session.add_message("assistant", reply)
             session.record(utterance=text, route="deterministic",
                            intent="left_agent", confidence=1.0,
@@ -616,12 +624,12 @@ class Router:
         """
         session.pending_escalation = reason
         body = (
-            "I want to be straight with you - I don't have anything verified "
-            "on that, and I'd rather say so than guess.\n\n"
-            "**Would you like me to bring in a colleague who can help?** "
-            "They'll already have this conversation in front of them, so "
-            "there's nothing you'd need to repeat. Otherwise, ask me anything "
-            "else and I'll keep going."
+            "Tôi xin phép nói thẳng: tôi chưa có tài liệu nào đã được thẩm định về nội "
+            "dung này, và tôi không muốn trả lời phỏng đoán.\n\n"
+            "**Anh/chị có muốn tôi kết nối với chuyên viên hỗ trợ không ạ?** "
+            "Chuyên viên sẽ thấy sẵn nội dung trao đổi này nên anh/chị không "
+            "phải nhắc lại. Hoặc anh/chị cứ hỏi tôi nội dung khác, tôi vẫn hỗ "
+            "trợ bình thường ạ."
         )
         message = f"{prefix.strip()}\n\n{body}" if prefix.strip() else body
         return TurnResult(

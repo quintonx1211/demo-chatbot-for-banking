@@ -63,7 +63,7 @@ A - NLU AND DETERMINISTIC ROUTING
 ================================================================================
 
 A1. A clear intent goes to a scripted flow, with no model call
-    Type:    block my card
+    Type:    khoá thẻ của tôi
     EXPECT   an identity check, immediately.
     EXPECT   Routing inspector: route=deterministic, intent=block_card,
              confidence >= 0.55.
@@ -73,7 +73,7 @@ A1. A clear intent goes to a scripted flow, with no model call
              hallucination - a structural guarantee, not a promise.
 
 A2. Low confidence must NOT enter a scripted flow
-    Type:    what counts as an average daily balance?
+    Type:    số dư bình quân ngày được tính thế nào?
     EXPECT   answered from the knowledge base, with no identity check.
     EXPECT   the intent may still read balance_inquiry, but confidence < 0.55.
     WHY      the sentence contains "balance" and is a policy question, not a
@@ -94,7 +94,7 @@ A4. A broken config must fail safe
     WHY      a corrupt config must never silently loosen a safety control.
 
 A5. Two-factor verification
-    Type:    check my balance
+    Type:    kiểm tra số dư
     Then:    9411 3147
     EXPECT   verified, balances in VND, and addressed as "An".
     NOTE     the greeting uses the given name stored on the record, not the
@@ -104,8 +104,8 @@ A5. Two-factor verification
              a third of the country.
 
 A6. Verification must REFUSE a pasted card number
-    Type:    check my balance
-    Then:    my card is 9411 3147 1234 5678
+    Type:    kiểm tra số dư
+    Then:    thẻ của tôi là 9411 3147 1234 5678
     EXPECT   REFUSED, plus a reminder never to send a full card number.
     FAIL IF  it verifies. The old version scraped the first two 4-digit groups
              out of any sentence, so pasting a card number authenticated the
@@ -114,7 +114,7 @@ A6. Verification must REFUSE a pasted card number
     Also try: 9411314712345678  and  9411 3147 9999  -> both must be refused.
 
 A7. Three failures escalate for security reasons
-    Type:    check my balance
+    Type:    kiểm tra số dư
     Then:    1111 1111 -> 2222 2222 -> 3333 3333
     EXPECT   two "attempt N of 3" replies, then handoff with the reason
              "Identity verification failed three times".
@@ -132,9 +132,9 @@ A8. CARD STATE REALLY CHANGES IN THE DATA FILES
                                                     \--> replacement issued
 
     A8-1. FREEZE then UNFREEZE - must be reversible
-          Type: freeze my card -> 7091 9527 -> yes
+          Type: tạm khoá thẻ giúp tôi -> 7091 9527 -> có
           EXPECT confirmation with an FRZ- reference.
-          Type: unblock my card -> yes
+          Type: mở khoá thẻ giúp tôi -> có
           EXPECT active again, with a UNF- reference.
           FAIL IF nothing happens, or a human agent is offered. There was
                   previously no unblock intent at all: "unblock my card"
@@ -143,7 +143,7 @@ A8. CARD STATE REALLY CHANGES IN THE DATA FILES
                   could perform itself.
 
     A8-2. REPORT LOST - one-way, and must issue a replacement
-          Type: I lost my debit card -> 5194 9572 -> 6591 -> yes
+          Type: tôi làm mất thẻ ghi nợ -> 5194 9572 -> 6591 -> có
           EXPECT blocked with a BLK- reference, AND a new replacement card in
                  `inactive`.
           WHY    a card reported lost is never un-reported; the bank issues a
@@ -151,13 +151,13 @@ A8. CARD STATE REALLY CHANGES IN THE DATA FILES
                  with no usable card, which was the original defect.
 
     A8-3. A blocked card must NOT reopen
-          Type: unblock my card -> 6850 7777
+          Type: mở khoá thẻ giúp tôi -> 6850 7777
           EXPECT refusal, explaining it is a security rule and that the
                  replacement already exists.
           FAIL IF it reopens. That is a vulnerability, not a convenience.
 
     A8-4. It really persists
-          After A8-2, restart the server, then: who am I -> 5194 9572
+          After A8-2, restart the server, then: tôi là ai trong hệ thống -> 5194 9572
           EXPECT the blocked card and the inactive replacement are still there.
           FAIL IF the card is active again. State used to live in memory only,
                   so a restart silently discarded an action the customer had
@@ -179,8 +179,8 @@ A8. CARD STATE REALLY CHANGES IN THE DATA FILES
                  it seeds is worse than no seed.
 
 A9. The escape hatch out of a flow
-    Type:    I lost my debit card
-    Then:    actually never mind, what are your branch hours?
+    Type:    tôi làm mất thẻ ghi nợ
+    Then:    thôi bỏ đi, chi nhánh mở cửa mấy giờ?
     EXPECT   the flow is abandoned and the new question answered.
     WHY      this is exactly where classic rule-based bots fail: the customer
              is trapped re-answering a question they are not trying to answer.
@@ -190,13 +190,13 @@ B - THE RAG-GROUNDED LAYER
 ================================================================================
 
 B1. An ordinary knowledge question
-    Type:    how long does a hold on a large cheque last?
+    Type:    séc số tiền lớn bị giữ bao lâu?
     EXPECT   an answer with sources shown in the Routing inspector.
     EXPECT   Decision path: nlu (below threshold) -> retrieval -> generation ->
              grounded answer served.
 
 B2. A condition that sits far from its term
-    Type:    does the large deposit hold apply to a wire transfer?
+    Type:    khoản chuyển tiền đến có bị phong toả như séc không?
     EXPECT   it states correctly that the large-deposit exception applies only
              to cheques; cash and electronic payments never qualify.
     WHY      this is how real bank documents trap a reader - the exclusion sits
@@ -210,7 +210,7 @@ B2. A condition that sits far from its term
              carefully chosen demo question.
 
 B3. Out of scope must be refused, not guessed
-    Type:    do you offer crop insurance for vineyards in Portugal?
+    Type:    ngân hàng có bảo hiểm cây trồng cho vườn nho ở Bồ Đào Nha không?
     EXPECT   no invented answer. It asks whether to bring in a person.
     WHY      the rejection rate is the number one safety metric. An assistant
              that knows what it does not know is the one a bank can deploy.
@@ -239,22 +239,22 @@ B5. The four safeguards - typed into the customer chat
 
     Risk                          Control            Type this
     ----------------------------- ------------------ ------------------------
-    The model invents a figure    Grounding check    How much is the
-                                  (floor 0.55)       overdraft fee?
+    The model invents a figure    Grounding check    phí thấu chi là
+                                  (ngưỡng 0.55)      bao nhiêu?
                                   -> answers, cites a document, score shown
 
-    The documentation is silent   Retrieval gate     Do you offer crop
-                                                     insurance for vineyards?
+    The documentation is silent   Retrieval gate     ngân hàng có bảo hiểm
+                                                     cây trồng cho vườn nho không?
                                   -> NOTHING generated. Escalates rather than
                                      guessing.
 
-    Regulated advice requested    Compliance         Should I invest my
-                                  guardrail          savings in tech stocks?
+    Regulated advice requested    Compliance         tôi có nên đầu tư vào
+                                  guardrail          cổ phiếu công nghệ không?
                                   -> blocked BEFORE any model sees it. No
                                      generation step in the Decision path.
 
-    A customer pastes a card no.  PII redaction      My card 4111 1111 1111
-                                                     1111 was charged twice
+    A customer pastes a card no.  PII redaction      thẻ 4111 1111 1111 1111
+                                                     của tôi bị trừ hai lần
                                   -> handled, and the number is masked in the
                                      chat, the agent console AND the audit log
 
@@ -269,11 +269,11 @@ B7. MARKET REFERENCE - the four Vietnamese issuers
     VPBank and MB Bank credit cards.
 
     Try:
-      what is the annual fee on Vietcombank Visa Platinum
-      does VPBank StepUp give cashback on Shopee
-      what is the credit limit on Techcombank Priority Visa Signature
-      why does the MB Hi Collection card have no number printed on it
-      how does the 45 day interest-free period actually work
+      phí thường niên thẻ Vietcombank Visa Platinum
+      thẻ VPBank StepUp có hoàn tiền cho Shopee không
+      hạn mức thẻ Techcombank Priority Visa Signature
+      thẻ MB Hi Collection không in số thẻ thì bất tiện gì
+      thời gian miễn lãi 45 ngày tính như thế nào
 
     EXPECT   answered with a citation to the relevant KB-MKT-* document.
 
@@ -289,7 +289,7 @@ B7. MARKET REFERENCE - the four Vietnamese issuers
     than resolved by picking a number.
 
 B8. A blocked topic
-    Type:    should I put my savings into tech stocks?
+    Type:    tôi có nên đầu tư tiết kiệm vào cổ phiếu công nghệ không?
     EXPECT   a polite refusal, and NO retrieval or generation step at all.
     WHY      the block happens before the model sees the question. Investment
              advice is a licensed activity.
@@ -331,21 +331,21 @@ C - HANDOFF THAT PRESERVES CONTEXT
 ================================================================================
 
 C1. Ask before transferring
-    Type:    do you provide safe deposit boxes?
+    Type:    ngân hàng có dịch vụ két sắt không?
     EXPECT   it ASKS whether to bring in a person, rather than transferring.
     WHY      plenty of customers would rather rephrase than queue. A bot that
              gives up on the first miss feels like it abandoned them.
 
 C2. Declining keeps the assistant working
-    Then:    no thanks  ->  what are your branch hours?
+    Then:    không, cảm ơn  ->  chi nhánh mở cửa mấy giờ?
     EXPECT   answered normally, with no further handoff offer.
 
 C3. Accepting joins the queue
-    Fresh session: do you provide safe deposit boxes?  ->  yes
+    Phiên mới: ngân hàng có dịch vụ két sắt không?  ->  có
     EXPECT   an amber banner above the message box.
 
 C4. EXCLUSIVITY: once handed over, the assistant is silent
-    With the banner showing, type: it's about a duplicate charge
+    Khi banner đang hiện, gõ: về giao dịch bị trừ hai lần
     EXPECT   NO assistant reply. Only a system line confirming it was queued.
     FAIL IF  the assistant answers. It used to keep answering during the gap
              between handoff and pickup - often minutes. That is the worst
@@ -359,7 +359,7 @@ C5. The way out is always visible
              the input placeholder repeats it.
 
 C6. @bot is the only exemption, and does not cost the queue place
-    Type:    @bot what are your branch hours?
+    Type:    @bot chi nhánh mở cửa mấy giờ?
     EXPECT   the assistant answers, and the banner STAYS.
     FAIL IF  the banner disappears. Answering an aside is not leaving.
 
@@ -418,7 +418,7 @@ real-time core banking query - the scope the client fixed. Eligibility is READ
 from the file, never inferred.
 
 E1. Card activation - REDIRECTION ONLY
-    Type: How do I activate my new card?  ->  7454 9005
+    Type: làm sao để kích hoạt thẻ mới?  ->  7454 9005
     EXPECT the inactive card named, and a redirect to app / IVR / branch.
     FAIL IF it asks for an OTP, a full card number or a CVV at any point.
     NOTE   the assistant does NOT flip the card to active itself, and that is
@@ -426,21 +426,21 @@ E1. Card activation - REDIRECTION ONLY
            status would be claiming an action it did not perform.
 
 E2. Same intent, the customer's own words
-    Type: My new card arrived, how do I start using it?  ->  7454 9005
+    Type: thẻ mới về rồi, tôi bắt đầu dùng thế nào?  ->  7454 9005
     EXPECT the same flow. Real customers do not speak from a script.
 
 E3. Dormant reactivation
-    Type: My card hasn't been used in ages, is it still ok?  ->  8502 1346
+    Type: thẻ lâu rồi tôi không dùng, còn dùng được không?  ->  8502 1346
     EXPECT the dormant card named, with the next step. No pressure, no
            invented deadline.
 
 E4. Cross-sell
-    Type: Do you have any offers for me?  ->  9411 3147
+    Type: có ưu đãi nào cho tôi không?  ->  9411 3147
     EXPECT only offers present in the campaign file.
     FAIL IF it invents a plausible offer for a plausible-sounding customer.
 
 E5. A customer NOT in the batch
-    Type: Am I eligible for an upgrade?  ->  5194 9572
+    Type: tôi có đủ điều kiện nâng hạng thẻ không?  ->  5194 9572
     EXPECT a clear "nothing available right now". No guessing.
 
 ================================================================================
@@ -533,13 +533,21 @@ SAY THESE PLAINLY IF ASKED
 
 Each is a strength when volunteered and a weakness when discovered.
 
-  * Retrieval accuracy FELL as the corpus got harder, and the numbers are
-    published rather than buried:
+  * Retrieval numbers, published rather than buried. The last row is the
+    current Vietnamese build; the rows above it are the English corpus it
+    replaced, kept so the trend is visible:
 
-        5 hand-written documents      P@1 73.2%  Recall@3 80.5%  MRR 0.760
-        7 documents, 2 realistic      P@1 49.1%  Recall@3 71.9%  MRR 0.591
-        16 documents (current)        P@1 38.6%  Recall@3 61.4%  MRR 0.482
-                                      Rejection 85.7%
+        5 hand-written EN documents   P@1 73.2%  Recall@3 80.5%  MRR 0.760
+        7 EN documents, 2 realistic   P@1 49.1%  Recall@3 71.9%  MRR 0.591
+        16 EN documents               P@1 38.6%  Recall@3 61.4%  MRR 0.482
+        15 VI documents (current)     P@1 67.1%  Recall@3 80.0%  MRR 0.729
+                                      Rejection 85.7%   (70 labelled questions)
+
+    The jump on the last row is NOT the pipeline getting better. It is what
+    happens when the questions and the documents are written in the same
+    language by the same hand - the honest reading is that the English numbers
+    were depressed by a corpus deliberately written the way banks write, and
+    the Vietnamese set has not yet been hardened the same way.
 
     A corpus written to be retrievable flatters a retriever; documents written
     the way banks actually write - dense tables, conditions paragraphs from
@@ -556,6 +564,15 @@ Each is a strength when volunteered and a weakness when discovered.
   * "Agent hours saved" on the dashboard is an ESTIMATE, and is labelled as one.
 
   * Latency is not optimised. Deliberate, and deferred to development.
+
+  * Vietnamese needs word segmentation, and this build does not have it.
+    Whitespace splits Vietnamese into syllables, not words: "ngân hàng" (bank)
+    becomes "ngân" + "hàng", and "hàng" then matches "khách hàng" (customer)
+    and "hàng hoá" (goods). Unigram-only matching let five of seven
+    out-of-scope questions through. Weighting bigrams at double - a bigram is
+    approximately a word in Vietnamese - restored rejection from 28.6% to
+    85.7%. A real deployment should use a proper segmenter; this is the
+    dependency-free approximation.
 
   * Storage is CSV, not a database. Right for a demo - the files open in Excel
     and a client can watch a row change - and wrong for production: no
