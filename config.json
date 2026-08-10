@@ -15,6 +15,20 @@
   ],
   "strictness": "balanced",
 
+  "_router_mode": [
+    "Which classifier decides the route:",
+    "  nlu     - lexical only. The default, and the fallback whenever a",
+    "            provider is unavailable or an LLM call fails.",
+    "  shadow  - both run, the LEXICAL result is used, both are recorded.",
+    "            Use this to gather evidence before switching.",
+    "  llm     - the model decides, lexical classifier as fallback.",
+    "",
+    "The compliance guardrail, the identity check and the card state machine",
+    "stay in code in every mode. This switch only chooses who proposes the",
+    "intent, never who is allowed to act on it."
+  ],
+  "router_mode": "nlu",
+
   "overrides": {
     "min_grounding": null,
     "min_relevance": null,

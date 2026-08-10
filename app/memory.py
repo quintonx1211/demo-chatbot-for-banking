@@ -105,11 +105,11 @@ class CustomerMemory:
         unresolved = [n for n in notes if n.kind == "outcome" and n.label == "unresolved"]
         topics = [n for n in notes if n.kind == "topic"][:2]
         if unresolved and unresolved[0].detail:
-            return (f"Last time we spoke you asked about {unresolved[0].detail} "
-                    f"and I passed it to a colleague.")
+            return (f"Lần trước anh/chị có hỏi về {unresolved[0].detail} và "
+                    f"tôi đã chuyển cho đồng nghiệp hỗ trợ ạ.")
         if topics:
             subjects = " and ".join(n.label for n in topics)
-            return f"Welcome back - last time we covered {subjects}."
+            return f"Chào anh/chị. Lần trước mình đã trao đổi về {subjects} ạ."
         return ""
 
     def forget(self, customer_id: str | None = None) -> int:

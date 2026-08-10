@@ -254,12 +254,61 @@ def is_unverified(passage) -> bool:
     return passage.doc_id.startswith(UNVERIFIED_DOC_PREFIX)
 
 
+def _excerpt(text: str, max_chars: int = 520) -> str:
+    """The opening of a passage, cut at a boundary a reader recognises.
+
+    The previous version split on `[.!?]` and joined the first three pieces.
+    On prose that is fine. On the tables this corpus is full of it produced
+    output that began mid-row - a real answer opened with
+
+        hệ thống, viễn thông hoặc sự kiện tương tự |
+
+    because a table has no sentence-ending punctuation, so the whole table
+    counted as one "sentence" and the split landed wherever the first full stop
+    happened to fall inside it.
+
+    Tables are kept whole or dropped whole. A half-table is not a shorter
+    answer, it is an unreadable one, and the customer cannot tell which columns
+    they are looking at.
+    """
+    blocks: list[str] = []
+    current: list[str] = []
+    for line in text.strip().splitlines():
+        if line.strip():
+            current.append(line)
+        elif current:
+            blocks.append("\n".join(current))
+            current = []
+    if current:
+        blocks.append("\n".join(current))
+
+    kept: list[str] = []
+    total = 0
+    for block in blocks:
+        is_table = block.lstrip().startswith("|")
+        if total and total + len(block) > max_chars:
+            break
+        # A table is only worth including if it fits entirely.
+        if is_table and len(block) > max_chars:
+            continue
+        kept.append(block)
+        total += len(block)
+        if total >= max_chars:
+            break
+
+    if not kept:
+        # Everything was too long: fall back to the first few sentences of the
+        # first block, which is the old behaviour and correct for pure prose.
+        first = blocks[0] if blocks else text
+        return " ".join(re.split(r"(?<=[.!?])\s+", first)[:3]).strip()
+    return "\n\n".join(kept).strip()
+
+
 def extractive_answer(passages: list[RetrievedPassage]) -> str:
     if not passages:
         return ""
     best = passages[0].passage
-    sentences = re.split(r"(?<=[.!?])\s+", best.text)
-    excerpt = " ".join(sentences[:3]).strip()
+    excerpt = _excerpt(best.text)
 
     if is_unverified(best):
         # Saying "trích nguyên văn từ tài liệu của chúng tôi" about a

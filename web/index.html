@@ -156,9 +156,13 @@
         <button type="button" class="icon-btn ghost-ic" title="Biểu tượng cảm xúc" data-demo>😊</button>
         <button type="button" class="icon-btn ghost-ic" title="Nhập bằng giọng nói" data-demo>🎙️</button>
         <button type="submit" id="send" class="send-btn" title="Gửi">
+          <!-- Filled and symmetric about the horizontal axis, so its bounding
+               box centre and its visual centre coincide. The previous outline
+               wedge spanned y 4-20.4 in a 24 box and carried its mass toward
+               the lower left, which reads as misaligned however the box is
+               centred. -->
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <path d="M3.6 11.2 20 4l-7.2 16.4-2.2-6.6z" fill="none"
-                  stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+            <path d="M2.5 21 22 12 2.5 3v7l13 2-13 2z" fill="currentColor"/>
           </svg>
         </button>
       </form>
@@ -251,6 +255,14 @@
           Một thao tác tài khoản mà ngân hàng không chứng minh được về sau thì
           coi như chưa từng xảy ra.</p>
         <div id="card-events"></div>
+      </div>
+      <div class="panel" style="margin-top:16px">
+        <h3>Định tuyến: lexical so với LLM <span id="router-mode" class="tag"></span></h3>
+        <p class="hint">Chế độ shadow chạy song song hai bộ phân loại, dùng kết quả
+          của bộ lexical, và ghi lại mọi chỗ hai bên khác nhau. Tỷ lệ trùng khớp
+          một mình không chứng minh bên nào đúng - hai bộ có thể cùng sai - nên
+          các ca lệch được liệt kê đầy đủ để người đọc tự phân xử.</p>
+        <div id="router-box"></div>
       </div>
       <div class="panel" style="margin-top:16px">
         <h3>Chủ đề chưa giải quyết <span id="topic-count" class="tag"></span></h3>

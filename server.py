@@ -236,6 +236,7 @@ class Handler(BaseHTTPRequestHandler):
                 "policy": policy.reload().to_dict(),
                 "campaigns": campaign_mod.CampaignBook().stats,
                 "memory": memory.store.stats,
+                "router": metrics.router_comparison(sessions),
                 "database": db.stats(),
                 "card_events": db.card_events(limit=12),
             })

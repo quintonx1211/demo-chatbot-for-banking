@@ -73,7 +73,19 @@ INTENTS: dict[str, dict] = {
         "anchors": [
             r"(mất|đánh cắp|thất lạc)[^?.]{0,16}thẻ",
             r"thẻ[^?.]{0,16}(bị mất|bị đánh cắp)",
-            r"báo mất thẻ",r"\b(block|deactivate)\b.*\bcard\b",
+            r"báo mất thẻ",
+            # "khoá thẻ" on its own is a permanent block. The negative
+            # lookbehind keeps it away from "tạm khoá thẻ" (freeze) and "mở
+            # khoá thẻ" (unfreeze), which are different transitions with
+            # different consequences - one of them irreversible.
+            #
+            # This anchor was simply missing after translation, so the plainest
+            # instruction in the whole product - "khoá thẻ của tôi" - matched
+            # no anchor, scored below threshold and went to the knowledge base.
+            # The customer asking to block a card got a policy document.
+            r"(?<!tạm )(?<!mở )(?<!bỏ )khoá thẻ",
+            r"(?<!tạm )(?<!mở )(?<!bỏ )khóa thẻ",
+            r"thẻ[^?.]{0,12}(?<!tạm )(?<!mở )khoá (ngay|lại|giúp|vĩnh viễn)",r"\b(block|deactivate)\b.*\bcard\b",
                     r"\bcard\b.*\b(lost|stolen|missing)\b",
                     r"\b(lost|stolen)\b.*\bcard\b",
                     r"\breport\b.*\bcard\b.*\b(lost|stolen)\b"],
@@ -331,7 +343,20 @@ _MECHANISM_RE = re.compile(
     r"|what happens (if|when)|what (is|are) the (policy|rule|criteria|conditions)"
     r"|how does .* work"
     r"|when (does|do|will) .*(reach|arrive|settle|clear|post)"
-    r"|how (long|much|many) (does|do|is|are) (a|an|the|it|they))",
+    r"|how (long|much|many) (does|do|is|are) (a|an|the|it|they)"
+    # Vietnamese. The English half of this pattern was carried over at
+    # translation time and the Vietnamese half was not, so "số dư bình quân
+    # ngày được tính thế nào?" - a policy question about how a figure is
+    # derived - scored balance_inquiry at 0.77 and sent the customer into an
+    # identity check to read a published rule. Same defect the English side
+    # had, reintroduced in a new language.
+    r"|(được )?tính (như )?thế nào|tính ra sao|cách tính"
+    r"|(là )?(gì|thế nào) (mà|khi)|nghĩa là gì"
+    r"|(quy định|chính sách|điều kiện|nguyên tắc) (về|áp dụng|là)"
+    r"|(tại sao|vì sao|sao lại)"
+    r"|(khoản nào|cái nào) (bị )?(trừ|thanh toán) (trước|sau)"
+    r"|(mất|trong) bao lâu|bao lâu thì"
+    r"|(có|bị) (thu|tính) phí (không|thế nào))",
     re.IGNORECASE,
 )
 

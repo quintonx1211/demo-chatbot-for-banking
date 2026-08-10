@@ -19,8 +19,9 @@ import time
 from dataclasses import dataclass, field
 
 from . import flows, guardrails, llm, policy
-from .llm import rerank
-from .nlu import HIGH_CONFIDENCE, LOW_CONFIDENCE, IntentClassifier
+from .llm import rerank, route
+from .nlu import (HIGH_CONFIDENCE, LOW_CONFIDENCE, IntentClassifier,
+                  IntentPrediction)
 from .retriever import MIN_RELEVANCE, KnowledgeBase
 from .trace import Trace
 from . import memory as memory_mod
@@ -65,13 +66,16 @@ def split_mention(text: str) -> tuple[str | None, str]:
     return who, text[match.end():].strip()
 
 _FLOW_LABELS = {
-    "verify": "identity check",
-    "block_card": "card block",
+    "verify": "bước xác minh danh tính",
+    "block_card": "thao tác khoá thẻ",
+    "freeze_card": "thao tác tạm khoá thẻ",
+    "unfreeze_card": "thao tác mở khoá thẻ",
+    "report_lost": "thao tác báo mất thẻ",
 }
 
 
 def _flow_label(name: str | None) -> str:
-    return _FLOW_LABELS.get(name or "", "previous request")
+    return _FLOW_LABELS.get(name or "", "yêu cầu trước đó")
 
 
 ESCALATION_MESSAGE = (
@@ -320,8 +324,8 @@ class Router:
                 self.trace.decide("handoff_offer", "customer declined",
                                   "assistant continues")
                 return TurnResult(
-                    text=("No problem - I'll keep helping. What else can I look "
-                          "at for you?"),
+                    text=("Vâng ạ, tôi tiếp tục hỗ trợ anh/chị. Anh/chị cần tôi "
+                          "kiểm tra thêm điều gì không?"),
                     route="deterministic", intent="escalation_declined",
                     confidence=1.0, debug={"note": "customer declined the handoff"},
                 )
@@ -345,7 +349,7 @@ class Router:
                 # silently forgotten.
                 result = self._route_fresh(session, text)
                 result.text = (
-                    f"_No problem - I've stopped the {_flow_label(flow_name)}._"
+                    f"_Vâng, tôi đã dừng {_flow_label(flow_name)}._"
                     f"\n\n{result.text}" if result.text else result.text
                 )
                 result.debug["note"] = " · ".join(
@@ -374,6 +378,75 @@ class Router:
             )
 
         return self._route_fresh(session, text)
+
+    def _apply_llm_router(self, session: Session, text: str,
+                          lexical: IntentPrediction) -> IntentPrediction:
+        """Optionally let a model propose the intent instead.
+
+        Returns the prediction the router acts on. In every mode the result is
+        only ever an *intent name and a confidence* - the caller still applies
+        HIGH_CONFIDENCE, still gates protected flows on verification, and still
+        goes through the card state machine. Nothing here authorises anything.
+
+        The agreement rate between the two classifiers is recorded on every
+        turn. That is the point of shadow mode: it turns "the LLM is better"
+        from a claim into a number, on this corpus, with this traffic.
+        """
+        mode = route.mode()
+        if mode == "nlu":
+            return lexical
+
+        # Redacted before the message reaches any provider, exactly as on the
+        # retrieval path. A routing call is still a call.
+        safe_text = guardrails.redact(text)
+        history = guardrails.redact(session.transcript(limit=4))
+        verdict = route.classify(safe_text, self.classifier.intents, history)
+
+        if verdict is None:
+            # No provider configured. Falling back silently is right - the
+            # customer should not learn our model configuration from a
+            # degraded reply - but the trace records it for the operator.
+            self.trace.add("router", "lexical (không có provider cho LLM routing)",
+                           f"mode={mode}")
+            return lexical
+
+        if verdict.get("error"):
+            self.trace.add("router",
+                           f"lexical (LLM routing lỗi: {verdict['error']})",
+                           f"mode={mode}")
+            return lexical
+
+        agreed = verdict["intent"] == lexical.intent
+        session.router_comparisons += 1
+        if agreed:
+            session.router_agreements += 1
+        else:
+            session.router_disagreements.append({
+                "text": safe_text[:80],
+                "lexical": lexical.intent,
+                "lexical_confidence": round(lexical.confidence, 2),
+                "llm": verdict["intent"],
+                "llm_confidence": round(verdict["confidence"], 2),
+                "why": verdict.get("why", ""),
+                "used": "llm" if mode == "llm" else "lexical",
+            })
+
+        self.trace.add(
+            "router",
+            f"LLM chọn {verdict['intent']} @ {verdict['confidence']:.2f}"
+            + ("" if agreed else f" (lexical: {lexical.intent})"),
+            f"mode={mode}; " + ("đang dùng" if mode == "llm" else "chỉ ghi nhận"))
+
+        if mode == "shadow":
+            return lexical
+
+        return IntentPrediction(
+            intent=verdict["intent"] or "unknown",
+            confidence=verdict["confidence"],
+            runner_up=lexical.intent,
+            runner_up_confidence=lexical.confidence,
+            scores=lexical.scores,
+        )
 
     def _should_abandon_flow(self, session: Session, text: str) -> str | None:
         """Reason to drop the in-progress flow, or None to keep it."""
@@ -410,7 +483,8 @@ class Router:
 
     def _route_fresh(self, session: Session, text: str) -> TurnResult:
 
-        # Compliance gate - restricted topics never reach a model.
+        # Compliance gate - restricted topics never reach a model, including
+        # the routing model added below.
         verdict = guardrails.check_input(text)
         if not verdict.allowed:
             session.low_confidence_streak = 0
@@ -424,7 +498,13 @@ class Router:
             )
 
         # NLU. High confidence + a scripted flow = deterministic answer.
+        #
+        # This runs strictly after the guardrail above, in every router mode.
+        # Putting a model in front of the compliance gate would demote the gate
+        # from a structural block to a prompt instruction, and the structural
+        # block is what the product is sold on.
         prediction = self.classifier.predict(text)
+        prediction = self._apply_llm_router(session, text, prediction)
         self.trace.add(
             "nlu", f"intent {prediction.intent} @ {prediction.confidence:.2f}",
             f"threshold {HIGH_CONFIDENCE} for a scripted flow"
@@ -515,6 +595,15 @@ class Router:
                 reason = "Reranker judged no retrieved passage relevant"
             self.trace.decide("retrieval", "no verified source",
                               "offering a human rather than answering")
+            # Counted here, where the assistant genuinely failed to resolve the
+            # turn, rather than on low classifier confidence. Two unanswerable
+            # questions running is the signal the rule was always meant to
+            # catch; an unsure classifier on a question that then got answered
+            # is not.
+            session.low_confidence_streak += 1
+            if session.low_confidence_streak >= MAX_LOW_CONFIDENCE_STREAK:
+                reason = ("Assistant could not resolve two consecutive "
+                          "questions")
             return self._offer_escalation(
                 session, reason, confidence=prediction.confidence,
             )
@@ -560,17 +649,23 @@ class Router:
                 confidence=prediction.confidence,
             )
 
-        # Low classifier confidence twice running means we're not converging.
-        if prediction.is_unknown:
-            session.low_confidence_streak += 1
-            if session.low_confidence_streak >= MAX_LOW_CONFIDENCE_STREAK:
-                return self._offer_escalation(
-                    session,
-                    "Intent confidence stayed below threshold across consecutive turns",
-                    confidence=prediction.confidence, prefix=result.text,
-                )
-        else:
-            session.low_confidence_streak = 0
+        # The low-confidence streak counts turns the assistant could not
+        # RESOLVE, not turns the classifier was unsure about.
+        #
+        # It used to count `prediction.is_unknown`, which fires on almost every
+        # knowledge question - a customer asking about fees has no scripted
+        # intent, and that is the RAG layer working as designed. Two such
+        # questions in a row therefore produced this, verbatim, in one bubble:
+        #
+        #     [the correct, cited answer about annual fees]
+        #     "I don't have anything verified on that..."
+        #
+        # An answer immediately contradicted by a claim of ignorance is worse
+        # than either message alone: the customer cannot tell which half to
+        # believe, and the one thing this architecture sells is that its
+        # answers are trustworthy. A turn that produced a grounded answer is
+        # convergence, whatever the intent classifier thought.
+        session.low_confidence_streak = 0
 
         self.trace.decide("generation", "grounded answer served",
                           f"cited {len(passages)} passage(s)")

@@ -84,17 +84,17 @@
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "WATER UTILITY",
+          "description": "TIEN NUOC",
           "amount": -3809000.0
         },
         {
           "date": "2026-08-04",
-          "description": "WATER UTILITY",
+          "description": "TIEN NUOC",
           "amount": -409000.0
         },
         {
           "date": "2026-08-03",
-          "description": "MOBILE TOPUP",
+          "description": "NAP TIEN DIEN THOAI",
           "amount": -37000.0
         },
         {
@@ -228,7 +228,7 @@
         },
         {
           "date": "2026-08-02",
-          "description": "MOBILE TOPUP",
+          "description": "NAP TIEN DIEN THOAI",
           "amount": -319000.0
         },
         {
@@ -243,7 +243,7 @@
         },
         {
           "date": "2026-07-30",
-          "description": "WATER UTILITY",
+          "description": "TIEN NUOC",
           "amount": -2169000.0
         },
         {
@@ -495,7 +495,7 @@
         },
         {
           "date": "2026-08-04",
-          "description": "ELECTRICITY BILL",
+          "description": "TIEN DIEN EVN",
           "amount": -540000.0
         },
         {
@@ -562,7 +562,7 @@
         },
         {
           "date": "2026-08-04",
-          "description": "WATER UTILITY",
+          "description": "TIEN NUOC",
           "amount": -1110000.0
         },
         {
@@ -582,7 +582,7 @@
         },
         {
           "date": "2026-07-31",
-          "description": "ELECTRICITY BILL",
+          "description": "TIEN DIEN EVN",
           "amount": -545000.0
         }
       ]
@@ -708,7 +708,7 @@
         },
         {
           "date": "2026-08-04",
-          "description": "MOBILE TOPUP",
+          "description": "NAP TIEN DIEN THOAI",
           "amount": -1166000.0
         },
         {
@@ -728,7 +728,7 @@
         },
         {
           "date": "2026-07-31",
-          "description": "WATER UTILITY",
+          "description": "TIEN NUOC",
           "amount": -1333000.0
         },
         {
@@ -790,12 +790,12 @@
         },
         {
           "date": "2026-08-02",
-          "description": "WATER UTILITY",
+          "description": "TIEN NUOC",
           "amount": -3373000.0
         },
         {
           "date": "2026-08-01",
-          "description": "MOBILE TOPUP",
+          "description": "NAP TIEN DIEN THOAI",
           "amount": -242000.0
         }
       ]
@@ -972,7 +972,7 @@
         },
         {
           "date": "2026-08-02",
-          "description": "MOBILE TOPUP",
+          "description": "NAP TIEN DIEN THOAI",
           "amount": -3259000.0
         },
         {

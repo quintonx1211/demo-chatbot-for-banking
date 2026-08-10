@@ -200,22 +200,22 @@ def _activate_card(session: Session) -> FlowResult:
 
     if not inactive:
         return FlowResult(
-            text=("All the cards on your profile are already active. If a "
-                  "payment was declined, that's a different issue and I can "
-                  "look into it."),
+            text=("Tất cả thẻ trên hồ sơ của anh/chị đều đã kích hoạt rồi ạ. "
+                  "Nếu có giao dịch bị từ chối thì đó là vấn đề khác, tôi kiểm "
+                  "tra giúp anh/chị được."),
             note="activation_none_pending",
         )
 
     card = inactive[0]
     return FlowResult(
         text=(
-            f"Your **{card['type']} card {card['mask']}** is issued but not yet "
-            f"activated.\n\n"
-            f"**{campaign.get('cta', 'Activate in the mobile app')}** - "
+            f"**Thẻ {card['type']} {card['mask']}** của anh/chị đã được phát "
+            f"hành nhưng chưa kích hoạt.\n\n"
+            f"**{campaign.get('cta', 'Kích hoạt trong ứng dụng')}** - "
             f"{campaign.get('deeplink', '')}\n\n"
-            f"Or: {campaign.get('sms_alternative', 'call the number on the card')}.\n\n"
-            "_I won't ever ask you for a one-time passcode in this chat. If "
-            "anything claiming to be us does, it isn't us._"
+            f"Hoặc: {campaign.get('sms_alternative', 'gọi số in trên thẻ')}.\n\n"
+            "_Tôi sẽ không bao giờ hỏi mã OTP trong khung chat này. Nếu có ai "
+            "tự xưng là ngân hàng mà hỏi, đó không phải chúng tôi._"
         ),
         note=f"activation_redirect:{card['card_id']}",
     )
@@ -232,12 +232,13 @@ def _card_offers(session: Session) -> FlowResult:
     offers = CAMPAIGNS.offers_for(session.customer_id)
     if not offers:
         return FlowResult(
-            text=("You're not in any current campaigns, so I don't have an "
-                  "offer to show you today. Anything else I can help with?"),
+            text=("Hiện chưa có chương trình ưu đãi nào dành cho anh/chị nên "
+                  "tôi chưa có gì để giới thiệu hôm nay ạ. Anh/chị cần hỗ trợ "
+                  "gì khác không?"),
             note="offers_none",
         )
 
-    lines = ["Here's what's available on your account today:", ""]
+    lines = ["Đây là các ưu đãi đang có trên tài khoản của anh/chị:", ""]
     for offer in offers:
         lines.append(f"**{offer.name}**")
         lines.append(offer.body)
@@ -245,8 +246,8 @@ def _card_offers(session: Session) -> FlowResult:
             lines.append(f"→ {offer.cta}: {offer.deeplink}")
         lines.append("")
     lines.append(
-        f"_Selected by the bank's campaign system, last updated "
-        f"{CAMPAIGNS.age_hours:.0f} hours ago._" if CAMPAIGNS.age_hours is not None
+        f"_Do hệ thống chiến dịch của ngân hàng chọn lọc, cập nhật cách đây "
+        f"{CAMPAIGNS.age_hours:.0f} giờ._" if CAMPAIGNS.age_hours is not None
         else ""
     )
     return FlowResult(
@@ -284,8 +285,8 @@ def _transactions(session: Session) -> FlowResult:
     customer = session.customer
     transactions = customer["transactions"][:5]
     if not transactions:
-        return FlowResult(text="I don't see any recent transactions on your accounts.")
-    lines = ["Your most recent transactions:"]
+        return FlowResult(text="Tôi không thấy giao dịch nào gần đây trên tài khoản của anh/chị ạ.")
+    lines = ["Các giao dịch gần nhất của anh/chị:"]
     for txn in transactions:
         sign = "+" if txn["amount"] > 0 else "−"
         lines.append(
@@ -300,12 +301,13 @@ def _loan_status(session: Session) -> FlowResult:
     loans = customer.get("loans", [])
     if not loans:
         return FlowResult(
-            text=("I don't see any open loan applications under your profile. "
-                  "If you applied in a branch in the last 24 hours it may not "
-                  "have synced yet - I can pass you to the lending team to check."),
+            text=("Tôi không thấy hồ sơ vay nào đang mở trên hồ sơ của anh/chị. "
+                  "Nếu anh/chị vừa nộp tại quầy trong 24 giờ qua thì có thể hệ "
+                  "thống chưa đồng bộ - tôi chuyển sang bộ phận tín dụng kiểm "
+                  "tra giúp anh/chị nhé."),
             note="no_loan_on_file",
         )
-    lines = ["Here's where your application stands:"]
+    lines = ["Tình trạng hồ sơ của anh/chị như sau:"]
     for loan in loans:
         lines.append(
             f"- **{loan['product']}** ({loan['application_id']}) for "
@@ -501,10 +503,10 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
         return _card_action(session, "unfreeze", text)
     if intent == "greeting":
         return FlowResult(
-            text=("Hello! I'm the virtual assistant for ABC Bank. I can "
-                  "check balances and transactions, block a lost card, look up a "
-                  "loan application, or answer questions about our products and "
-                  "fees. What do you need?"),
+            text=("Xin chào! Tôi là trợ lý ảo của **ABC Bank**. Tôi có thể tra "
+                  "cứu số dư và giao dịch, khoá hoặc mở khoá thẻ, kiểm tra hồ sơ "
+                  "vay, và giải đáp về sản phẩm, biểu phí của ngân hàng.\n\n"
+                  "Anh/chị cần hỗ trợ điều gì ạ?"),
             note="greeting",
         )
     if intent == "activate_card":
@@ -516,12 +518,12 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
         # through retrieval produced the worst turn in the demo: a customer
         # typing "ok thanks" was offered a human agent.
         return FlowResult(
-            text="I'm here. What else can I help you with?",
+            text="Tôi vẫn ở đây ạ. Anh/chị cần hỗ trợ gì thêm không?",
             note="smalltalk",
         )
     if intent == "goodbye":
         return FlowResult(
-            text="Happy to help. Have a good day!", note="goodbye")
+            text="Rất vui được hỗ trợ anh/chị. Chúc anh/chị một ngày tốt lành!", note="goodbye")
     if intent == "human_agent":
         return FlowResult(
             text="Of course.",

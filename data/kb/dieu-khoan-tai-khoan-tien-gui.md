@@ -61,6 +61,32 @@ Ngưỡng 100.000 VND xét trên tổng số dư âm cuối ngày, không xét t
 dịch. Ba giao dịch mỗi khoản âm 50.000 VND sẽ vượt ngưỡng và bị thu phí, dù không
 giao dịch nào riêng lẻ vượt ngưỡng.
 
+## Vì sao số dư khả dụng thấp hơn số dư tài khoản
+
+Hai con số này gần như luôn khác nhau, và đây là câu hỏi khách hàng gọi lên
+tổng đài nhiều nhất trong nhóm câu hỏi về tài khoản.
+
+**Số dư tài khoản** là tổng số tiền đang ghi nhận trên tài khoản.
+**Số dư khả dụng** là phần khách hàng thực sự rút hoặc chi tiêu được ngay.
+
+Phần chênh lệch giữa hai con số đến từ một hoặc nhiều khoản dưới đây:
+
+| Nguyên nhân | Giải thích |
+|---|---|
+| Tiền chưa được giải toả | Séc mới nộp còn trong thời gian chờ theo KB-FUNDS-001 |
+| Giao dịch đang chờ quyết toán | Thanh toán thẻ đã được cấp phép nhưng đơn vị bán hàng chưa đòi tiền |
+| Phong toả theo yêu cầu | Đặt cọc khách sạn, thuê xe, trạm xăng thường giữ trước một khoản |
+| Số dư tối thiểu | Một số sản phẩm yêu cầu duy trì số dư tối thiểu |
+| Phong toả theo yêu cầu cơ quan có thẩm quyền | Theo quyết định của cơ quan nhà nước |
+
+Khoản chênh do giao dịch đang chờ quyết toán thường tự hết trong 1-3 ngày làm
+việc. Riêng khoản giữ trước tại trạm xăng và khách sạn có thể cao hơn nhiều so
+với số tiền thực tế phải trả, và phần dư sẽ được hoàn lại khi đơn vị bán hàng
+gửi số tiền cuối cùng.
+
+Nhân viên tra được chi tiết từng khoản làm giảm số dư khả dụng và nên đọc rõ
+cho khách hàng thay vì chỉ nói "có giao dịch đang chờ".
+
 ## Thời điểm tiền được sử dụng
 
 Chi tiết đầy đủ nằm trong tài liệu KB-FUNDS-001. Tóm tắt: tiền mặt nộp tại quầy

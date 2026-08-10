@@ -481,6 +481,32 @@ async function refreshDashboard() {
    + '<p class="hint" style="margin:10px 0 0">Written only after verification, '
    + 'and cleared with the sessions.</p>';
 
+  const rt = data.router || {};
+  $("router-mode").textContent = `chế độ: ${rt.mode || "nlu"}`;
+  if (!rt.comparisons) {
+    $("router-box").innerHTML = rt.mode === "nlu"
+      ? '<p class="empty">Chỉ dùng bộ phân loại lexical. Đặt "router_mode": "shadow" '
+        + 'trong config.json để bắt đầu thu thập số liệu so sánh.</p>'
+      : '<p class="empty">Chưa có lượt nào được so sánh.</p>';
+  } else {
+    $("router-box").innerHTML =
+      [["Số lượt so sánh", rt.comparisons],
+       ["Trùng khớp", `${rt.agreements} (${pct(rt.agreement_rate)})`],
+       ["Lệch", rt.comparisons - rt.agreements]]
+        .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`)
+        .join("")
+      + (rt.disagreements.length
+        ? `<table class="events" style="margin-top:10px"><thead><tr>
+             <th>Câu hỏi</th><th>Lexical</th><th>LLM</th><th>Đã dùng</th></tr></thead><tbody>`
+          + rt.disagreements.map((d) => `<tr>
+              <td>${escapeHtml(d.text)}</td>
+              <td>${escapeHtml(d.lexical)} <em>${d.lexical_confidence ?? ""}</em></td>
+              <td>${escapeHtml(d.llm)} <em>${d.llm_confidence ?? ""}</em></td>
+              <td>${escapeHtml(d.used)}</td></tr>`).join("")
+          + "</tbody></table>"
+        : "");
+  }
+
   const dbs = data.database || {};
   const byStatus = dbs.cards_by_status || {};
   $("db-box").innerHTML = [

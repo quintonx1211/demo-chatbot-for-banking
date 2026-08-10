@@ -78,6 +78,13 @@ class Session:
         self.escalation_reason: str | None = None
         self.escalation_summary: str | None = None
         self.low_confidence_streak = 0
+
+        # Shadow-routing evidence. Counted per session and aggregated on the
+        # dashboard, so the decision to switch the router is made against
+        # observed traffic rather than against an opinion about model quality.
+        self.router_comparisons = 0
+        self.router_agreements = 0
+        self.router_disagreements: list[dict] = []
         # A handoff the assistant has offered but the customer has not accepted.
         # Escalating without asking takes the decision away from the person who
         # should be making it - plenty of customers would rather rephrase than

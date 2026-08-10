@@ -9,3 +9,8 @@ CLIENT-DEMO-SCRIPT.md
 
 # Generated demo data. Reseeded from data/accounts.json on Clear sessions.
 data/db/
+
+# Local virtualenv - 64 MB of installed packages that must never be committed.
+# The demo itself needs no dependencies; this only exists for the optional
+# provider SDKs.
+venv-chatbot-banking/

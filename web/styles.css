@@ -304,11 +304,24 @@ code {
   box-shadow: 0 0 0 3px var(--brand-ring); background: #fff;
 }
 .ghost-ic { font-size: 16px; }
+/* An inline <svg> is an inline element: it sits on the text baseline and
+   reserves descender space beneath itself, so a button that centres its box
+   still renders the glyph a couple of pixels high. `display: block` removes
+   the baseline entirely and is the fix for every icon button on the page, not
+   just this one. */
+.icon-btn svg, .send-btn svg, .avatar svg { display: block; }
+
 .send-btn {
   width: 40px; height: 40px; flex: none; border-radius: 50%; border: none;
   background: var(--brand); color: #fff; cursor: pointer;
   display: grid; place-items: center; transition: background .15s, transform .1s;
+  padding: 0;
 }
+/* Optical centring. A paper plane points up and to the right, so a glyph whose
+   bounding box is centred still looks as though it is drifting toward the
+   bottom-left corner of a circle. One pixel right is the standard correction
+   and is applied to the icon, not the button, so the hit area stays centred. */
+.send-btn svg { transform: translateX(1px); }
 .send-btn:hover { background: var(--brand-600); }
 .send-btn:active { transform: scale(.94); }
 .send-btn:disabled { background: var(--soft); cursor: default; }

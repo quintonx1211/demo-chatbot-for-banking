@@ -57,23 +57,26 @@ class Trace:
 # Human-readable descriptions of each stage, shown alongside the trace so the
 # rule being applied is legible without reading the source.
 STAGE_RULES = {
-    "pending_flow": "A scripted flow already in progress owns the turn, unless "
-                    "the customer clearly changed subject.",
-    "handoff_offer": "An outstanding offer of a human agent is answered before "
-                     "anything else is classified.",
-    "guardrail": "Regulated topics are refused here, before any model sees the "
-                 "text.",
-    "campaign": "A campaign the customer is eligible for, from the overnight "
-                "batch file. Deterministic - no model involved.",
-    "nlu": "Intent confidence at or above 0.55 runs a scripted flow that reads "
-           "the record. Below that, the question goes to the knowledge base.",
-    "retrieval": "Passages must clear a relevance floor. Nothing above it means "
-                 "no verified source exists, and the assistant offers a human "
-                 "rather than guessing.",
-    "generation": "The model may only use the retrieved passages. Its answer is "
-                  "then scored against them; below 0.55 it is discarded.",
-    "escalation": "Handed to a human, with the full conversation attached.",
-    "raw_mode": "Demo lever, on for this conversation only: routing, "
-                "guardrails, retrieval and the grounding check are all "
-                "bypassed - the model answers from conversation history alone.",
+    "pending_flow": "Luồng nghiệp vụ đang dở giữ quyền xử lý lượt này, trừ khi "
+                    "khách hàng rõ ràng đã chuyển sang chủ đề khác.",
+    "handoff_offer": "Lời mời chuyển chuyên viên đang chờ trả lời được xử lý "
+                     "trước khi phân loại bất kỳ điều gì khác.",
+    "guardrail": "Chủ đề thuộc diện quản lý bị từ chối tại đây, trước khi bất "
+                 "kỳ model nào nhìn thấy nội dung câu hỏi.",
+    "campaign": "Chiến dịch khách hàng đủ điều kiện, đọc từ tệp trích xuất "
+                "hằng đêm. Tất định - không có model tham gia.",
+    "nlu": "Độ tin cậy ý định từ 0.55 trở lên sẽ chạy luồng nghiệp vụ đọc "
+           "thẳng hồ sơ. Dưới mức đó, câu hỏi đi sang kho tri thức.",
+    "retrieval": "Đoạn tài liệu phải vượt ngưỡng liên quan. Không đoạn nào "
+                 "vượt nghĩa là không có nguồn đã thẩm định, và trợ lý đề nghị "
+                 "chuyển chuyên viên thay vì đoán.",
+    "generation": "Model chỉ được dùng các đoạn đã truy xuất. Câu trả lời sau "
+                  "đó được chấm điểm dựa trên chính các đoạn đó; dưới 0.55 sẽ "
+                  "bị loại bỏ.",
+    "escalation": "Đã chuyển cho chuyên viên, kèm toàn bộ nội dung hội thoại.",
+    "privacy": "Dữ liệu nhạy cảm được che trước khi truy xuất và trước khi nội "
+               "dung rời khỏi hệ thống tới nhà cung cấp model.",
+    "raw_mode": "Công tắc demo, chỉ bật cho hội thoại này: định tuyến, "
+                "guardrail, truy xuất và kiểm tra dẫn nguồn đều bị bỏ qua - "
+                "model trả lời chỉ dựa trên lịch sử hội thoại.",
 }

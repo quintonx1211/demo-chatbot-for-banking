@@ -196,8 +196,9 @@ def raw_chat(message: str, history: str = "") -> LLMResult:
         # Reused whether there is no provider at all or a configured one just
         # failed (rate limit, timeout, ...) - the two aren't distinguished
         # here, only in `error`, which the routing inspector shows separately.
-        fallback="(No answer came back - see the Note in the routing "
-                 "inspector for why, or check Settings for a provider.)",
+        fallback="(Không nhận được câu trả lời - xem mục Ghi chú trong bảng "
+                 "định tuyến để biết lý do, hoặc kiểm tra nhà cung cấp model "
+                 "trong Cấu hình.)",
     )
 
 

@@ -135,6 +135,32 @@ def snapshot(sessions: list[Session]) -> Snapshot:
     )
 
 
+def router_comparison(sessions: list[Session]) -> dict:
+    """Shadow-routing evidence, aggregated across every conversation.
+
+    This exists so the decision to hand routing to a model is made against
+    observed traffic rather than against an opinion. Agreement alone does not
+    prove the model is better - two classifiers can agree and both be wrong -
+    so the disagreements are listed in full for a human to adjudicate. That
+    reading is the work; this panel only makes it possible.
+    """
+    from .llm import route
+
+    comparisons = sum(s.router_comparisons for s in sessions)
+    agreements = sum(s.router_agreements for s in sessions)
+    disagreements: list[dict] = []
+    for session in sessions:
+        disagreements.extend(session.router_disagreements)
+
+    return {
+        "mode": route.mode(),
+        "comparisons": comparisons,
+        "agreements": agreements,
+        "agreement_rate": round(agreements / comparisons, 3) if comparisons else None,
+        "disagreements": disagreements[-12:],
+    }
+
+
 def recent_activity(sessions: list[Session], limit: int = 12) -> list[dict]:
     """Newest conversations, for the dashboard's activity list."""
     engaged = [s for s in sessions if s.audit]

@@ -102,16 +102,17 @@ class CampaignBook:
     def _body(spec: dict, context: dict) -> str:
         kind = spec.get("type")
         if kind == "activation":
-            mask = context.get("card_mask", "your new card")
+            mask = context.get("card_mask", "thẻ mới của anh/chị")
             return (
-                f"I can see your card **{mask}** hasn't been activated yet - it "
-                f"was issued on {context.get('issued_on', 'recently')}.\n\n"
-                f"You can activate it in the app, or {spec.get('sms_alternative', '')}."
+                f"Tôi thấy **thẻ {mask}** của anh/chị chưa được kích hoạt - thẻ "
+                f"được phát hành ngày {context.get('issued_on', 'gần đây')}.\n\n"
+                f"Anh/chị kích hoạt trong ứng dụng, hoặc "
+                f"{spec.get('sms_alternative', 'gọi số in trên thẻ')}."
             )
         if kind == "reactivation":
-            mask = context.get("card_mask", "your card")
+            mask = context.get("card_mask", "thẻ của anh/chị")
             return (
-                f"Your card **{mask}** hasn't been used since "
+                f"**Thẻ {mask}** của anh/chị chưa phát sinh giao dịch từ "
                 f"{context.get('dormant_since', 'a while ago')}, so it's currently "
                 f"dormant.\n\n**{spec.get('offer', '')}** if you start using it "
                 f"again."
