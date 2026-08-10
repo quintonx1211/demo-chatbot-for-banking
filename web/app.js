@@ -1145,16 +1145,9 @@ if ($("tts-stop-btn")) {
   $("tts-stop-btn").onclick = stopCurrentAudio;
 }
 
-// Suggestions: xoá nút đã chọn, giữ các nút còn lại
+// Suggestions: luôn hiển thị, có thể nhấn nhiều lần
 document.querySelectorAll("#suggestions button").forEach((btn) => {
-  btn.onclick = () => {
-    send(btn.textContent.trim());
-    btn.remove();
-    const container = $("suggestions");
-    if (container && !container.querySelector("button")) {
-      container.style.display = "none";
-    }
-  };
+  btn.onclick = () => send(btn.textContent.trim());
 });
 
 // Starting over drops the server-side session too. Clearing only the visible
