@@ -1184,10 +1184,23 @@ $("cfg-key-toggle").onclick = () => {
   $("cfg-key-toggle").textContent = hidden ? "Hide" : "Show";
 };
 
-/** Open a transcript: the day divider the design asks for, then the greeting.
-    One function so "new conversation" and first load cannot drift apart - the
-    divider went missing from the reset path when they were two. */
+/** Open a transcript: the standing notice, the day divider the design asks for,
+    then the greeting. One function so "new conversation" and first load cannot
+    drift apart - the divider went missing from the reset path when they were
+    two. */
 function startTranscript() {
+  // The OTP/PIN warning used to sit under the composer as fine print, where a
+  // phone gave it a whole line of permanent chrome above the keyboard for
+  // something nobody reads twice. At the head of the transcript it is the
+  // first thing in the conversation instead - read once, then scrolled past -
+  // and it reappears with every new conversation, which fine print never did.
+  const notice = el("div", "chat-notice");
+  notice.appendChild(el("span", "ic", "🔒"));
+  notice.appendChild(el("p", null,
+    "Trợ lý chỉ trả lời dựa trên tài liệu đã được ngân hàng thẩm định. "
+    + "Không bao giờ cung cấp mã OTP, mã PIN hay số thẻ đầy đủ cho bất kỳ ai."));
+  $("messages").appendChild(notice);
+
   $("messages").appendChild(el("div", "day-divider", "Hôm nay"));
   addMessage("assistant",
     "Xin chào! Tôi là trợ lý ảo của **ABC Bank**. Tôi có thể tra cứu số dư và "

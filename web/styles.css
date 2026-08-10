@@ -815,22 +815,29 @@ table.events code { font-size: 11.5px; }
 .composer .ghost-ic:hover { background: var(--bg-canvas); }
 .icon-btn svg, .send-btn svg { display: block; }
 
-.composer-note {
-  flex: none; margin: 0; padding: 0 32px calc(16px + env(safe-area-inset-bottom));
-  background: var(--bg-surface);
-  font-size: 11px; line-height: 1.5; color: var(--text-faint); text-align: center;
+/* ---------- standing notice at the head of the transcript ---------- */
+/* Scrolls away with the conversation rather than occupying a permanent line
+   above the keyboard. Deliberately not a .msg.system bubble: an amber alert
+   as the opening frame of every conversation reads as something having gone
+   wrong before the customer has said anything. */
+.chat-notice {
+  align-self: center; display: flex; gap: 9px; max-width: 560px;
+  padding: 11px 14px; border-radius: var(--radius-control);
+  background: var(--bg-surface); border: 1px solid var(--border);
 }
-/* The note owns the bottom inset once it is present, so the composer above it
-   stops reserving one of its own. */
-.composer { padding-bottom: 14px; }
+.chat-notice .ic { flex: none; font-size: 13px; line-height: 1.5; }
+.chat-notice p {
+  margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-muted);
+}
 
 @media (max-width: 767px) {
-  .composer { padding: 12px 14px 10px; }
-  .composer-note { padding: 0 18px calc(16px + env(safe-area-inset-bottom)); }
-  /* A phone keyboard is the input method here; two decorative buttons flanking
-     it cost more width than they are worth. Voice stays - it is the one piece
-     of composer chrome a phone user would actually reach for. Keyed off classes
-     rather than the title, which the data-demo wiring rewrites at load. */
-  .composer .ic-attach, .composer .ic-emoji { display: none; }
+  /* Attach, emoji, voice and send all stay on a phone. Four controls plus the
+     input only fit once the gap and the decorative buttons come down a size -
+     hiding two of them bought the width more cheaply but left the composer
+     looking like a different product on mobile. */
+  .composer { gap: 5px; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
+  .composer .ghost-ic { width: 32px; height: 32px; font-size: 15px; }
+  .composer input { padding: 0 12px; min-width: 0; }
   .msg { max-width: 88%; }
+  .chat-notice { margin: 0 4px; }
 }
