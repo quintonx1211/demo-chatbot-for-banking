@@ -447,11 +447,8 @@ class Router:
 
     def _retrieve(self, text: str) -> tuple[list, str]:
         """Retrieve passages, optionally through the LLM reranking stage."""
-        search_text = llm.translate_for_retrieval(text)
-        if search_text != text:
-            self.trace.add("retrieval", "query translated for KB search", search_text)
         if not rerank.enabled():
-            return self.kb.search(search_text, top_k=3), ""
+            return self.kb.search(text, top_k=3), ""
 
     def agent_reply(self, session: Session, text: str, staff) -> None:
         """Record a human agent's reply to the customer.
