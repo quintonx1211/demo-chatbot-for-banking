@@ -227,8 +227,10 @@ code {
 }
 .voice-btn svg { display: block; }
 .voice-btn:hover { background: var(--brand-soft); color: var(--brand); }
-.voice-btn.playing { color: var(--brand); background: var(--brand-soft); }
-.voice-btn:disabled { opacity: .5; cursor: default; }
+.voice-btn.playing { color: var(--brand); background: var(--brand-soft); border-color: var(--brand); }
+.voice-btn:disabled { opacity: .7; cursor: wait; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin .8s linear infinite; transform-origin: center; }
 .voice-status {
   font-size: 11.5px; color: var(--red); margin: 4px 18px 0;
 }

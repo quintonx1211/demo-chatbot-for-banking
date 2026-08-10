@@ -848,6 +848,7 @@ async function refreshHealth() {
 
 let voiceAvailable = true;   // luôn hiện mic & loa, lỗi sẽ báo sau
 let currentAudio = null;
+let currentTtsAbort = null;
 
 async function checkVoiceStatus() {
   // Kiểm tra TTS của chúng ta (không cần Vbee voice.py)
@@ -874,40 +875,78 @@ function makeVoiceButton(text) {
 
 // Phát TTS qua endpoint /api/tts (trả về binary audio)
 async function playTts(text, btn) {
+  // Nếu đang phát hoặc đang tải → dừng lại
+  if (btn.classList.contains("playing")) {
+    if (currentTtsAbort) { currentTtsAbort.abort(); currentTtsAbort = null; }
+    stopCurrentAudio();
+    return;
+  }
+  if (currentTtsAbort) { currentTtsAbort.abort(); currentTtsAbort = null; }
   stopCurrentAudio();
   if ($("tts-stop-btn")) $("tts-stop-btn").classList.remove("hidden");
+
   const origHTML = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
-    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-    <line x1="12" y1="16" x2="12.01" y2="16"/>
+  btn.classList.add("playing");
+  btn.title = "Đang tải… (nhấn để dừng)";
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="2.2" stroke-linecap="round" class="spin">
+    <path d="M21 12a9 9 0 1 1-9-9"/>
   </svg>`;
+
+  const abortCtrl = new AbortController();
+  currentTtsAbort = abortCtrl;
+
   try {
     const resp = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text.replace(/[*_`#]/g, "") }),
+      body: JSON.stringify({ text: text.replace(/[*_`#>]/g, "") }),
+      signal: abortCtrl.signal,
     });
-    if (!resp.ok) throw new Error(`TTS lỗi ${resp.status}`);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.status }));
+      throw new Error(err.error || resp.status);
+    }
     const blob = await resp.blob();
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
+    const cleanup = () => { URL.revokeObjectURL(url); _resetVoiceBtn(btn, origHTML); };
+    audio._cleanup = cleanup;
     currentAudio = audio;
-    audio.onended = () => { URL.revokeObjectURL(url); stopCurrentAudio(); };
-    audio.onerror = () => { URL.revokeObjectURL(url); stopCurrentAudio(); };
+    // Khi đang phát: đổi icon thành pause
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+      <rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>
+    </svg>`;
+    btn.title = "Đang phát – nhấn để dừng";
+    audio.onended = cleanup;
+    audio.onerror = cleanup;
+    currentTtsAbort = null;
     await audio.play();
+    return; // không chạy reset nếu audio đang phát
   } catch (err) {
-    addMessage("system", `Không phát được giọng nói: ${err.message}`);
-    stopCurrentAudio();
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = origHTML;
+    if (err.name !== "AbortError") {
+      addMessage("system", `Không phát được giọng nói: ${err.message}`);
+    }
   }
+  currentTtsAbort = null;
+  _resetVoiceBtn(btn, origHTML);
+}
+
+function _resetVoiceBtn(btn, origHTML) {
+  btn.classList.remove("playing");
+  btn.innerHTML = origHTML;
+  btn.title = "Nghe câu trả lời";
+  if ($("tts-stop-btn")) $("tts-stop-btn").classList.add("hidden");
+  currentAudio = null;
 }
 
 function stopCurrentAudio() {
-  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  if (currentTtsAbort) { currentTtsAbort.abort(); currentTtsAbort = null; }
+  if (currentAudio) {
+    currentAudio.pause();
+    if (currentAudio._cleanup) currentAudio._cleanup();
+    currentAudio = null;
+  }
   if ($("tts-stop-btn")) $("tts-stop-btn").classList.add("hidden");
 }
 
