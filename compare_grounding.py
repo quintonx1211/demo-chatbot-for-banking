@@ -16,6 +16,17 @@ refuses to present it as though it did.
 
 from __future__ import annotations
 
+import sys
+
+# The Windows console defaults to cp1252, which cannot encode Vietnamese. Now
+# that the assistant answers in Vietnamese, printing a reply raised
+# UnicodeEncodeError and took the whole test run down - a test suite that dies
+# on its own output reports nothing about the code it was meant to check.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+
 import os
 import sys
 import textwrap

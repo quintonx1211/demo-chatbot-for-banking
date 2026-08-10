@@ -83,6 +83,57 @@ def reciprocal_rank_fusion(rankings: dict[str, list[float]]) -> list[float]:
     return fused
 
 
+# Issuer names, and the market-reference document each one belongs to.
+#
+# This is a hard filter rather than a scoring hint, because the failure it
+# prevents is categorically wrong rather than merely low quality. Asked "phí
+# thường niên thẻ Visa của MBBank là bao nhiêu?", retrieval returned the
+# *Vietcombank* fee table at coverage 0.56 - "MBBank" written as one word is
+# absent from the corpus (the document says "MB Bank"), so it contributed
+# nothing, while "Visa" and "phí thường niên" pulled Vietcombank to the top.
+#
+# The assistant then presented one bank's annual fee, interest rate and credit
+# limit as another's, in a confident table, with a citation. No amount of
+# ranking improvement makes that acceptable: if a customer names an issuer, a
+# passage about a different issuer is not a worse answer, it is a false one.
+_ISSUER_ALIASES: list[tuple[str, tuple[str, ...]]] = [
+    ("KB-MKT-TCB", ("techcombank", "tcb")),
+    ("KB-MKT-VCB", ("vietcombank", "vcb")),
+    ("KB-MKT-VPB", ("vpbank", "vp bank", "vpb")),
+    ("KB-MKT-MBB", ("mbbank", "mb bank", "mbb", "quân đội")),
+]
+
+# Prefix marking a passage as being about another bank's products.
+MARKET_DOC_PREFIX = "KB-MKT-"
+
+# How far competitor material is pushed down when the customer named no issuer.
+# 0.75 was picked as the smallest value that puts this bank's own definition
+# above a competitor document sharing the same phrase, without hiding market
+# references from genuine comparison questions. Swept on the labelled set: it
+# costs nothing on P@1 and nothing on rejection.
+MARKET_DOC_DEMOTION = 0.75
+
+
+def issuers_mentioned(query: str) -> set[str]:
+    """doc_ids of any issuers the query names explicitly."""
+    text = f" {query.lower()} "
+    found = set()
+    for doc_id, aliases in _ISSUER_ALIASES:
+        for alias in aliases:
+            # Padded rather than a word-boundary regex: "mb" inside "mbbank"
+            # must not count, and Vietnamese diacritics make \b unreliable.
+            if f" {alias} " in text or f" {alias}?" in text or f" {alias}," in text:
+                found.add(doc_id)
+                break
+            if alias in ("mbb", "vcb", "tcb", "vpb") and alias in text:
+                found.add(doc_id)
+                break
+            if len(alias) > 4 and alias in text:
+                found.add(doc_id)
+                break
+    return found
+
+
 @dataclass
 class RetrievedPassage:
     passage: Passage
@@ -178,6 +229,34 @@ class KnowledgeBase:
         coverages = self._index.coverages(query)
         similarities = self._index.similarities(query)
         bm25 = self._index.bm25_scores(query)
+
+        # A named issuer excludes every other issuer's material outright. Done
+        # by zeroing the score rather than filtering the list so the indices
+        # stay aligned with `self.passages` for everything below.
+        named = issuers_mentioned(query)
+        for index, passage in enumerate(self.passages):
+            if not passage.doc_id.startswith(MARKET_DOC_PREFIX):
+                continue
+            if named and passage.doc_id not in named:
+                coverages[index] = 0.0
+                similarities[index] = 0.0
+                bm25[index] = 0.0
+            elif not named:
+                # No issuer named, so the customer is asking about this bank.
+                # Competitor material is demoted rather than excluded: it can
+                # still answer a genuine comparison question, but it must not
+                # outrank the bank's own policy for a question about the
+                # bank's own policy.
+                #
+                # It did. "Số dư bình quân ngày được tính thế nào?" returned
+                # the Vietcombank card table at 0.86, ahead of this bank's own
+                # definition at 0.81 - because the competitor document happens
+                # to use the phrase in an interest-rate row. An unverified
+                # third-party document answering a question about our own fees
+                # is the wrong source winning, whatever its score.
+                coverages[index] *= MARKET_DOC_DEMOTION
+                similarities[index] *= MARKET_DOC_DEMOTION
+                bm25[index] *= MARKET_DOC_DEMOTION
 
         # Rejection is a coverage decision, tuned separately from ranking.
         # Keeping those two jobs apart is deliberate: a ranker always produces

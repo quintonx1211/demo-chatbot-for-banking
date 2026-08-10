@@ -58,24 +58,24 @@ def split_mention(text: str) -> tuple[str | None, str]:
     return who, text[match.end():].strip()
 
 _FLOW_LABELS = {
-    "verify": "identity check",
-    "block_card": "card block",
+    "verify": "xác minh danh tính",
+    "block_card": "khóa thẻ",
 }
 
 
 def _flow_label(name: str | None) -> str:
-    return _FLOW_LABELS.get(name or "", "previous request")
+    return _FLOW_LABELS.get(name or "", "yêu cầu trước đó")
 
 
 ESCALATION_MESSAGE = (
-    "Let me bring in one of our specialists - they'll have the full context of "
-    "this conversation, so you won't need to repeat anything.\n\n"
-    "**You're now in the queue for a human agent.**"
+    "Để tôi kết nối bạn với một chuyên viên - họ sẽ có đầy đủ nội dung cuộc hội thoại này, "
+    "bạn không cần phải giải thích lại.\n\n"
+    "**Bạn đang trong hàng chờ nhân viên hỗ trợ.**"
 )
 
 REQUEUED_MESSAGE = (
-    "That one's outside what I can answer too - I've added it to the notes for "
-    "the specialist picking this up. **You're still in the queue.**"
+    "Câu hỏi này cũng nằm ngoài phạm vi tôi có thể trả lời - tôi đã ghi vào ghi chú "
+    "cho chuyên viên tiếp nhận bạn. **Bạn vẫn đang trong hàng chờ.**"
 )
 
 
@@ -146,11 +146,11 @@ class Router:
                 note=(f"customer left the chat with {agent_name}" if agent_name
                       else "customer left the handoff queue before it was claimed"),
             )
-            reply = ((f"You're back with the assistant - {agent_name} has been "
-                      "released from this chat. What can I help with?")
+            reply = ((f"Bạn đã quay lại với trợ lý - {agent_name} đã kết thúc cuộc hội thoại này. "
+                      "Tôi có thể giúp gì cho bạn?")
                      if agent_name else
-                     ("You're back with the assistant and I've taken you out of "
-                      "the queue. What can I help with?"))
+                     ("Bạn đã quay lại với trợ lý, tôi đã đưa bạn ra khỏi hàng chờ. "
+                      "Tôi có thể giúp gì cho bạn?"))
             session.add_message("assistant", reply)
             return TurnResult(
                 text=reply, route="deterministic", intent="left_agent",
@@ -163,7 +163,7 @@ class Router:
         # it as one offered the customer a handoff, which is the opposite of
         # what they asked for.
         if _LEAVE_RE.match(text):
-            reply = "You're already chatting with the assistant. How can I help?"
+            reply = "Bạn đang trò chuyện với trợ lý ảo. Tôi có thể giúp gì cho bạn?"
             session.add_message("assistant", reply)
             session.record(utterance=text, route="deterministic",
                            intent="left_agent", confidence=1.0,
@@ -312,8 +312,7 @@ class Router:
                 self.trace.decide("handoff_offer", "customer declined",
                                   "assistant continues")
                 return TurnResult(
-                    text=("No problem - I'll keep helping. What else can I look "
-                          "at for you?"),
+                    text="Được rồi, tôi sẽ tiếp tục hỗ trợ bạn. Bạn cần hỏi thêm điều gì không?",
                     route="deterministic", intent="escalation_declined",
                     confidence=1.0, debug={"note": "customer declined the handoff"},
                 )
@@ -337,7 +336,7 @@ class Router:
                 # silently forgotten.
                 result = self._route_fresh(session, text)
                 result.text = (
-                    f"_No problem - I've stopped the {_flow_label(flow_name)}._"
+                    f"_Được rồi - tôi đã dừng {_flow_label(flow_name)}._"
                     f"\n\n{result.text}" if result.text else result.text
                 )
                 result.debug["note"] = " · ".join(
@@ -446,8 +445,11 @@ class Router:
 
     def _retrieve(self, text: str) -> tuple[list, str]:
         """Retrieve passages, optionally through the LLM reranking stage."""
+        search_text = llm.translate_for_retrieval(text)
+        if search_text != text:
+            self.trace.add("retrieval", "query translated for KB search", search_text)
         if not rerank.enabled():
-            return self.kb.search(text, top_k=3), ""
+            return self.kb.search(search_text, top_k=3), ""
 
     def agent_reply(self, session: Session, text: str, staff) -> None:
         """Record a human agent's reply to the customer.
@@ -616,12 +618,11 @@ class Router:
         """
         session.pending_escalation = reason
         body = (
-            "I want to be straight with you - I don't have anything verified "
-            "on that, and I'd rather say so than guess.\n\n"
-            "**Would you like me to bring in a colleague who can help?** "
-            "They'll already have this conversation in front of them, so "
-            "there's nothing you'd need to repeat. Otherwise, ask me anything "
-            "else and I'll keep going."
+            "Thành thật mà nói - tôi không có thông tin đã được xác minh về vấn đề này, "
+            "và tôi thà nói thẳng còn hơn đoán mò.\n\n"
+            "**Bạn có muốn tôi kết nối với một chuyên viên để hỗ trợ không?** "
+            "Họ sẽ có đầy đủ nội dung cuộc hội thoại này, bạn không cần giải thích lại. "
+            "Hoặc bạn có thể hỏi tôi câu khác."
         )
         message = f"{prefix.strip()}\n\n{body}" if prefix.strip() else body
         return TurnResult(

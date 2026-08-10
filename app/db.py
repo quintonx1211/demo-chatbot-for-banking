@@ -300,11 +300,12 @@ def set_card_status(card_id: str, action: str, session_id: str | None = None,
         cards = _read("cards")
         card = next((c for c in cards if c["card_id"] == card_id), None)
         if card is None:
-            raise TransitionError("I can't find that card on your profile.")
+            raise TransitionError("Tôi không tìm thấy thẻ đó trên hồ sơ của anh/chị ạ.")
 
         current = card["status"]
         if current == to_status:
-            raise TransitionError(f"That card is already {to_status}.")
+            raise TransitionError(
+                f"Thẻ này hiện đã ở trạng thái {to_status} rồi ạ.")
         if current not in allowed_from:
             raise TransitionError(_refusal(current, action))
 
@@ -349,21 +350,22 @@ def set_card_status(card_id: str, action: str, session_id: str | None = None,
 def _refusal(current: str, action: str) -> str:
     """Why a transition was refused, in words a customer can act on."""
     if current == "blocked":
-        return ("That card is blocked because it was reported lost or stolen, "
-                "and a blocked card can't be reopened - that's a security rule, "
-                "not a limitation of what I can do here. A replacement has "
-                "already been issued and will arrive in 5-7 business days.")
+        return ("Thẻ này đã khoá do được báo mất hoặc bị đánh cắp, và thẻ đã "
+                "khoá vì lý do đó thì không mở lại được - đây là quy định bảo "
+                "mật, không phải giới hạn của tôi ở đây. Thẻ thay thế đã được "
+                "phát hành và sẽ tới trong 5-7 ngày làm việc ạ.")
     if current == "inactive" and action in ("freeze", "unfreeze"):
-        return ("That card hasn't been activated yet, so there's nothing to "
-                "freeze. I can help you activate it instead.")
+        return ("Thẻ này chưa được kích hoạt nên chưa có gì để tạm khoá ạ. "
+                "Tôi có thể hướng dẫn anh/chị kích hoạt thẻ.")
     if current == "dormant" and action == "unfreeze":
-        return ("That card is dormant rather than frozen. I can walk you "
-                "through reactivating it.")
+        return ("Thẻ này đang ở trạng thái ngủ đông chứ không phải tạm khoá. "
+                "Tôi hướng dẫn anh/chị kích hoạt lại nhé.")
     if action == "unfreeze":
-        return "That card isn't frozen, so there's nothing to unfreeze."
+        return "Thẻ này không ở trạng thái tạm khoá nên không cần mở khoá ạ."
     if action == "activate":
-        return "That card is already activated."
-    return f"I can't {action.replace('_', ' ')} a card that is {current}."
+        return "Thẻ này đã được kích hoạt rồi ạ."
+    return (f"Tôi không thực hiện được thao tác này với thẻ đang ở trạng "
+            f"thái {current} ạ.")
 
 
 def _reference(action: str, card_id: str) -> str:
@@ -393,7 +395,7 @@ def _build_replacement(cards: list[dict], card: dict, now: str) -> dict:
                 "status": "inactive", "linked_account": card["linked_account"],
                 "replaces": card["card_id"], "updated_at": now,
             }
-    raise TransitionError("Unable to allocate a replacement card number.")
+    raise TransitionError("Không cấp được số thẻ thay thế.")
 
 
 def stats() -> dict:

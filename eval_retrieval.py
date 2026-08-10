@@ -17,107 +17,123 @@ from __future__ import annotations
 
 import sys
 
+# The Windows console defaults to cp1252, which cannot encode Vietnamese. Now
+# that the assistant answers in Vietnamese, printing a reply raised
+# UnicodeEncodeError and took the whole test run down - a test suite that dies
+# on its own output reports nothing about the code it was meant to check.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+
+import sys
+
 from app.retriever import KnowledgeBase
 
 # (question, heading that should answer it). Matched case-insensitively on a
 # prefix so the labels survive small wording edits to the corpus.
 IN_SCOPE: list[tuple[str, str]] = [
-    # cards.md
-    ("my card was stolen last night what do I do", "Reporting a lost or stolen card"),
-    ("am I liable for purchases someone made with my stolen card", "Reporting a lost or stolen card"),
-    ("how long until a new card arrives", "Replacement cards"),
-    ("do I have to pay for a replacement card", "Replacement cards"),
-    ("how much can I take out of an ATM in one day", "Card limits"),
-    ("what does it cost to pay in euros", "Foreign transaction fees"),
-    ("is there a fee for using my card overseas", "Foreign transaction fees"),
-    ("when does contactless ask for a PIN", "Contactless payments"),
+    # the-ghi-no-va-tin-dung.md
+    ("thẻ của tôi bị mất tối qua giờ phải làm sao", "Báo mất thẻ"),
+    ("tôi có phải chịu trách nhiệm giao dịch người khác thực hiện bằng thẻ bị mất không", "Báo mất thẻ"),
+    ("bao lâu thì nhận được thẻ mới", "Thẻ thay thế"),
+    ("làm lại thẻ có mất phí không", "Thẻ thay thế"),
+    ("một ngày rút được tối đa bao nhiêu tiền ở ATM", "Hạn mức thẻ"),
+    ("thanh toán bằng euro thì mất phí gì", "Phí giao dịch ngoại tệ"),
+    ("dùng thẻ ở nước ngoài có bị tính phí không", "Phí giao dịch ngoại tệ"),
+    ("khi nào thanh toán không tiếp xúc bắt nhập mã PIN", "Thanh toán không tiếp xúc"),
 
-    # loans.md
-    ("how long does a mortgage application take to decide", "Application processing times"),
-    ("how quickly will I hear back about a personal loan", "Application processing times"),
-    ("what does in review mean on my application", "Application statuses"),
-    ("can I reapply after being declined", "Application statuses"),
-    ("what paperwork do I need for a personal loan", "Required documents"),
-    ("I am self employed what documents are required", "Required documents"),
-    ("what rate would I get on a car loan", "Interest rates"),
-    ("can I pay my loan off early without a penalty", "Early repayment"),
+    # vay-va-the-chap.md
+    ("hồ sơ vay mua nhà bao lâu mới có kết quả", "Thời gian xử lý hồ sơ"),
+    ("vay tiêu dùng bao lâu thì được duyệt", "Thời gian xử lý hồ sơ"),
+    ("hồ sơ đang thẩm định nghĩa là gì", "Các trạng thái hồ sơ"),
+    ("bị từ chối rồi có nộp lại được không", "Các trạng thái hồ sơ"),
+    ("vay tiêu dùng cần giấy tờ gì", "Chứng từ cần nộp"),
+    ("tôi tự kinh doanh thì cần nộp chứng từ nào", "Chứng từ cần nộp"),
+    ("lãi suất vay mua ô tô hiện nay bao nhiêu", "Lãi suất"),
+    ("trả nợ trước hạn có bị phạt không", "Trả nợ trước hạn"),
 
-    # accounts-and-fees.md
-    ("what do I need to bring to open an account", "Opening an account"),
-    ("how do I avoid the monthly account fee", "Monthly maintenance fees"),
-    ("what happens if I go overdrawn", "Overdraft"),
-    ("how much is the overdraft charge", "Overdraft"),
-    ("what does an international wire cost", "Transfers"),
-    ("how long does a transfer to another bank take", "Transfers"),
-    ("can I get an old statement from three years ago", "Statements"),
-    ("are you open on saturday", "Branch and support hours"),
+    # tai-khoan-va-bieu-phi.md
+    ("mở tài khoản cần giấy tờ gì", "Mở tài khoản"),
+    ("cần gửi tối thiểu bao nhiêu để mở tài khoản tiết kiệm", "Mở tài khoản"),
+    ("làm sao để không bị thu phí quản lý tài khoản", "Phí quản lý tài khoản"),
+    ("tài khoản sinh viên có mất phí hàng tháng không", "Phí quản lý tài khoản"),
+    ("phí thấu chi là bao nhiêu", "Thấu chi"),
+    ("chuyển tiền quốc tế mất phí bao nhiêu và bao lâu", "Chuyển tiền"),
+    ("chuyển khoản nội bộ có mất phí không", "Chuyển tiền"),
+    ("sao kê giấy tính phí thế nào", "Sao kê"),
+    ("mấy giờ chi nhánh mở cửa", "Giờ làm việc chi nhánh"),
+    ("nửa đêm có khoá thẻ được không", "Giờ làm việc chi nhánh"),
 
-    # digital-and-security.md
-    ("I forgot my online banking password", "Resetting an online banking password"),
-    ("my account is locked after too many login attempts", "Resetting an online banking password"),
-    ("why am I being asked for a code on a new laptop", "Registering a new device"),
-    ("someone charged my card and I did not authorise it", "Disputing a transaction"),
-    ("how long do I have to raise a dispute", "Disputing a transaction"),
-    ("I got a suspicious email claiming to be from you", "Recognising phishing"),
-    ("what is the mobile cheque deposit limit", "Mobile app"),
+    # ngan-hang-so-va-an-toan.md
+    ("tôi quên mật khẩu ngân hàng số", "Đặt lại mật khẩu"),
+    ("nhập sai mật khẩu mấy lần thì bị khoá", "Đặt lại mật khẩu"),
+    ("ngân hàng có bao giờ hỏi mã OTP không", "Đăng ký thiết bị mới"),
+    ("tôi muốn tra soát một giao dịch lạ", "Tra soát giao dịch"),
+    ("bao lâu thì được ghi có tạm thời khi tra soát", "Tra soát giao dịch"),
+    ("làm sao nhận biết tin nhắn lừa đảo", "Nhận biết lừa đảo"),
+    ("nộp séc qua ứng dụng tối đa bao nhiêu một ngày", "Ứng dụng ngân hàng số"),
 
-    # business-banking-schedule.docx - a converted Word document with three
-    # heading levels and a fee table. The questions are worded the way a
-    # customer would ask, not the way the document is written, which is where a
-    # single lexical signal starts to fail.
-    ("what do you charge to take card payments online", "Card acceptance pricing"),
-    ("when does money from card sales reach my account", "Card acceptance pricing"),
-    ("a customer disputed a payment what does that cost me", "Chargebacks and representment"),
-    ("how long do I have to fight a chargeback", "Chargebacks and representment"),
-    ("why is the bank holding back part of my settlement", "Chargebacks and representment"),
-    ("how far in advance do I send the payroll file", "File submission windows"),
-    ("can I run payroll on the same day", "File submission windows"),
-    ("what happens when a salary payment bounces", "Failed and returned payments"),
-    ("my business account has gone inactive how do I use it again", "Dormancy"),
-    ("is there a penalty for closing the account early", "Closing an account"),
+    # dieu-khoan-tai-khoan-tien-gui.md
+    ("số dư bình quân ngày được tính như thế nào", "Điều kiện miễn phí"),
+    ("không đủ tiền thì khoản nào bị trừ trước", "Thứ tự thanh toán"),
+    ("âm tài khoản một ít có bị thu phí không", "Thấu chi và ngưỡng miễn phí"),
+    ("lãi tiết kiệm được tính và trả khi nào", "Lãi tiền gửi"),
+    ("đóng tài khoản sớm có mất phí không", "Đóng tài khoản"),
+    ("phí rút tiền ATM ngoài hệ thống", "Biểu phí tài khoản"),
 
-    # deposit-account-agreement.md - a Regulation DD style disclosure: a dense
-    # fee table whose conditions live several paragraphs away. The hard cases
-    # here are questions whose answer is a table row plus a qualifying rule.
-    ("what is the fee for stopping a cheque", "Consumer deposit fee schedule"),
-    ("how much do you charge for a cashier's cheque", "Consumer deposit fee schedule"),
-    ("what counts as an average daily balance", "How the monthly maintenance fee is waived"),
-    ("how do I get the $12 fee waived on my checking account", "How the monthly maintenance fee is waived"),
-    ("which payment gets taken first if I don't have enough money", "Order in which items are paid"),
-    ("am I charged if I'm only a few dollars overdrawn", "Overdraft coverage and the de minimis rule"),
-    ("when can I use money from a cheque I deposited", "Funds availability"),
-    ("why has my deposit been put on hold", "Funds availability"),
-    ("how is interest on my savings worked out", "Interest and how it is calculated"),
-    ("if I have fifty thousand saved what rate do I get", "Interest and how it is calculated"),
+    # thoi-diem-su-dung-tien.md
+    ("séc số tiền lớn bị giữ bao lâu", "Các trường hợp phong toả ngoại lệ"),
+    ("khoản chuyển tiền đến có bị phong toả như séc không", "Các trường hợp phong toả ngoại lệ"),
+    ("tài khoản mới mở thì tiền về khi nào dùng được", "Tài khoản mới mở"),
+    ("mấy giờ là hết giờ nộp tiền trong ngày", "Ngày làm việc và thời điểm chốt"),
+    ("nộp tiền mặt tại quầy khi nào dùng được", "Lịch sử dụng tiền tiêu chuẩn"),
+    ("ngân hàng phong toả tiền thì có báo tôi không", "Thông báo khi phong toả"),
 
-    # complaints-and-regulatory.md - process and rights, where the answer is a
-    # deadline and the question rarely uses the document's vocabulary.
-    ("how do I make a complaint and how long will it take", "Raising a complaint"),
-    ("I'm unhappy with how you handled my complaint, what now",
-     "If the customer is not satisfied with the outcome"),
-    ("will I get my money back while you look into the transfer",
-     "Electronic transfer errors"),
-    ("someone used my card, how much am I on the hook for",
-     "Liability for unauthorised electronic transfers"),
-    ("do I have to pay a credit card charge I'm disputing",
-     "Billing errors on credit accounts"),
-    ("can you delete all my data", "Privacy and data rights"),
+    # tra-soat-va-boi-hoan-the.md
+    ("tôi có bao nhiêu ngày để tra soát giao dịch thẻ", "Tra soát thẻ ghi nợ"),
+    ("báo mất thẻ muộn thì tôi chịu trách nhiệm bao nhiêu", "Trách nhiệm của khách hàng"),
+    ("thời hạn gửi yêu cầu bồi hoàn tới tổ chức thẻ", "Quy tắc bồi hoàn"),
+    ("tôi có phải liên hệ người bán trước khi tra soát không", "Trước khi mở tra soát"),
+    ("nếu tra soát không thành công thì tiền tạm ứng bị thu lại thế nào", "Thu hồi khoản ghi có tạm thời"),
+
+    # thanh-toan-va-chuyen-tien.md
+    ("chuyển nhanh 24/7 có huỷ được không", "Thu hồi lệnh chuyển tiền"),
+    ("phí đề nghị thu hồi lệnh chuyển tiền", "Thu hồi lệnh chuyển tiền"),
+    ("mấy giờ chốt lệnh chuyển tiền quốc tế", "Thời điểm chốt lệnh"),
+    ("biên độ tỷ giá khi chuyển tiền quốc tế là bao nhiêu", "Chuyển tiền quốc tế"),
+    ("huỷ uỷ nhiệm thu có chấm dứt hợp đồng dịch vụ không", "Lệnh thanh toán định kỳ"),
+    ("hạn mức chuyển tiền một ngày của khách hàng phổ thông", "Hạn mức"),
+
+    # gian-lan-va-lua-dao.md
+    ("tôi bị lừa chuyển tiền thì có lấy lại được không", "Phân biệt quyết định mọi thứ"),
+    ("tài khoản an toàn là gì", "Những điều ngân hàng không bao giờ làm"),
+    ("bị lừa rồi thì tôi phải làm gì trước tiên", "Khi khách hàng nghi ngờ đã bị lừa"),
+    ("khi nào tôi được bồi hoàn tiền bị lừa", "Bồi hoàn"),
+
+    # khieu-nai-va-quyen-khach-hang.md
+    ("tôi muốn khiếu nại thì bao lâu có trả lời", "Tiếp nhận khiếu nại"),
+    ("không hài lòng với kết quả khiếu nại thì làm gì tiếp", "Khi khách hàng không đồng ý"),
+    ("tôi có quyền yêu cầu ngân hàng xoá dữ liệu của mình không", "Quyền về dữ liệu cá nhân"),
+
+    # thi-truong-the-*.md
+    ("phí thường niên thẻ Vietcombank Visa Platinum", "Vietcombank Visa Platinum"),
+    ("thời gian miễn lãi 45 ngày tính như thế nào", "Thời gian miễn lãi"),
+    ("thẻ VPBank StepUp có hoàn tiền cho Shopee không", "Phần loại trừ"),
+    ("thẻ VPBank Lady hoàn tiền tối đa bao nhiêu một năm", "VPBank Lady"),
+    ("hạn mức thẻ Techcombank Priority Visa Signature", "Techcombank Priority Visa Signature"),
+    ("thẻ MB Hi Collection không in số thẻ thì bất tiện gì", "Mặt thẻ trống"),
+    ("phí thường niên thẻ MB JCB là bao nhiêu", "Mâu thuẫn về phí thường niên"),
 ]
 
-# Questions the corpus genuinely does not cover. Retrieval must return nothing,
-# so the router escalates rather than answering from a loosely-related passage.
 OUT_OF_SCOPE: list[str] = [
-    "do you offer crop insurance for vineyards",
-    "what is the weather in Hanoi today",
-    "can I trade forex through you",
-    "who won the world cup",
-    "do you sell life insurance policies",
-    "what is your company registration number",
-    "can I buy cryptocurrency in the app",
-    # "do you provide business payroll services" was here until the business
-    # banking schedule was added to the corpus, which made it a question the
-    # corpus genuinely answers. A labelled set is only valid against the corpus
-    # it was written for - re-check it whenever documents are added.
+    "ngân hàng có bán bảo hiểm nhân thọ không",
+    "hôm nay Hà Nội thời tiết thế nào",
+    "tôi giao dịch ngoại hối qua ngân hàng được không",
+    "đội nào vô địch world cup",
+    "mã số doanh nghiệp của ngân hàng là gì",
+    "tôi mua tiền điện tử trên app được không",
+    "ngân hàng có cho vay mua đất nông nghiệp trồng nho ở Bồ Đào Nha không",
 ]
 
 

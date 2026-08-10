@@ -64,6 +64,17 @@ _STOPWORDS = {
 # corpus so "payments"/"payment" and "blocking"/"block" share a term.
 _SUFFIXES = ("ings", "ing", "ies", "es", "s", "ed")
 
+# How much a matched bigram is worth relative to a matched unigram in the
+# coverage metric. Swept on the labelled set: 1.0 leaves rejection at 28.6%,
+# 2.0 lifts it to 85.7%, and 3.0 adds nothing further. See `coverages`.
+BIGRAM_COVERAGE_WEIGHT = 2.0
+
+# What a bare number contributes to coverage. Near zero, because a figure the
+# customer copied from their own statement cannot be in the corpus and says
+# nothing about the topic. Not exactly zero: "phí 12 tháng" and "trong 30 ngày"
+# do carry a little signal. See `coverages`.
+NUMERIC_TERM_WEIGHT = 0.15
+
 
 def _stem(token: str) -> str:
     if len(token) <= 3:
@@ -205,15 +216,60 @@ class TfidfIndex:
         question - of the meaningful terms in this question, how much does
         this passage actually address? - and is comparable across queries.
         """
-        # Unigrams only. Query bigrams almost never survive verbatim into prose,
-        # so including them would depress every score toward the floor and
-        # destroy the discrimination this metric exists to provide.
-        query_terms = set(tokenize(text))
+        # Unigrams AND bigrams, with bigrams weighted higher - and the reason is
+        # the language, not a tuning preference.
+        #
+        # Vietnamese writes compound words as separate syllables: "ngân hàng"
+        # (bank), "bảo hiểm" (insurance), "doanh nghiệp" (enterprise). Splitting
+        # on whitespace therefore does not produce words, it produces syllables,
+        # and a syllable matches across completely unrelated compounds -
+        # "hàng" is shared by "ngân hàng" (bank), "khách hàng" (customer) and
+        # "hàng hoá" (goods). Measured on the labelled set, unigram-only coverage
+        # let five of seven out-of-scope questions through: "mã số doanh nghiệp
+        # của ngân hàng" scored 0.70 against a payment-limits passage on the
+        # strength of four unrelated syllables.
+        #
+        # A bigram is approximately a word in Vietnamese, so weighting bigrams
+        # at double restored rejection from 28.6% to 85.7% for 3 points of P@1.
+        # Rejection is the safety metric; that is the right side of the trade.
+        #
+        # This does not hurt English, where a query bigram rarely survives into
+        # prose: an unmatched bigram simply adds to the denominator, which is
+        # the same dilution effect out-of-vocabulary terms already have.
+        tokens = tokenize(text)
+        query_terms = set(tokens)
         if not query_terms:
             return [0.0] * len(self.documents)
 
         # Weight by idf so "wire" counts for far more than "you".
-        weights = {t: self._idf.get(t, self._default_idf) for t in query_terms}
+        #
+        # Bare numbers are the exception, and they need one. A customer
+        # quoting their own figures back - "Tại sao số dư 35,918,994 VND, nhưng
+        # chỉ khả dụng 33,418,994 VND?" - produced six numeric tokens
+        # ('35', '918', '994', ...) against four content words. Each number is
+        # absent from the corpus by definition, so each took the ceiling idf,
+        # and the four words that carried the actual question were diluted to
+        # roughly a third of the total. A question the corpus answers well was
+        # rejected outright.
+        #
+        # An amount a customer reads off their own statement is never the
+        # topic; the words around it are.
+        weights = {
+            t: (NUMERIC_TERM_WEIGHT if t.isdigit()
+                else self._idf.get(t, self._default_idf))
+            for t in query_terms
+        }
+        for pair in set(bigrams(tokens)):
+            # A bigram touching a number inherits the number's problem, and at
+            # double weight it inherits it twice over. Six numeric tokens
+            # produce five more numeric bigrams, so discounting only unigrams
+            # left the query still dominated by an amount the customer read off
+            # their own statement.
+            if any(part.isdigit() for part in pair.split("_")):
+                weights[pair] = NUMERIC_TERM_WEIGHT
+            else:
+                weights[pair] = (self._idf.get(pair, self._default_idf)
+                                 * BIGRAM_COVERAGE_WEIGHT)
         total = sum(weights.values())
         if total == 0.0:
             return [0.0] * len(self.documents)

@@ -99,10 +99,57 @@ def _paragraphs(body: str) -> list[str]:
     return [p for p in parts if p]
 
 
+def _is_table(paragraph: str) -> bool:
+    """A markdown table: most lines start with a pipe."""
+    lines = [line for line in paragraph.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return False
+    piped = sum(1 for line in lines if line.lstrip().startswith("|"))
+    return piped >= max(2, len(lines) - 1)
+
+
+def _split_table(table: str) -> list[str]:
+    """Split an oversized table on row boundaries, repeating the header.
+
+    Sentence splitting mangles tables. A table has no sentence-ending
+    punctuation between rows, so `re.split` on `[.!?]` cut wherever a full stop
+    happened to fall inside a cell - one passage in this corpus began
+
+        hệ thống, viễn thông hoặc sự kiện tương tự |
+
+    which is the tail of a row, with no header above it and no way for a reader
+    to know what column they are looking at. The assistant then served that as
+    the opening line of an answer.
+
+    Repeating the header on each piece costs a few characters and is what makes
+    the second piece readable at all.
+    """
+    lines = [line for line in table.splitlines() if line.strip()]
+    header = lines[:2] if len(lines) > 2 and set(lines[1].strip()) <= set("|-: ") \
+        else lines[:1]
+    body = lines[len(header):]
+
+    pieces: list[str] = []
+    current = list(header)
+    size = sum(len(line) for line in header)
+    for row in body:
+        if size + len(row) > TARGET_CHARS and len(current) > len(header):
+            pieces.append("\n".join(current))
+            current = list(header)
+            size = sum(len(line) for line in header)
+        current.append(row)
+        size += len(row)
+    if len(current) > len(header):
+        pieces.append("\n".join(current))
+    return pieces or [table]
+
+
 def _split_oversized(paragraph: str) -> list[str]:
     """Break a single paragraph that exceeds MAX_CHARS on sentence boundaries."""
     if len(paragraph) <= MAX_CHARS:
         return [paragraph]
+    if _is_table(paragraph):
+        return _split_table(paragraph)
 
     sentences = re.split(r"(?<=[.!?])\s+", paragraph)
     pieces: list[str] = []
@@ -141,10 +188,25 @@ def _pack(paragraphs: list[str]) -> list[str]:
             chunks.append(current)
             # Carry the tail of the finished chunk into the next one so a fact
             # split across the boundary is still retrievable from one chunk.
+            # Start the overlap at a LINE boundary, not a word boundary.
+            #
+            # Cutting at the first space landed inside a table row, so a chunk
+            # could open with "hệ thống, viễn thông hoặc sự kiện tương tự |" -
+            # the tail of a row, no header, no way to tell what column it is.
+            # That fragment then became the first line of a customer-facing
+            # answer. Half a word helps nobody; half a table row is worse,
+            # because it looks like content rather than like damage.
             tail = current[-OVERLAP_CHARS:]
-            # Start the overlap at a word boundary; a half word helps nobody.
-            space = tail.find(" ")
-            current = (tail[space + 1:] + "\n\n" + unit) if space != -1 else unit
+            newline = tail.find("\n")
+            if newline != -1:
+                tail = tail[newline + 1:]
+            else:
+                space = tail.find(" ")
+                tail = tail[space + 1:] if space != -1 else ""
+            # An overlap that is itself a partial table is not worth carrying.
+            if tail.lstrip().startswith("|") and not tail.rstrip().endswith("|"):
+                tail = ""
+            current = (tail + "\n\n" + unit).strip() if tail.strip() else unit
         else:
             current = f"{current}\n\n{unit}".strip()
     if current:

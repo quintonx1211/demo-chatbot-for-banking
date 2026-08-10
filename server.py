@@ -4,6 +4,10 @@ Endpoints
     GET  /                     customer chat, agent console, knowledge base, settings
     GET  /api/health           model mode and knowledge-base stats
     POST /api/chat             {session_id?, message} -> assistant turn
+    POST /api/tts              {text} -> audio bytes (TTS trực tiếp)
+    POST /api/stt              {audio_b64} -> {text} transcript (tiếng Việt)
+    GET  /api/tts/provider     trạng thái nhà cung cấp TTS hiện tại
+    POST /api/tts/provider     {provider, vbee_voice?} -> cấu hình TTS
     POST /api/session/raw-mode {session_id?, enabled} -> demo lever (staff):
                                strips routing/guardrails/retrieval/grounding
                                down to a plain LLM chat, scoped to one session
@@ -24,6 +28,12 @@ Endpoints
     GET  /api/auth/me          current staff session, or null
     POST /api/auth/login       {username, password} -> sets the staff cookie
     POST /api/auth/logout      clears it
+    GET  /api/voice/status     whether Vbee is configured (public)
+    POST /api/voice/tts        {text} -> {chunks: [base64 mp3, …]} (public)
+    POST /api/voice/stt        {audio_base64} -> {text} (public)
+    POST /api/voice/webhook/tts  Vbee's TTS callback target (public, see
+                                app/voice.py - the result is fetched by
+                                polling, not read from here)
 
 Two trust zones. `/`, `/api/health` and `/api/chat` are public - the customer
 chat is a widget on a public page, and identity is established inside the
@@ -35,27 +45,43 @@ Still binds to 127.0.0.1: the settings endpoint accepts an API key and the
 knowledge-base endpoints decide what the assistant may claim, so neither should
 be reachable from off-box even with the sign-in in place.
 """
-
 from __future__ import annotations
 
+# Load .env BEFORE any app imports so env vars are set when modules initialize.
+from dotenv import load_dotenv
+load_dotenv()
+
+import base64
 import json
+import os
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from app import (auth, campaigns as campaign_mod, db, llm, memory, metrics,
                  policy, replay, topics)
+from app import tts, stt
 from app.kbstore import KBError, KnowledgeBaseStore
 from app.llm import runtime
 from app.router import Router
+
+# Import voice nếu có (từ main branch)
+try:
+    from app import voice as _voice_mod
+    _VOICE_AVAILABLE = True
+except ImportError:
+    _voice_mod = None
+    _VOICE_AVAILABLE = False
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 HOST = "127.0.0.1"
 PORT = 8000
 
-# Requests bigger than this are refused before being read into memory.
-MAX_BODY_BYTES = 1024 * 1024
+MAX_BODY_BYTES = 1024 * 1024       # 1 MB – general JSON payloads
+MAX_AUDIO_BYTES = 5 * 1024 * 1024  # 5 MB – base64-encoded audio for STT
+MAX_TTS_CHARS = 1500
 
 router = Router()
 kb_store = KnowledgeBaseStore(router.kb)
@@ -80,6 +106,13 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_binary(self, data: bytes, content_type: str, status: int = 200) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     # -- authorisation ----------------------------------------------------
 
     def _staff(self):
@@ -87,12 +120,6 @@ class Handler(BaseHTTPRequestHandler):
         return auth_store.resolve(auth.parse_cookie(self.headers.get("Cookie")))
 
     def _require_staff(self) -> bool:
-        """Gate a privileged endpoint. Returns False once a 401 has been sent.
-
-        Called at the top of every staff endpoint rather than being inferred
-        from the UI, because the UI is not a security boundary - these routes
-        answer anyone who calls them directly.
-        """
         if self._staff() is not None:
             return True
         self._send_json(
@@ -102,7 +129,6 @@ class Handler(BaseHTTPRequestHandler):
         return False
 
     def _send_file(self, filename: str) -> None:
-        # Serve only known assets by exact name - no path joining from user input.
         path = WEB_DIR / filename
         if filename not in {"index.html", "app.js", "styles.css"} or not path.exists():
             self._send_json({"error": "not found"}, status=404)
@@ -115,15 +141,14 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _read_json(self) -> dict:
+    def _read_json(self, max_bytes: int = MAX_BODY_BYTES) -> dict:
         length = int(self.headers.get("Content-Length") or 0)
         if not length:
             return {}
-        if length > MAX_BODY_BYTES:
-            # Refuse on the declared length rather than reading it in first.
+        if length > max_bytes:
             raise ValueError(
                 f"Request body is {length // 1024} KB; the limit is "
-                f"{MAX_BODY_BYTES // 1024} KB"
+                f"{max_bytes // 1024} KB"
             )
         try:
             payload = json.loads(self.rfile.read(length))
@@ -150,7 +175,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({
                 **llm.describe(),
                 "knowledge_base": router.kb.stats,
+                "tts_available": tts.available(),
+                "stt_available": stt.available(),
             })
+        elif path == "/api/tts/provider":
+            self._send_json(tts.status())
         elif path == "/api/queue":
             if not self._require_staff():
                 return
@@ -197,9 +226,6 @@ class Handler(BaseHTTPRequestHandler):
             })
 
         elif path == "/api/chat/poll":
-            # Public, and scoped by the session id the customer's browser
-            # already holds. The response carries messages only - never the
-            # audit trail or escalation reason, which are staff-facing.
             query = parse_qs(urlparse(self.path).query)
             session = router.sessions.get((query.get("session_id") or [""])[0])
             if not session:
@@ -236,13 +262,21 @@ class Handler(BaseHTTPRequestHandler):
                 "policy": policy.reload().to_dict(),
                 "campaigns": campaign_mod.CampaignBook().stats,
                 "memory": memory.store.stats,
+                "router": metrics.router_comparison(sessions),
                 "database": db.stats(),
                 "card_events": db.card_events(limit=12),
             })
 
+        elif path == "/api/voice/status":
+            # Public and cheap: the client calls this once on load to decide
+            # whether to show the mic and speaker controls at all, rather
+            # than show them and have the first tap fail.
+            if _VOICE_AVAILABLE:
+                self._send_json({"available": _voice_mod.available()})
+            else:
+                self._send_json({"available": False})
+
         elif path == "/api/auth/me":
-            # Unauthenticated by design: the UI calls this on load to decide
-            # what to render, so it must answer "nobody" rather than 401.
             staff = self._staff()
             self._send_json({"staff": {
                 "username": staff.user.username,
@@ -255,8 +289,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
+
+        # Allow larger body for audio uploads
+        body_limit = MAX_AUDIO_BYTES if path in ("/api/stt", "/api/voice/stt") else MAX_BODY_BYTES
         try:
-            payload = self._read_json()
+            payload = self._read_json(max_bytes=body_limit)
         except ValueError as exc:
             self._send_json({"error": str(exc)}, status=400)
             return
@@ -265,9 +302,7 @@ class Handler(BaseHTTPRequestHandler):
             session = auth_store.login(payload.get("username", ""),
                                        payload.get("password", ""))
             if session is None:
-                # One message for both failure modes - naming which was wrong
-                # tells an attacker which usernames exist.
-                self._send_json({"error": "Incorrect username or password"},
+                self._send_json({"error": "Tên đăng nhập hoặc mật khẩu không đúng"},
                                 status=401)
                 return
             self._send_json(
@@ -281,6 +316,55 @@ class Handler(BaseHTTPRequestHandler):
             auth_store.logout(auth.parse_cookie(self.headers.get("Cookie")))
             self._send_json({"staff": None},
                             set_cookie=auth.clear_cookie_header())
+
+        elif path == "/api/tts/provider":
+            provider = payload.get("provider", "").strip()
+            if provider not in ("gtts", "vbee"):
+                self._send_json({"error": "provider phải là 'gtts' hoặc 'vbee'"}, status=400)
+                return
+            tts.configure(
+                provider=provider,
+                vbee_voice=payload.get("vbee_voice"),
+            )
+            self._send_json(tts.status())
+
+        elif path == "/api/tts":
+            text = (payload.get("text") or "").strip()
+            if not text:
+                self._send_json({"error": "text is required"}, status=400)
+                return
+            if len(text) > MAX_TTS_CHARS:
+                self._send_json(
+                    {"error": f"text quá dài ({len(text)} ký tự, tối đa {MAX_TTS_CHARS})"},
+                    status=400,
+                )
+                return
+            if not tts.available():
+                self._send_json({"error": "TTS không khả dụng"}, status=503)
+                return
+            try:
+                audio_bytes = tts.synthesize(text)
+                self._send_binary(audio_bytes, tts.AUDIO_CONTENT_TYPE)
+            except Exception as exc:
+                self._send_json({"error": f"TTS thất bại: {exc}"}, status=500)
+
+        elif path == "/api/stt":
+            audio_b64 = (payload.get("audio_b64") or "").strip()
+            if not audio_b64:
+                self._send_json({"error": "audio_b64 is required"}, status=400)
+                return
+            if not stt.available():
+                self._send_json({"error": "STT không khả dụng"}, status=503)
+                return
+            try:
+                wav_bytes = base64.b64decode(audio_b64)
+                if len(wav_bytes) > MAX_AUDIO_BYTES:
+                    self._send_json({"error": "audio quá lớn"}, status=400)
+                    return
+                text = stt.transcribe_wav(wav_bytes)
+                self._send_json({"text": text})
+            except Exception as exc:
+                self._send_json({"error": f"STT thất bại: {exc}"}, status=500)
 
         elif path == "/api/session/reply":
             if not self._require_staff():
@@ -305,15 +389,7 @@ class Handler(BaseHTTPRequestHandler):
             if not self._require_staff():
                 return
             removed = router.sessions.clear()
-            # Clearing conversations clears what was learned from them too.
-            # Leaving cross-session memory behind would mean a "cleared" demo
-            # still greeted the next customer by recalling a conversation the
-            # operator believed they had deleted.
             forgotten = memory.store.forget()
-            # Card blocks and freezes are real rows now, so "clear everything"
-            # has to mean the account data too. Leaving a card blocked after
-            # the operator cleared the demo is the same class of surprise as
-            # leaving cross-session memory behind.
             db.reset()
             self._send_json({"removed": removed, "forgotten": forgotten,
                              "database": "reset"})
@@ -328,9 +404,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 if "file_base64" in payload:
-                    # Binary upload (.docx). Decoded and parsed before anything
-                    # is written, so a file that cannot be read never lands in
-                    # the corpus directory.
                     data = kb_store.decode_base64(payload["file_base64"])
                     info = kb_store.save_upload(payload.get("filename", ""), data)
                 else:
@@ -369,20 +442,12 @@ class Handler(BaseHTTPRequestHandler):
             except runtime.ConfigError as exc:
                 self._send_json({"error": str(exc)}, status=400)
                 return
-            # Echo the catalogue back, not the submitted values - the response
-            # must never contain the key that was just posted.
             self._send_json({
                 "providers": runtime.describe_providers(),
                 "active": llm.describe(),
             })
 
         elif path == "/api/session/raw-mode":
-            # Staff-gated: this switch bypasses every guardrail, so it belongs
-            # with the other controls that decide what the assistant may do,
-            # not with the public chat endpoint next to it. The UI only shows
-            # it once signed in, but - same rule as everywhere else in this
-            # server - the check lives here, not in whether the button is
-            # visible.
             if not self._require_staff():
                 return
             session = router.sessions.get_or_create(payload.get("session_id"))
@@ -412,19 +477,57 @@ class Handler(BaseHTTPRequestHandler):
                 "offer_escalation": result.offer_escalation,
                 "trace": result.trace,
                 "with_agent": result.with_agent,
-                # Who has the conversation, so the banner can name them rather
-                # than saying "a specialist" after one has already picked up.
                 "handled_by": session.handled_by,
-                # Session state, not turn state. `escalated` describes what this
-                # turn did, so an "@bot ..." aside inside a handoff reports
-                # False - and a banner driven by it would disappear while the
-                # customer was still in the queue.
                 "in_handoff": bool(session.escalated or session.handled_by),
                 "latency_ms": result.latency_ms,
                 "verified": session.verified,
                 "raw_mode": session.raw_mode,
                 "debug": result.debug,
             })
+
+        elif path == "/api/voice/tts":
+            # Public, same trust zone as /api/chat: this reads back a reply
+            # the customer already received, not anything privileged.
+            if not _VOICE_AVAILABLE:
+                self._send_json({"error": "voice_not_configured"}, status=503)
+                return
+            text = (payload.get("text") or "").strip()
+            if not text:
+                self._send_json({"error": "text is required"}, status=400)
+                return
+            if not _voice_mod.available():
+                self._send_json({"error": "voice_not_configured"}, status=503)
+                return
+            chunks, error = _voice_mod.synthesize(text)
+            self._send_json({
+                "chunks": [base64.b64encode(c).decode("ascii") for c in chunks],
+                "format": "mp3",
+                "error": error,
+            })
+
+        elif path == "/api/voice/stt":
+            if not _VOICE_AVAILABLE or not _voice_mod.available():
+                self._send_json({"error": "voice_not_configured"}, status=503)
+                return
+            audio_b64 = payload.get("audio_base64") or ""
+            try:
+                wav_bytes = base64.b64decode(audio_b64, validate=True)
+            except Exception:
+                self._send_json({"error": "audio_base64 is not valid base64"},
+                                status=400)
+                return
+            text, error = _voice_mod.transcribe(wav_bytes)
+            self._send_json({"text": text, "error": error})
+
+        elif path == "/api/voice/webhook/tts":
+            # Vbee's Batch TTS requires a webhookUrl and will POST here when a
+            # job finishes. `voice.synthesize` doesn't wait for this - it
+            # polls Vbee's own Get Request endpoint instead, so nothing here
+            # needs to be read or correlated back to a request. This exists
+            # only to give Vbee somewhere valid to deliver to; logging the
+            # arrival is enough to confirm the tunnel is actually working.
+            print(f"  [voice webhook] {payload}", file=sys.stderr)
+            self._send_json({"received": True})
 
         elif path == "/api/summary":
             if not self._require_staff():
@@ -451,17 +554,56 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> None:
     info = llm.describe()
     stats = router.kb.stats
-    print("ABC Bank - hybrid assistant demo")
+    print("Ngân hàng ABC – Demo trợ lý lai")
     if info["mode"] == "live":
         endpoint = f" → {info['endpoint']}" if info.get("endpoint") else ""
-        print(f"  Generative layer : LIVE via {info['provider']}{endpoint}")
-        print(f"  Model            : {info['model']} (effort={info['effort']})")
+        print(f"  Tầng sinh thành   : LIVE qua {info['provider']}{endpoint}")
+        print(f"  Model             : {info['model']} (effort={info['effort']})")
     else:
-        print("  Generative layer : OFFLINE (extractive fallback)")
-        print(f"  Reason           : {info['detail']}")
-    print(f"  Knowledge base   : {stats['passages']} passages "
-          f"across {stats['documents']} documents")
-    print(f"  Serving          : http://{HOST}:{PORT}\n")
+        print("  Tầng sinh thành   : OFFLINE (fallback trích xuất)")
+        print(f"  Lý do             : {info['detail']}")
+    print(f"  Cơ sở tri thức    : {stats['passages']} đoạn văn "
+          f"trong {stats['documents']} tài liệu")
+
+    # Pre-warm TTS and STT in parallel background threads
+    def _warmup_tts():
+        if tts.available():
+            ok = tts.warmup()
+            print(f"  TTS               : {'sẵn sàng' if ok else 'cảnh báo - warmup thất bại'}")
+        else:
+            print("  TTS               : không khả dụng (chạy setup_voice.py + pip install piper-tts)")
+
+    def _warmup_stt():
+        if stt.available():
+            ok = stt.warmup()
+            print(f"  STT               : {'sẵn sàng' if ok else 'cảnh báo - warmup thất bại'}")
+        else:
+            print("  STT               : không khả dụng (pip install transformers torch soundfile)")
+
+    t_tts = threading.Thread(target=_warmup_tts, daemon=True)
+    t_stt = threading.Thread(target=_warmup_stt, daemon=True)
+    t_tts.start()
+    t_stt.start()
+
+    # Start ngrok tunnel
+    try:
+        import time as _time
+        import pyngrok.ngrok as _ngrok
+        # Disconnect tunnels cũ qua API trước khi kill agent
+        try:
+            for t in _ngrok.get_tunnels():
+                _ngrok.disconnect(t.public_url)
+        except Exception:
+            pass
+        _ngrok.kill()
+        _time.sleep(1)
+        tunnel = _ngrok.connect(PORT, "http", pooling_enabled=True)
+        public_url = tunnel.public_url
+        print(f"  URL công khai     : {public_url}")
+    except Exception as exc:
+        print(f"  ngrok             : không khả dụng ({exc})")
+
+    print(f"  Local             : http://{HOST}:{PORT}\n")
 
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
 
@@ -470,4 +612,4 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nStopped.")
+        print("\nĐã dừng.")

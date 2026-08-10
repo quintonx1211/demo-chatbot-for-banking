@@ -196,8 +196,9 @@ def raw_chat(message: str, history: str = "") -> LLMResult:
         # Reused whether there is no provider at all or a configured one just
         # failed (rate limit, timeout, ...) - the two aren't distinguished
         # here, only in `error`, which the routing inspector shows separately.
-        fallback="(No answer came back - see the Note in the routing "
-                 "inspector for why, or check Settings for a provider.)",
+        fallback="(Không nhận được câu trả lời - xem mục Ghi chú trong bảng "
+                 "định tuyến để biết lý do, hoặc kiểm tra nhà cung cấp model "
+                 "trong Cấu hình.)",
     )
 
 
@@ -206,6 +207,37 @@ def summarize_for_agent(transcript: str, context_lines: list[str]) -> LLMResult:
         build_summary_request(transcript, context_lines),
         fallback=extractive_summary(transcript, context_lines),
     )
+
+
+_translation_cache: dict[str, str] = {}
+
+def translate_for_retrieval(text: str) -> str:
+    """Dịch query tiếng Việt sang tiếng Anh để search KB tiếng Anh.
+
+    Trả về nguyên bản nếu không có LLM hoặc bị lỗi.
+    Cache kết quả để tránh gọi LLM lặp lại cho cùng một query.
+    """
+    if text in _translation_cache:
+        return _translation_cache[text]
+
+    provider = active_provider()
+    if provider is None:
+        return text
+
+    req = LLMRequest(
+        system="You are a translation assistant. Translate the banking query to concise English search keywords. Return only the English query, nothing else.",
+        user=text,
+        max_tokens=80,
+        temperature=0.0,
+    )
+    try:
+        result = provider.complete(req, "low")
+        translated = result.text.strip() if result.text.strip() else text
+    except Exception:
+        translated = text
+
+    _translation_cache[text] = translated
+    return translated
 
 
 __all__ = [

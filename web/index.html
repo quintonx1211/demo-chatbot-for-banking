@@ -1,95 +1,133 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ABC Bank - Virtual Assistant</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap"
-        rel="stylesheet" />
+  <title>ABC Bank - Trợ lý ảo</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-
-<!-- ============================================================
-     APP SHELL - left nav (chrome) + the active screen.
-     ============================================================ -->
-<div class="app-shell">
-
-  <div class="nav-scrim" id="nav-scrim" hidden></div>
-
-  <aside class="sidenav" id="sidenav">
+  <header class="topbar">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-text">
-        <strong>ABC Bank</strong>
-        <span class="sub" id="brand-sub">Virtual assistant</span>
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="24" height="24">
+          <path d="M16 3 3 9v8c0 7 5.6 10.9 13 12 7.4-1.1 13-5 13-12V9L16 3z"
+                fill="none" stroke="currentColor" stroke-width="2.4"
+                stroke-linejoin="round"/>
+          <path d="M11 16.2l3.4 3.4L21.5 12" fill="none" stroke="currentColor"
+                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </span>
-    </div>
-
-    <nav class="nav-list" aria-label="Main">
-      <button type="button" class="nav-item active" id="nav-assistant">Assistant</button>
-      <!-- The design's remaining sections have nothing behind them in this
-           demo. They stay as inert chrome rather than buttons that lie. -->
-      <span class="nav-item muted" aria-disabled="true">Accounts</span>
-      <span class="nav-item muted" aria-disabled="true">Payments</span>
-      <span class="nav-item muted" aria-disabled="true">Cards</span>
-      <span class="nav-item muted" aria-disabled="true">Support</span>
-    </nav>
-
-    <div class="nav-section">
-      <span class="nav-eyebrow">Session</span>
-      <div class="nav-meta">
-        <span id="mode-pill" class="pill">checking…</span>
-        <span id="staff-pill" class="pill hidden"></span>
+      <div class="brand-text">
+        <strong>ABC Bank</strong>
+        <span class="sub" id="brand-sub">Trợ lý ảo</span>
       </div>
     </div>
 
-    <div class="nav-foot">
-      <button id="view-customer-btn" class="ghost small hidden" type="button">Customer chat</button>
-      <button id="view-console-btn" class="ghost small hidden" type="button">Console</button>
-      <button id="login-btn" class="ghost small" type="button">Sign-in</button>
-      <button id="logout" class="ghost small hidden" type="button">Sign out</button>
+    <div class="modes">
+      <span id="mode-pill" class="pill">đang kiểm tra…</span>
+      <span id="staff-pill" class="pill hidden"></span>
+      <button id="view-customer-btn" class="ghost small hidden" type="button">Màn hình khách</button>
+      <button id="view-console-btn" class="ghost small hidden" type="button">Bảng điều khiển</button>
+      <button id="login-btn" class="ghost small">Đăng nhập</button>
+      <button id="logout" class="ghost small hidden" type="button">Đăng xuất</button>
     </div>
-  </aside>
-
-  <div class="app-main">
+  </header>
 
   <!-- ============================================================
-       CUSTOMER - the default. No sign-in, no tabs, just the chat.
+       KHÁCH HÀNG - mặc định. Không cần đăng nhập, chỉ có khung chat.
        ============================================================ -->
-  <main id="screen-customer" class="screen screen-chat">
-    <section class="chat-panel">
+  <main id="screen-customer" class="screen">
 
-      <header class="chat-header">
-        <!-- Mock only: the surrounding banking app owns where "back" goes, so
-             here it is a real, focusable control that deliberately navigates
-             nowhere. Replace the handler when this is embedded. -->
-        <button type="button" class="icon-btn back-btn" id="back-btn" aria-label="Back">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M15 5l-7 7 7 7"/></svg>
-        </button>
-        <div class="chat-id">
-          <span class="chat-name">Virtual ABCssistant</span>
-          <span class="chat-status ok" id="chat-status">
-            <i class="dot" aria-hidden="true"></i><span id="chat-status-text">Active</span>
-          </span>
+    <!-- Thanh bên trái. Mọi thứ trong đó ngoài nút "Cuộc trò chuyện mới" đều mang tính
+         trang trí: demo trợ lý ngân hàng được đánh giá một phần qua việc giao diện
+         có giống phần mềm ngân hàng thực không. Đánh dấu `data-demo` để không ai
+         nhầm là chức năng đã kết nối. -->
+    <aside class="rail">
+      <div class="rail-brand">
+        <span class="rail-logo">AB</span>
+        <div>
+          <strong>ABC Bank</strong>
+          <span>Trợ lý số</span>
         </div>
-        <button type="button" class="link-btn" id="talk-to-person">Talk to a person</button>
-        <button type="button" class="icon-btn rail-toggle" id="rail-toggle"
-                aria-label="Routing inspector">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="1.8" stroke-linecap="round"><path d="M12 16v-5M12 8h.01"/>
-            <circle cx="12" cy="12" r="9"/></svg>
+      </div>
+
+      <button class="rail-new" id="new-chat">
+        <span class="ic">+</span> Cuộc trò chuyện mới
+      </button>
+
+      <div class="rail-section">Gần đây</div>
+      <nav class="rail-list">
+        <button class="rail-item active" data-demo>
+          <span class="ic">💬</span>
+          <span class="rail-item-text">
+            <b>Cuộc trò chuyện hiện tại</b><em>Vừa xong</em>
+          </span>
         </button>
+        <button class="rail-item" data-demo>
+          <span class="ic">💳</span>
+          <span class="rail-item-text">
+            <b>Khoá thẻ tạm thời</b><em>Hôm qua</em>
+          </span>
+        </button>
+        <button class="rail-item" data-demo>
+          <span class="ic">📄</span>
+          <span class="rail-item-text">
+            <b>Phí chuyển tiền quốc tế</b><em>3 ngày trước</em>
+          </span>
+        </button>
+        <button class="rail-item" data-demo>
+          <span class="ic">🏦</span>
+          <span class="rail-item-text">
+            <b>Hồ sơ vay mua xe</b><em>Tuần trước</em>
+          </span>
+        </button>
+      </nav>
+
+      <div class="rail-section">Lối tắt</div>
+      <nav class="rail-list compact">
+        <button class="rail-item" data-demo><span class="ic">📊</span>
+          <span class="rail-item-text"><b>Sao kê</b></span></button>
+        <button class="rail-item" data-demo><span class="ic">🎁</span>
+          <span class="rail-item-text"><b>Ưu đãi của tôi</b></span></button>
+        <button class="rail-item" data-demo><span class="ic">🛡️</span>
+          <span class="rail-item-text"><b>Trung tâm an toàn</b></span></button>
+      </nav>
+
+      <div class="rail-foot">
+        <span class="avatar sm">K</span>
+        <div class="rail-item-text">
+          <b id="rail-user">Khách</b><em id="rail-user-sub">Chưa xác thực</em>
+        </div>
+      </div>
+    </aside>
+
+    <section class="chat-panel">
+      <header class="chat-head">
+        <span class="avatar bot">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M12 2.6 4 6.2v5.1c0 4.6 3.4 7.2 8 8 4.6-.8 8-3.4 8-8V6.2z"
+                  fill="none" stroke="currentColor" stroke-width="1.9"
+                  stroke-linejoin="round"/>
+            <path d="M8.6 12.1 11 14.5l4.4-4.6" fill="none" stroke="currentColor"
+                  stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <div class="chat-head-text">
+          <strong>Trợ lý ABC Bank</strong>
+          <span class="presence"><i></i> Trực tuyến · Hỗ trợ 24/7</span>
+        </div>
+        <div class="chat-head-actions">
+          <button class="icon-btn" title="Tìm trong hội thoại" data-demo>🔍</button>
+          <button class="icon-btn" title="Gọi tổng đài" data-demo>📞</button>
+          <button class="icon-btn" id="clear-chat" title="Xoá hội thoại">🗑️</button>
+        </div>
       </header>
 
       <div class="arch-toggle hidden" id="arch-toggle-box">
         <div class="arch-toggle-text">
-          <strong id="arch-toggle-title">Full architecture</strong>
-          <span class="hint" id="arch-toggle-hint">Routing, guardrails, retrieval and the grounding check are all active.</span>
+          <strong id="arch-toggle-title">Kiến trúc đầy đủ</strong>
+          <span class="hint" id="arch-toggle-hint">Định tuyến, guardrail, truy xuất và kiểm tra dẫn nguồn đều đang bật.</span>
         </div>
         <label class="switch">
           <input type="checkbox" id="raw-toggle" />
@@ -97,205 +135,226 @@
         </label>
       </div>
 
-      <div id="messages" class="messages" role="log" aria-live="polite" aria-label="Conversation"></div>
+      <div id="messages" class="messages"></div>
 
       <div id="raw-banner" class="raw-banner hidden">
         <div>
-          <strong>Raw LLM mode - demo only</strong>
-          <p>Everything below this line is bypassed: routing, guardrails, retrieval,
-            PII redaction, the grounding check. This is the model answering from the
-            conversation history alone - the baseline the rest of the assistant is
-            built to improve on.</p>
+          <strong>Chế độ LLM thuần - chỉ dùng để demo</strong>
+          <p>Mọi lớp bên dưới bị bỏ qua: định tuyến, guardrail, truy xuất,
+            che dữ liệu cá nhân, kiểm tra dẫn nguồn. Đây là model trả lời chỉ
+            dựa trên lịch sử hội thoại - chính là mốc so sánh mà phần còn lại
+            của kiến trúc sinh ra để vượt qua.</p>
         </div>
       </div>
       <div id="handoff-banner" class="handoff-banner hidden"></div>
       <div id="chat-actions" class="chat-actions hidden"></div>
 
-      <div class="suggestions" id="suggestions" role="group" aria-label="Suggested questions">
-        <button type="button">What are your fees for international transfers?</button>
-        <button type="button">I lost my debit card</button>
-        <button type="button">Check my balance</button>
-        <button type="button">How long do I have to dispute a transaction?</button>
-        <button type="button">Should I invest my savings in tech stocks?</button>
-        <button type="button">Do you offer crop insurance for vineyards?</button>
+      <div class="tts-bar" id="tts-bar">
+        <span class="tts-bar-label">Giọng:</span>
+        <select id="tts-bar-provider" title="Nhà cung cấp TTS">
+          <option value="vbee">Vbee</option>
+          <option value="gtts">gTTS</option>
+        </select>
+        <select id="tts-bar-voice" title="Chọn giọng Vbee">
+          <option value="hn_female_ngochuyen_full_48k-fhg">Ngọc Huyền – nữ HN</option>
+          <option value="hn_female_hermer_stor_48k-fhg">Ngọc Lan – nữ HN</option>
+          <option value="hn_female_lenka_stor_48k-phg">Nguyệt Dương – nữ HN</option>
+          <option value="hn_male_minhquan_yt-stable">Minh Quân – nam HN</option>
+          <option value="hn_male_manhdung_news_48k-fhg">Mạnh Dũng – nam HN</option>
+          <option value="sg_female_tuongvy_call_44k-fhg">Tường Vy – nữ SG</option>
+          <option value="sg_female_thaotrinh_full_44k-phg">Thảo Trinh – nữ SG</option>
+          <option value="sg_male_chidat_ebook_48k-phg">Chí Đạt – nam SG</option>
+        </select>
       </div>
 
       <form id="composer" class="composer" autocomplete="off">
-        <input id="input" type="text" placeholder="Ask about your money…" />
-        <button type="submit" id="send" class="send-btn" aria-label="Send">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 12h13M12 5l7 7-7 7"/></svg>
+        <button type="button" class="icon-btn ghost-ic" title="Đính kèm" data-demo>📎</button>
+        <input id="input" type="text"
+               placeholder="Nhập câu hỏi, hoặc dùng @agent / @bot để gọi trực tiếp…" />
+        <button type="button" class="icon-btn ghost-ic" title="Biểu tượng cảm xúc" data-demo>😊</button>
+        <button type="button" id="mic-btn" class="icon-btn ghost-ic hidden" title="Nhập bằng giọng nói">🎙️</button>
+        <button type="submit" id="send" class="send-btn" title="Gửi">
+          <!-- Filled and symmetric about the horizontal axis, so its bounding
+               box centre and its visual centre coincide. The previous outline
+               wedge spanned y 4-20.4 in a 24 box and carried its mass toward
+               the lower left, which reads as misaligned however the box is
+               centred. -->
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M2.5 21 22 12 2.5 3v7l13 2-13 2z" fill="currentColor"/>
+          </svg>
         </button>
       </form>
+      <p class="composer-note">
+        Trợ lý chỉ trả lời dựa trên tài liệu đã được ngân hàng thẩm định.
+        Không bao giờ cung cấp mã OTP, mã PIN hay số thẻ đầy đủ cho bất kỳ ai.
+      </p>
     </section>
 
-    <aside class="context-rail" id="context-rail">
-      <div class="rail-block">
-        <span class="rail-eyebrow">In this conversation</span>
-        <p class="hint">How the last turn was decided - the audit view a compliance
-          reviewer would see.</p>
-        <div id="inspector">
-          <p class="empty">Send a message to see the routing decision.</p>
-        </div>
+    <aside class="panel inspector">
+      <h2>Nguồn câu trả lời</h2>
+      <p class="hint">Câu trả lời vừa rồi dựa trên đâu. Kỹ thuật chi tiết -
+        định tuyến, độ tin cậy, đường ra quyết định - đã chuyển sang màn hình
+        nhân viên, nơi người đọc chúng thực sự làm việc.</p>
+      <div id="inspector">
+        <p class="empty">Gửi một câu hỏi để xem nguồn.</p>
       </div>
-      <div class="rail-block">
-        <span class="rail-eyebrow">Decision path</span>
-        <p class="hint">Every gate this turn passed through, and the rule applied
-          at each one.</p>
-        <div id="trace"><p class="empty">-</p></div>
-      </div>
-      <p class="rail-note">The assistant can read your accounts but never your full
-        card number. Anything that moves money or changes a card asks you to
-        confirm first.</p>
     </aside>
   </main>
 
   <!-- ============================================================
-       STAFF SIGN-IN
+       ĐĂNG NHẬP NHÂN VIÊN
        ============================================================ -->
-  <main id="screen-login" class="screen screen-doc hidden">
+  <main id="screen-login" class="screen hidden">
     <section class="panel">
-      <h2>Sign-in</h2>
-      <p class="hint">The customer chat needs no sign-in. This screen is for
-        contact-centre staff.</p>
+      <h2>Đăng nhập</h2>
+      <p class="hint">Màn hình khách không cần đăng nhập. Trang này dành cho nhân viên
+        trung tâm dịch vụ khách hàng.</p>
       <form id="login-form">
         <label class="field">
-          <span>Username</span>
+          <span>Tên đăng nhập</span>
           <input id="login-user" type="text" autocomplete="username" value="agent" />
         </label>
         <label class="field">
-          <span>Password</span>
+          <span>Mật khẩu</span>
           <input id="login-pass" type="password" autocomplete="current-password" />
         </label>
         <div id="login-error" class="error hidden"></div>
         <div class="row-gap">
-          <button class="primary" type="submit">Sign in</button>
-          <button id="login-cancel" class="ghost" type="button">Back to chat</button>
+          <button class="primary" type="submit">Đăng nhập</button>
+          <button id="login-cancel" class="ghost" type="button">Quay lại khung chat</button>
         </div>
       </form>
       <p class="hint" style="margin-top:14px">
-        Demo account: <code>agent</code> / <code>demo1234</code>.
+        Tài khoản demo: <code>agent</code> / <code>demo1234</code>.
       </p>
     </section>
     <section class="panel warn">
-      <h3>How this is enforced</h3>
-      <p>Every staff endpoint checks the session server-side before doing any
-        work. Hiding a screen in JavaScript is not a control - the routes answer
-        anyone who calls them directly, so the check lives in the handler.</p>
-      <p>Demo-grade: the account is PBKDF2-hashed in source, sessions are in
-        memory and clear on restart, and the cookie is HttpOnly + SameSite=Lax
-        but not Secure because this runs over plain HTTP on localhost. A real
-        deployment authenticates against the bank's identity provider.</p>
+      <h3>Cơ chế phân quyền</h3>
+      <p>Mọi endpoint dành cho nhân viên đều kiểm tra phiên đăng nhập ở phía máy
+        chủ trước khi xử lý. Ẩn một màn hình trong JavaScript không phải là một
+        biện pháp bảo mật - các route vẫn trả lời bất kỳ ai gọi trực tiếp, nên
+        việc kiểm tra phải nằm trong handler.</p>
+      <p>Mức độ demo: tài khoản được băm bằng PBKDF2 trong mã nguồn, phiên đăng
+        nhập lưu trong bộ nhớ và mất khi khởi động lại, cookie có HttpOnly +
+        SameSite=Lax nhưng không có Secure vì chạy trên HTTP thường ở localhost.
+        Một hệ thống thật sẽ xác thực qua nhà cung cấp định danh của ngân hàng.</p>
     </section>
   </main>
 
   <!-- ============================================================
-       AGENT - a separate screen, not a tab on the customer view.
+       NHÂN VIÊN - màn hình riêng, không phải tab trong giao diện khách.
        ============================================================ -->
-  <main id="screen-agent" class="screen screen-doc hidden">
+  <main id="screen-agent" class="screen hidden">
     <nav class="subtabs">
-      <button class="subtab active" data-panel="dashboard">Dashboard</button>
+      <button class="subtab active" data-panel="dashboard">Tổng quan</button>
       <button class="subtab" data-panel="queue">
-        Queue <span id="queue-count" class="badge zero">0</span>
+        Hàng chờ <span id="queue-count" class="badge zero">0</span>
       </button>
-      <button class="subtab" data-panel="kb">Knowledge base</button>
-      <button class="subtab" data-panel="settings">Settings</button>
+      <button class="subtab" data-panel="kb">Kho tri thức</button>
+      <button class="subtab" data-panel="settings">Cấu hình</button>
     </nav>
 
-    <!-- ---------- DASHBOARD ---------- -->
+    <!-- ---------- TỔNG QUAN ---------- -->
     <section id="panel-dashboard" class="agent-panel">
       <div class="row-between">
         <div>
-          <h2>Operations</h2>
+          <h2>Vận hành</h2>
           <p class="hint" id="dash-scope">-</p>
         </div>
         <div class="row-gap">
-          <button id="seed-btn" class="ghost small">Seed demo traffic</button>
-          <button id="clear-btn" class="danger small">Clear all sessions</button>
-          <button id="dash-refresh" class="ghost small">Refresh</button>
+          <button id="seed-btn" class="ghost small">Nạp dữ liệu demo</button>
+          <button id="clear-btn" class="danger small">Xoá toàn bộ phiên</button>
+          <button id="dash-refresh" class="ghost small">Làm mới</button>
         </div>
       </div>
       <div id="stat-grid" class="stat-grid"></div>
       <div class="panel" style="margin-top:16px">
-        <h3>Card actions <span class="tag">written to the database</span></h3>
-        <p class="hint">Every card state change, with the transition it made and
-          the conversation that asked for it. An account action the bank cannot
-          evidence afterwards may as well not have happened.</p>
+        <h3>Thao tác thẻ <span class="tag">đã ghi vào dữ liệu</span></h3>
+        <p class="hint">Mỗi lần thẻ đổi trạng thái, kèm bước chuyển và hội thoại yêu cầu.
+          Một thao tác tài khoản mà ngân hàng không chứng minh được về sau thì
+          coi như chưa từng xảy ra.</p>
         <div id="card-events"></div>
       </div>
       <div class="panel" style="margin-top:16px">
-        <h3>Unresolved topics <span id="topic-count" class="tag"></span></h3>
-        <p class="hint">Questions the assistant could not answer, grouped. This is
-          a ranked list of what to write next, not just a failure count.</p>
+        <h3>Định tuyến: lexical so với LLM <span id="router-mode" class="tag"></span></h3>
+        <p class="hint">Chế độ shadow chạy song song hai bộ phân loại, dùng kết quả
+          của bộ lexical, và ghi lại mọi chỗ hai bên khác nhau. Tỷ lệ trùng khớp
+          một mình không chứng minh bên nào đúng - hai bộ có thể cùng sai - nên
+          các ca lệch được liệt kê đầy đủ để người đọc tự phân xử.</p>
+        <div id="router-box"></div>
+      </div>
+      <div class="panel" style="margin-top:16px">
+        <h3>Chủ đề chưa giải quyết <span id="topic-count" class="tag"></span></h3>
+        <p class="hint">Các câu trợ lý chưa trả lời được, đã gom nhóm. Đây là danh sách tài
+          liệu cần viết tiếp, xếp theo mức ưu tiên - không phải bảng đếm lỗi.</p>
         <div id="topics"></div>
       </div>
       <div class="split" style="margin-top:16px">
         <div class="panel">
-          <h3>Policy <span class="tag">config.json</span></h3>
+          <h3>Chính sách <span class="tag">config.json</span></h3>
           <div id="policy-box"></div>
         </div>
         <div class="panel">
-          <h3>Campaign batch</h3>
+          <h3>Dữ liệu chiến dịch</h3>
           <div id="campaign-box"></div>
-          <h3 style="margin-top:16px">Cross-session memory</h3>
+          <h3 style="margin-top:16px">Trí nhớ xuyên phiên</h3>
           <div id="memory-box"></div>
-          <h3 style="margin-top:16px">Database</h3>
+          <h3 style="margin-top:16px">Dữ liệu</h3>
           <div id="db-box"></div>
         </div>
       </div>
       <div class="panel" style="margin-top:16px">
-        <h3>Where turns went</h3>
+        <h3>Phân bố các route</h3>
         <div id="route-bars"></div>
       </div>
       <div class="panel" style="margin-top:16px">
-        <h3>Recent conversations</h3>
-        <p class="hint">Every figure above is counted from these. Click any row
-          to open it.</p>
+        <h3>Hội thoại gần đây</h3>
+        <p class="hint">Mọi số liệu ở trên đều được tính từ đây. Bấm vào một dòng
+          để mở hội thoại đó.</p>
         <div id="activity" class="queue"></div>
       </div>
     </section>
 
-    <!-- ---------- QUEUE ---------- -->
+    <!-- ---------- HÀNG CHỜ ---------- -->
     <section id="panel-queue" class="agent-panel hidden">
       <div class="split">
         <div class="panel">
-          <h2>Escalation queue</h2>
-          <p class="hint">Conversations the assistant handed off.</p>
+          <h2>Hàng chờ chuyển tiếp</h2>
+          <p class="hint">Các hội thoại trợ lý đã chuyển cho nhân viên.</p>
           <div id="queue" class="queue"></div>
         </div>
         <div class="stack">
           <div id="handover-empty" class="empty-state">
-            <h2>No conversation selected</h2>
-            <p>Pick a conversation to see the handover brief, the transcript and
-              the audit trail - and to reply to the customer.</p>
+            <h2>Chưa chọn hội thoại nào</h2>
+            <p>Chọn một hội thoại để xem bản tóm tắt bàn giao, bản ghi đầy đủ
+              và nhật ký kiểm toán - và để trả lời khách hàng.</p>
           </div>
           <div id="handover" class="stack hidden">
             <div class="row-between">
               <h2 id="handover-title">-</h2>
-              <button id="regen" class="ghost small">Regenerate brief</button>
+              <button id="regen" class="ghost small">Tạo lại bản tóm tắt</button>
             </div>
             <div class="panel">
-              <h3>Handover brief <span id="summary-source" class="tag"></span></h3>
+              <h3>Tóm tắt bàn giao <span id="summary-source" class="tag"></span></h3>
               <div id="summary" class="summary"></div>
             </div>
             <div class="panel">
-              <h3>Reply to the customer <span id="handled-by" class="tag"></span></h3>
-              <p class="hint">The assistant stops answering as soon as you reply -
-                the customer sees one voice, not two.</p>
+              <h3>Trả lời khách hàng <span id="handled-by" class="tag"></span></h3>
+              <p class="hint">Trợ lý sẽ ngừng trả lời ngay khi bạn nhắn - khách hàng
+                chỉ nghe một tiếng nói, không phải hai.</p>
               <form id="reply-form" class="composer-inline" autocomplete="off">
                 <input id="reply-input" type="text"
-                       placeholder="Type your reply…" />
-                <button class="primary" type="submit">Send</button>
+                       placeholder="Nhập câu trả lời…" />
+                <button class="primary" type="submit">Gửi</button>
               </form>
               <div id="reply-error" class="error hidden"></div>
             </div>
             <div class="panel">
-              <h3>Full transcript</h3>
+              <h3>Toàn bộ bản ghi</h3>
               <pre id="transcript" class="transcript"></pre>
             </div>
             <div class="panel">
-              <h3>Audit trail</h3>
+              <h3>Nhật ký kiểm toán</h3>
               <div id="audit" class="audit"></div>
             </div>
           </div>
@@ -303,23 +362,23 @@
       </div>
     </section>
 
-    <!-- ---------- KNOWLEDGE BASE ---------- -->
+    <!-- ---------- KHO TRI THỨC ---------- -->
     <section id="panel-kb" class="agent-panel hidden">
       <div class="split">
         <div class="panel">
           <div class="row-between">
-            <h2>Documents</h2>
+            <h2>Tài liệu</h2>
             <div class="row-gap">
-              <button id="kb-upload-btn" class="ghost small">Upload</button>
-              <button id="kb-new" class="primary small">Write new</button>
+              <button id="kb-upload-btn" class="ghost small">Tải lên</button>
+              <button id="kb-new" class="primary small">Soạn mới</button>
             </div>
           </div>
           <p class="hint" id="kb-stats">-</p>
           <input id="kb-file" type="file" accept=".md,.txt,.docx" class="hidden" />
           <div id="kb-drop" class="dropzone">
-            Drop a <b>.md</b>, <b>.txt</b> or <b>.docx</b> here
-            <small>Word files are unzipped and their headings, lists and tables
-              extracted - the review pane shows exactly what gets indexed.</small>
+            Kéo thả tệp <b>.md</b>, <b>.txt</b> hoặc <b>.docx</b> vào đây
+            <small>Tệp Word sẽ được giải nén và trích xuất tiêu đề, danh sách, bảng biểu -
+              khung xem lại hiển thị đúng những gì được đánh index.</small>
           </div>
           <div id="kb-upload-error" class="error hidden"></div>
           <div id="kb-list" class="queue"></div>
@@ -327,146 +386,173 @@
 
         <div class="stack">
           <div id="kb-empty" class="empty-state">
-            <h2>No document selected</h2>
-            <p>Pick a document to review the passages the retriever extracted,
-              or add one. Uploads are indexed immediately - no restart.</p>
+            <h2>Chưa chọn tài liệu nào</h2>
+            <p>Chọn một tài liệu để xem các đoạn trích mà bộ truy xuất đã tách ra,
+              hoặc thêm tài liệu mới. Tài liệu tải lên được đánh index ngay - không
+              cần khởi động lại.</p>
           </div>
           <div id="kb-view" class="stack hidden">
             <div class="row-between">
               <h2 id="kb-title">-</h2>
               <div class="row-gap">
-                <button id="kb-edit" class="ghost small">Edit</button>
-                <button id="kb-delete" class="danger small">Delete</button>
+                <button id="kb-edit" class="ghost small">Sửa</button>
+                <button id="kb-delete" class="danger small">Xoá</button>
               </div>
             </div>
             <div class="panel">
-              <h3>Extracted passages <span id="kb-passage-count" class="tag"></span></h3>
-              <p class="hint">These are the retrieval units. A section the
-                retriever can't see is a question it can't answer.</p>
+              <h3>Đoạn trích đã tách <span id="kb-passage-count" class="tag"></span></h3>
+              <p class="hint">Đây là các đơn vị truy xuất. Một phần nội dung mà bộ
+                truy xuất không thấy được là một câu hỏi nó không trả lời được.</p>
               <div id="kb-passages" class="passages"></div>
             </div>
             <div class="panel">
-              <h3>Extracted text</h3>
+              <h3>Văn bản đã trích xuất</h3>
               <pre id="kb-raw" class="transcript"></pre>
             </div>
           </div>
           <div id="kb-editor" class="panel hidden">
             <div class="row-between">
-              <h3 id="kb-editor-title">Add document</h3>
-              <button id="kb-cancel" class="ghost small">Cancel</button>
+              <h3 id="kb-editor-title">Thêm tài liệu</h3>
+              <button id="kb-cancel" class="ghost small">Huỷ</button>
             </div>
             <label class="field">
-              <span>Filename</span>
-              <input id="kb-filename" type="text" placeholder="travel-insurance.md" />
+              <span>Tên tệp</span>
+              <input id="kb-filename" type="text" placeholder="bao-hiem-du-lich.md" />
             </label>
             <label class="field">
-              <span>Markdown - each <code>## Section</code> becomes a passage</span>
+              <span>Markdown - mỗi <code>## Mục</code> trở thành một đoạn trích</span>
               <textarea id="kb-content" rows="16" spellcheck="false"></textarea>
             </label>
             <div id="kb-error" class="error hidden"></div>
             <div class="row-gap">
-              <button id="kb-save" class="primary">Save &amp; reindex</button>
-              <button id="kb-template" class="ghost">Insert template</button>
+              <button id="kb-save" class="primary">Lưu &amp; đánh index lại</button>
+              <button id="kb-template" class="ghost">Chèn mẫu</button>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ---------- SETTINGS ---------- -->
+    <!-- ---------- CẤU HÌNH ---------- -->
     <section id="panel-settings" class="agent-panel hidden">
       <div class="split">
         <div class="panel">
-          <h2>LLM provider</h2>
-          <p class="hint">Applies immediately, to this running process only.</p>
+          <h2>Nhà cung cấp LLM</h2>
+          <p class="hint">Áp dụng ngay lập tức, chỉ cho tiến trình đang chạy này.</p>
           <div id="provider-list" class="queue"></div>
         </div>
         <div class="stack">
           <div class="panel">
-            <h3>Active configuration</h3>
+            <h3>Cấu hình đang dùng</h3>
             <div id="active-config"></div>
           </div>
           <div class="panel">
-            <h3>Configure</h3>
+            <h3>Cấu hình</h3>
             <label class="field">
-              <span>Provider</span>
+              <span>Nhà cung cấp</span>
               <select id="cfg-provider">
-                <option value="auto">auto - first one configured</option>
+                <option value="auto">auto - dùng provider đầu tiên đã cấu hình</option>
                 <option value="anthropic">anthropic</option>
                 <option value="openai">openai</option>
                 <option value="gemini">gemini</option>
-                <option value="groq">groq - free tier</option>
+                <option value="groq">groq - có gói miễn phí</option>
               </select>
             </label>
             <label class="field">
-              <span>API key <em id="cfg-key-hint">- stored in memory only</em></span>
+              <span>API key <em id="cfg-key-hint">- chỉ lưu trong bộ nhớ</em></span>
               <div class="row-gap">
-                <input id="cfg-key" type="password" placeholder="paste key, or leave blank to keep" />
-                <button id="cfg-key-toggle" class="ghost small" type="button">Show</button>
+                <input id="cfg-key" type="password" placeholder="dán key, để trống nếu giữ nguyên" />
+                <button id="cfg-key-toggle" class="ghost small" type="button">Hiện</button>
               </div>
             </label>
             <label class="field">
-              <span>Model <em>- blank uses the provider default</em></span>
+              <span>Model <em>- để trống dùng mặc định của nhà cung cấp</em></span>
               <input id="cfg-model" type="text" />
             </label>
             <div class="grid-2">
               <label class="field">
-                <span>Effort</span>
+                <span>Mức suy luận</span>
                 <select id="cfg-effort">
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
+                  <option value="low">thấp</option>
+                  <option value="medium">trung bình</option>
+                  <option value="high">cao</option>
                 </select>
               </label>
               <label class="field">
-                <span>Base URL <em>- openai adapter only</em></span>
+                <span>Base URL <em>- chỉ dùng cho adapter openai</em></span>
                 <input id="cfg-base" type="text" placeholder="https://…/v1" />
               </label>
             </div>
             <div class="grid-2">
               <label class="field">
-                <span>Tone</span>
+                <span>Giọng điệu</span>
                 <select id="cfg-tone">
-                  <option value="professional">professional - precise, economical</option>
-                  <option value="friendly">friendly - warm, plain words</option>
-                  <option value="concise">concise - answer first, no softeners</option>
-                  <option value="empathetic">empathetic - patient, for fraud and loss</option>
+                  <option value="professional">chuyên nghiệp - chính xác, súc tích</option>
+                  <option value="friendly">thân thiện - ấm áp, dùng từ đời thường</option>
+                  <option value="concise">ngắn gọn - trả lời trước, không rào đón</option>
+                  <option value="empathetic">đồng cảm - kiên nhẫn, cho gian lận và mất mát</option>
                 </select>
               </label>
               <label class="field">
-                <span>Temperature <em>- blank uses the provider default</em></span>
+                <span>Temperature <em>- để trống dùng mặc định của nhà cung cấp</em></span>
                 <input id="cfg-temp" type="number" min="0" max="2" step="0.1"
-                       placeholder="e.g. 0.3" />
+                       placeholder="vd: 0.3" />
               </label>
             </div>
             <p class="hint">
-              Tone is a fixed set of presets, not free text. Whatever is chosen
-              here is written into the system prompt above the retrieved
-              passages, so an open box would be a way to overwrite the
-              grounding rules from the console. Tone changes the voice only -
-              it can never change what the assistant is allowed to claim.
+              Giọng điệu là một tập preset cố định, không phải văn bản tự do.
+              Bất kể chọn gì ở đây cũng được ghi vào system prompt phía trên các
+              đoạn trích đã truy xuất, nên một ô nhập tự do sẽ là cách để ghi đè
+              luật dẫn nguồn ngay từ bảng điều khiển. Giọng điệu chỉ đổi cách nói -
+              không bao giờ đổi được những gì trợ lý được phép khẳng định.
             </p>
             <div id="cfg-error" class="error hidden"></div>
             <div class="row-gap">
-              <button id="cfg-save" class="primary">Apply</button>
-              <button id="cfg-clear" class="ghost">Clear key</button>
+              <button id="cfg-save" class="primary">Áp dụng</button>
+              <button id="cfg-clear" class="ghost">Xoá key</button>
             </div>
           </div>
           <div class="panel warn">
-            <h3>About key handling</h3>
-            <p>A key entered here is held in this process's memory only - never
-              written to disk, and no endpoint returns it. The catalogue shows a
-              mask (<code>sk-a…4f2c</code>), never the value.</p>
-            <p>It is still plaintext in the process environment. Fine for a demo,
-              <b>not</b> how to handle credentials in production.</p>
+            <h3>Về việc xử lý API key</h3>
+            <p>Key nhập ở đây chỉ tồn tại trong bộ nhớ của tiến trình này - không
+              bao giờ ghi ra đĩa, và không endpoint nào trả về nó. Danh mục chỉ
+              hiển thị dạng che (<code>sk-a…4f2c</code>), không bao giờ hiện giá trị thật.</p>
+            <p>Tuy vậy nó vẫn ở dạng plaintext trong biến môi trường của tiến
+              trình. Phù hợp cho demo, <b>không</b> phải cách xử lý thông tin xác
+              thực trong môi trường production.</p>
+          </div>
+          <div class="panel">
+            <h3>Giọng nói (TTS)</h3>
+            <div class="grid-2">
+              <label class="field">
+                <span>Nhà cung cấp</span>
+                <select id="tts-provider">
+                  <option value="vbee">Vbee AI – tiếng Việt tự nhiên</option>
+                  <option value="gtts">gTTS – Google (miễn phí)</option>
+                </select>
+              </label>
+              <label class="field" id="tts-voice-field">
+                <span>Giọng Vbee</span>
+                <select id="tts-voice">
+                  <option value="hn_female_ngochuyen_full_48k-fhg">Ngọc Huyền – nữ HN</option>
+                  <option value="hn_female_hermer_stor_48k-fhg">Ngọc Lan – nữ HN</option>
+                  <option value="hn_female_lenka_stor_48k-phg">Nguyệt Dương – nữ HN</option>
+                  <option value="hn_male_minhquan_yt-stable">Minh Quân – nam HN</option>
+                  <option value="hn_male_manhdung_news_48k-fhg">Mạnh Dũng – nam HN</option>
+                  <option value="sg_female_tuongvy_call_44k-fhg">Tường Vy – nữ SG</option>
+                  <option value="sg_female_thaotrinh_full_44k-phg">Thảo Trinh – nữ SG</option>
+                  <option value="sg_male_chidat_ebook_48k-phg">Chí Đạt – nam SG</option>
+                </select>
+              </label>
+            </div>
+            <div id="tts-status" class="hint"></div>
+            <div id="tts-error" class="error hidden"></div>
+            <button id="tts-save" class="primary">Áp dụng</button>
           </div>
         </div>
       </div>
     </section>
   </main>
-
-  </div><!-- /app-main -->
-</div><!-- /app-shell -->
 
   <script src="/app.js"></script>
 </body>

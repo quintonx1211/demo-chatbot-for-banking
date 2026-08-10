@@ -40,6 +40,11 @@ class Policy:
     min_relevance: float      # a passage must clear this to count as evidence
     high_confidence: float    # intent confidence needed to run a scripted flow
     source: str               # where each value came from, for the console
+    # Which classifier decides the route. Deliberately NOT part of a strictness
+    # preset: it changes which component is in charge, not how cautious that
+    # component is, and bundling it into "strict"/"relaxed" would hide a
+    # architectural switch behind a safety dial.
+    router_mode: str = "nlu"
 
     def to_dict(self) -> dict:
         return {
@@ -48,6 +53,7 @@ class Policy:
             "min_relevance": self.min_relevance,
             "high_confidence": self.high_confidence,
             "source": self.source,
+            "router_mode": self.router_mode,
             "config_path": str(CONFIG_PATH),
         }
 
@@ -79,7 +85,15 @@ def load(path: Path | None = None) -> Policy:
     if applied:
         source += f" + overrides({', '.join(applied)})"
 
-    return Policy(strictness=name, source=source, **values)
+    # Anything unrecognised falls back to the lexical router. A typo in this
+    # field must not disable routing, and must not silently hand control of
+    # every turn to a model.
+    mode = str(raw.get("router_mode", "nlu")).strip().lower()
+    if mode not in ("nlu", "shadow", "llm"):
+        mode = "nlu"
+        source += " + router_mode(invalid, using nlu)"
+
+    return Policy(strictness=name, source=source, router_mode=mode, **values)
 
 
 # Loaded once at import and refreshed through reload(); modules read the live

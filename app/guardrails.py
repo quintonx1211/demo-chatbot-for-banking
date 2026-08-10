@@ -46,10 +46,10 @@ RESTRICTED_TOPICS: list[tuple[str, re.Pattern, str]] = [
 ]
 
 RESTRICTED_RESPONSE = (
-    "I'm not able to give investment, tax, or legal advice - that has to come "
-    "from a licensed professional. I can connect you with a banking specialist "
-    "who can talk through the products we offer, or answer any question about "
-    "your accounts, cards, or applications."
+    "Tôi không thể tư vấn về đầu tư, thuế hoặc pháp lý - những vấn đề này phải đến từ "
+    "chuyên gia có chứng chỉ hành nghề. Tôi có thể kết nối bạn với chuyên viên ngân hàng "
+    "để trao đổi về các sản phẩm chúng tôi cung cấp, hoặc trả lời câu hỏi về "
+    "tài khoản, thẻ hoặc hồ sơ của bạn."
 )
 
 # Redaction patterns, applied in order. Card numbers first so their digits are
