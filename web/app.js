@@ -1145,11 +1145,15 @@ if ($("tts-stop-btn")) {
   $("tts-stop-btn").onclick = stopCurrentAudio;
 }
 
-// Suggestions: ẩn khi user gửi tin nhắn đầu tiên
+// Suggestions: xoá nút đã chọn, giữ các nút còn lại
 document.querySelectorAll("#suggestions button").forEach((btn) => {
   btn.onclick = () => {
     send(btn.textContent.trim());
-    $("suggestions").style.display = "none";
+    btn.remove();
+    const container = $("suggestions");
+    if (container && !container.querySelector("button")) {
+      container.style.display = "none";
+    }
   };
 });
 
