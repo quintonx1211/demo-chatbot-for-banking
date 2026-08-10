@@ -59,9 +59,18 @@ const postJson = (path, body) => api(path, {
   body: JSON.stringify(body),
 });
 
-const showError = (el, msg) => { el.textContent = msg; el.classList.remove("hidden"); };
-const clearError = (el) => { el.textContent = ""; el.classList.add("hidden"); };
+const showError = (box, msg) => { box.textContent = msg; box.classList.remove("hidden"); };
+const clearError = (box) => { box.textContent = ""; box.classList.add("hidden"); };
 const pct = (n) => `${Math.round(n * 100)}%`;
+
+/** Build an element in one call - the transcript is assembled node by node so
+    that customer data never travels through innerHTML. */
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
 
 /* ---------- screens ---------- */
 
@@ -70,6 +79,35 @@ function showScreen(name) {
     $(`screen-${s}`).classList.toggle("hidden", s !== name));
   $("brand-sub").textContent =
     name === "agent" ? "Bảng điều khiển nhân viên" : "Trợ lý ảo";
+  $("nav-assistant").classList.toggle("active", name === "customer");
+  setRail(false);
+}
+
+/* ---------- live assistant status ---------- */
+
+// The header's second line reports what the assistant is doing right now.
+// Derived from state rather than set at each call site, so the three inputs
+// can never disagree about what the line should say.
+let isSending = false;
+let rawMode = false;
+let handoff = null;      // { handled_by } once the customer is with a human
+
+function refreshChatStatus() {
+  let text = "Trực tuyến";
+  let tone = "ok";
+
+  if (rawMode) {
+    text = "Chế độ LLM thuần";
+    tone = "alert";
+  } else if (handoff) {
+    text = handoff.handled_by
+      ? `Đang với ${handoff.handled_by}` : "Đang chờ chuyên viên";
+    tone = "wait";
+  }
+  if (isSending) text = "Đang trả lời…";
+
+  $("chat-status").className = `chat-status ${tone}`;
+  $("chat-status-text").textContent = text;
 }
 
 function showPanel(name) {
@@ -84,57 +122,73 @@ function showPanel(name) {
 
 /* ---------- customer chat ---------- */
 
+// Screen readers get told who is speaking; sighted users get the bubble side,
+// colour and avatar, which carry the same information.
+const SPEAKER = {
+  customer: "Anh/chị nói", assistant: "Trợ lý trả lời",
+  agent: "Chuyên viên trả lời", system: "Hệ thống",
+};
+
+// Never scrollIntoView - it moves the page, not just the transcript.
+const scrollTranscript = () => {
+  $("messages").scrollTop = $("messages").scrollHeight;
+};
+
+function bubble(text) {
+  const node = el("div", "bubble");
+  node.innerHTML = render(text);
+  return node;
+}
+
 function clockNow() {
   return new Date().toLocaleTimeString("vi-VN",
     { hour: "2-digit", minute: "2-digit" });
 }
 
 function avatarFor(role) {
-  const span = document.createElement("span");
-  if (role === "customer") {
-    span.className = "avatar sm me";
-    span.textContent = "B";           // "Bạn"
-  } else if (role === "agent") {
-    span.className = "avatar sm";
-    span.textContent = "NV";          // nhân viên
-  } else {
-    span.className = "avatar sm bot";
-    span.textContent = "AB";
-  }
-  return span;
+  if (role === "customer") return el("span", "avatar sm me", "B");   // "Bạn"
+  if (role === "agent") return el("span", "avatar sm", "NV");        // nhân viên
+  return el("span", "avatar sm bot", "AB");
 }
 
 function addMessage(role, text, meta, author) {
-  const wrap = document.createElement("div");
-  wrap.className = `msg ${role}`;
+  const wrap = el("div", `msg ${role}`);
+  wrap.appendChild(el("span", "vh", `${SPEAKER[role] || role}: `));
 
+  // The avatar sits beside the message; everything else stacks inside `body`.
+  // A system notice is nobody's turn, so it gets neither an avatar nor a time.
   if (role !== "system") wrap.appendChild(avatarFor(role));
-
-  const body = document.createElement("div");
-  body.className = "msg-body";
+  const body = el("div", "msg-body");
   wrap.appendChild(body);
 
-  if (author) {
-    const who = document.createElement("div");
-    who.className = "author";
-    who.textContent = author;
-    body.appendChild(who);
+  if (author) body.appendChild(el("div", "author", author));
+
+  // Balances and recent transactions are figures, and the design shows figures
+  // as cards rather than prose. The server still returns one markdown string,
+  // so the split is keyed off the flow's own note - an explicit signal from the
+  // deterministic flow that produced it, not a guess about the wording. If any
+  // line fails to parse the whole thing falls back to the plain bubble, so a
+  // change of copy degrades to the old rendering rather than losing content.
+  // A structured `blocks` payload on /api/chat would retire this entirely.
+  const note = meta && meta.debug ? meta.debug.note : null;
+  const cards = role === "assistant" ? accountCards(text, note) : null;
+
+  if (cards) {
+    // Figures get the design's wider measure than prose does.
+    wrap.classList.add("has-cards");
+    body.appendChild(bubble(cards.intro));
+    body.appendChild(cards.node);
+  } else {
+    body.appendChild(bubble(text));
   }
 
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.innerHTML = render(text);
-  body.appendChild(bubble);
-
   if (role !== "system") {
-    const time = document.createElement("div");
-    time.className = "msg-time";
     // A double tick on the customer's own message, which is what every
     // messaging app uses to mean "delivered". Decorative here - there is no
     // delivery receipt behind it - but its absence is what makes a chat demo
     // feel unfinished.
-    time.textContent = role === "customer" ? `${clockNow()} ✓✓` : clockNow();
-    body.appendChild(time);
+    body.appendChild(el("div", "msg-time",
+      role === "customer" ? `${clockNow()} ✓✓` : clockNow()));
   }
 
   // Route, intent, confidence, latency and the grounding citations all live in
@@ -145,7 +199,167 @@ function addMessage(role, text, meta, author) {
   // inspector is the one place that owns them now.
 
   $("messages").appendChild(wrap);
-  $("messages").scrollTop = $("messages").scrollHeight;
+  scrollTranscript();
+}
+
+/* ---------- figures as cards ---------- */
+
+/** Read an amount aloud with the currency spelled out. */
+function spokenAmount(amount) {
+  const text = amount.trim();
+  if (text.startsWith("$")) return `${text.slice(1)} đô la Mỹ`;
+  if (text.endsWith(" VND")) return `${text.slice(0, -4)} đồng`;
+  return text;
+}
+
+const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2)
+  .map((word) => word[0].toUpperCase()).join("");
+
+// A flow reached straight away and the same flow reached through the
+// verification sub-flow report different notes, and both render the same
+// figures, so both spellings are listed rather than pattern-matched.
+const BALANCE_NOTES = new Set(["balance_read_from_core", "verified_then_balance_inquiry"]);
+const TXN_NOTES = new Set(["transactions_read_from_core", "verified_then_transaction_history"]);
+
+function accountCards(text, note) {
+  if (BALANCE_NOTES.has(note)) return balanceCards(text);
+  if (TXN_NOTES.has(note)) return transactionCard(text);
+  return null;
+}
+
+/** Split a flow's reply into the prose that introduces it and the data lines.
+    Anything before the first line the pattern recognises stays prose. */
+function splitFlowText(text, pattern) {
+  const lines = text.split("\n");
+  const first = lines.findIndex((line) => pattern.test(line));
+  if (first === -1) return null;
+  return {
+    intro: lines.slice(0, first).join("\n").trim(),
+    rows: lines.slice(first).map((line) => line.match(pattern)).filter(Boolean),
+  };
+}
+
+// "- **Tài khoản thanh toán** ····4417 - số dư 41.238.000 VND, khả dụng 40.938.000 VND"
+//
+// Both spellings are matched. `_balance` in app/flows.py speaks Vietnamese now,
+// but the English wording is what the flow shipped with and what any untranslated
+// fixture still produces - and a card that silently stops rendering is worse than
+// one that never rendered, because nothing in the transcript says it was meant to.
+const BALANCE_LINE =
+  /^-\s+\*\*(.+?)\*\*\s+(\S+)\s+-\s+(?:số dư|balance)\s+(.+?),\s+(?:khả dụng|available)\s+(.+)$/;
+
+function balanceCards(text) {
+  const parsed = splitFlowText(text, BALANCE_LINE);
+  if (!parsed) return null;
+  const cards = el("div", "data-cards");
+
+  for (const match of parsed.rows) {
+    const [, type, mask, balance, available] = match;
+
+    const card = el("div", "data-card");
+    card.appendChild(el("span", "eyebrow", `${type} · ${mask}`));
+
+    const amount = el("div", "amount", balance);
+    amount.setAttribute("aria-label", `Số dư ${spokenAmount(balance)}`);
+    card.appendChild(amount);
+
+    const sub = el("div", "sub");
+    sub.appendChild(document.createTextNode("khả dụng "));
+    sub.appendChild(el("span", "num", available));
+    card.appendChild(sub);
+
+    cards.appendChild(card);
+  }
+
+  return { intro: parsed.intro, node: cards };
+}
+
+// "- 2024-05-31 · Coffee Union · −4.20"
+const TXN_LINE = /^-\s+(.+?)\s+·\s+(.+?)\s+·\s+([+−-])(.+)$/;
+
+function transactionCard(text) {
+  const parsed = splitFlowText(text, TXN_LINE);
+  if (!parsed) return null;
+
+  const card = el("div", "txn-card");
+  card.appendChild(el("div", "eyebrow", `${parsed.rows.length} giao dịch gần nhất`));
+
+  for (const match of parsed.rows) {
+    const [, date, description, sign, amount] = match;
+    const credit = sign === "+";
+
+    const row = el("div", `txn-row${credit ? " credit" : ""}`);
+    row.appendChild(el("span", "txn-tile", initials(description)));
+
+    const body = el("div", "txn-body");
+    body.appendChild(el("span", "name", description));
+    body.appendChild(el("span", "meta", date));
+    row.appendChild(body);
+
+    const value = el("span", "txn-amount", `${sign}${amount}`);
+    value.setAttribute("aria-label",
+      `${credit ? "Ghi có" : "Ghi nợ"} ${spokenAmount(amount)}`);
+    row.appendChild(value);
+
+    card.appendChild(row);
+  }
+
+  return { intro: parsed.intro, node: card };
+}
+
+/* ---------- typing indicator ---------- */
+
+// The waiting state, shown as three dots in a bubble where the reply will
+// appear. Retrieval plus a model call is rarely instant, and a chat that sits
+// silent reads as broken rather than busy - the customer's own message is the
+// last thing on screen and nothing acknowledges it.
+//
+// Two guards, at opposite ends. It is held for at least TYPING_MIN_MS so a fast
+// reply does not flash three dots and vanish; and the label changes at
+// TYPING_LABEL_MS, because past a couple of seconds people start wondering
+// whether the send worked, and naming what is happening answers that without
+// promising a finish time.
+const TYPING_MIN_MS = 400;
+const TYPING_LABEL_MS = 3000;
+let typingNode = null;
+let typingShownAt = 0;
+let typingTimer = null;
+
+function showTyping() {
+  if (typingNode) return;
+  typingNode = el("div", "msg assistant");
+  typingNode.setAttribute("aria-label", "Trợ lý đang soạn câu trả lời");
+  typingNode.appendChild(avatarFor("assistant"));
+
+  const body = el("div", "msg-body");
+  const dots = el("div", "bubble typing-bubble");
+  dots.append(el("i"), el("i"), el("i"));
+  body.appendChild(dots);
+  const label = el("div", "typing-label", "Đang soạn câu trả lời…");
+  body.appendChild(label);
+  typingNode.appendChild(body);
+
+  $("messages").appendChild(typingNode);
+  typingShownAt = Date.now();
+  scrollTranscript();
+
+  typingTimer = setTimeout(() => {
+    label.textContent = "Đang tra cứu tài liệu đã thẩm định…";
+  }, TYPING_LABEL_MS);
+}
+
+async function hideTyping() {
+  if (!typingNode) return;
+  clearTimeout(typingTimer);
+  // Captured before the await: a second caller arriving during the minimum-hold
+  // would otherwise remove a node the first one has already detached.
+  const node = typingNode;
+  typingNode = null;
+  const shownFor = Date.now() - typingShownAt;
+  if (shownFor < TYPING_MIN_MS) {
+    await new Promise((done) => setTimeout(done, TYPING_MIN_MS - shownFor));
+  }
+  node.remove();
 }
 
 // Where the answer came from, and nothing else.
@@ -195,6 +409,31 @@ function updateInspector(data) {
   }
 
   $("inspector").innerHTML = html;
+  renderTrace(data.trace || []);
+}
+
+// The decision path answers the question every prospect asks about a hybrid
+// assistant: how does it decide? Showing the gates beats describing them.
+//
+// main had removed this from the customer screen, on the grounds that a bank
+// chat should not read as an instrumentation readout. That objection is about
+// where it sits, not whether it should exist - and in the redesign it sits in
+// the context rail, which is a column on desktop and an opt-in drawer below
+// 1024px. The transcript itself stays clean either way, and the agent console
+// still owns the same data for the people who read it all day.
+function renderTrace(steps) {
+  if (!steps.length) {
+    $("trace").innerHTML = '<p class="empty">-</p>';
+    return;
+  }
+  $("trace").innerHTML = steps.map((s) => `
+    <div class="trace-step ${s.decisive ? "decisive" : ""}">
+      <div class="trace-head">
+        <span class="trace-stage">${escapeHtml(s.stage)}</span>
+        <span>${escapeHtml(s.outcome)}</span>
+      </div>
+      ${s.detail ? `<div class="trace-detail">${escapeHtml(s.detail)}</div>` : ""}
+    </div>`).join("");
 }
 
 /* ---------- architecture toggle (demo lever) ---------- */
@@ -208,6 +447,8 @@ function applyRawMode(enabled) {
     ? "Định tuyến, guardrail, truy xuất và kiểm tra dẫn nguồn đang bị bỏ qua trong hội thoại này."
     : "Định tuyến, guardrail, truy xuất và kiểm tra dẫn nguồn đều đang bật.";
   $("raw-banner").classList.toggle("hidden", !enabled);
+  rawMode = enabled;
+  refreshChatStatus();
 }
 
 async function toggleRawMode(enabled) {
@@ -221,51 +462,17 @@ async function toggleRawMode(enabled) {
   }
 }
 
-// The waiting state, shown as three dots in a bubble where the reply will
-// appear. Retrieval plus a model call is rarely instant, and a chat that sits
-// silent reads as broken rather than busy - the customer's own message is the
-// last thing on screen and nothing acknowledges it.
-//
-// The label changes at three seconds. Not decoration: past a couple of seconds
-// people start wondering whether the send worked, and naming what is happening
-// ("đang tra cứu tài liệu") answers that without promising a finish time.
-let typingTimer = null;
-
-function showTyping() {
-  hideTyping();
-  const wrap = document.createElement("div");
-  wrap.className = "msg assistant typing";
-  wrap.id = "typing";
-  wrap.appendChild(avatarFor("assistant"));
-  const body = document.createElement("div");
-  body.className = "msg-body";
-  body.innerHTML = '<div class="bubble"><i></i><i></i><i></i></div>'
-    + '<div class="typing-label" id="typing-label">Đang soạn câu trả lời…</div>';
-  wrap.appendChild(body);
-  $("messages").appendChild(wrap);
-  $("messages").scrollTop = $("messages").scrollHeight;
-
-  typingTimer = setTimeout(() => {
-    const label = $("typing-label");
-    if (label) label.textContent = "Đang tra cứu tài liệu đã thẩm định…";
-  }, 3000);
-}
-
-function hideTyping() {
-  clearTimeout(typingTimer);
-  const existing = $("typing");
-  if (existing) existing.remove();
-}
-
 async function send(message) {
   if (!message.trim()) return;
   addMessage("customer", message);
   $("input").value = "";
   $("send").disabled = true;
   showTyping();
+  isSending = true;
+  refreshChatStatus();
   try {
     const data = await postJson("/api/chat", { session_id: sessionId, message });
-    hideTyping();
+    await hideTyping();
     sessionId = data.session_id;
     applyRawMode(Boolean(data.raw_mode));
     if (data.route === "agent") {
@@ -276,6 +483,7 @@ async function send(message) {
       addMessage("assistant", data.reply, data);
     }
     updateInspector(data);
+    setRailUser(data.verified);
     renderChatActions(data);
     // Driven by session state: an "@bot" aside is answered by the assistant
     // but does not take the customer out of the queue, so the banner stays.
@@ -284,12 +492,20 @@ async function send(message) {
   } catch (error) {
     // Cleared here as well as on the success path: a failed request that
     // leaves the dots animating tells the customer a reply is still coming.
-    hideTyping();
+    await hideTyping();
     addMessage("system", `Không gửi được: ${error.message}`);
   } finally {
-    $("send").disabled = false;
+    isSending = false;
+    refreshChatStatus();
+    updateSendState();
     $("input").focus();
   }
+}
+
+/** Send is dead while there is nothing to send - the design asks for 50%
+    opacity and no pointer rather than a button that submits an empty turn. */
+function updateSendState() {
+  $("send").disabled = !$("input").value.trim();
 }
 
 /* ---------- contextual chat actions ---------- */
@@ -297,17 +513,20 @@ async function send(message) {
 // Buttons that mirror what can also be typed. The offer of a handoff is a
 // decision the customer makes, so it gets a button; typing "yes" does the same
 // thing, because a chat that only works by clicking is not a chat.
-// True from the handoff until the customer leaves. Kept on the client so the
-// banner survives turns that return nothing (every message while queued does).
-let inHandoff = false;
-
+// `handoff` (declared with the status state above) is set from the handoff
+// until the customer leaves, and is kept on the client so the banner survives
+// turns that return nothing - every message while queued does.
 function renderHandoff(state) {
-  inHandoff = !!state;
+  handoff = state;
+  refreshChatStatus();
   const box = $("handoff-banner");
   if (!state) {
     box.classList.add("hidden");
-    $("input").placeholder =
-      "Nhập câu hỏi, hoặc dùng @agent / @bot để gọi trực tiếp…";
+    // Matches the placeholder in the markup, so returning from a handoff puts
+    // the composer back exactly where it started. The @agent / @bot syntax it
+    // used to advertise is explained by the handoff banner instead - which is
+    // the only state where either prefix does anything.
+    $("input").placeholder = "Nhập câu hỏi về tài chính của anh/chị…";
     return;
   }
   const who = state.handled_by
@@ -368,7 +587,7 @@ async function pollForAgent() {
     renderedCount = data.total;
     // An agent claiming the session changes the banner from "in the queue" to
     // naming them, without the customer having to send anything.
-    if (inHandoff) renderHandoff({ handled_by: data.handled_by || null });
+    if (handoff) renderHandoff({ handled_by: data.handled_by || null });
   } catch {
     // A failed poll is not worth interrupting the customer; the next tick retries.
   }
@@ -834,11 +1053,41 @@ async function refreshHealth() {
   pill.className = `pill ${h.mode}`;
 }
 
+/* ---------- app shell ---------- */
+
+// The context rail is the only drawer in the app: below 1024px it stops being
+// a column and slides in from the right. Wider than that the CSS keeps it in
+// flow and this is inert.
+function setRail(open) {
+  $("context-rail").classList.toggle("open", open);
+  $("nav-scrim").hidden = !open;
+}
+
+$("rail-toggle").onclick = () => setRail(!$("context-rail").classList.contains("open"));
+$("nav-scrim").onclick = () => setRail(false);
+$("nav-assistant").onclick = () => showScreen("customer");
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") setRail(false); });
+
+// A mock, by request: the banking app this chat sits inside owns the
+// destination, so the control is real and focusable but goes nowhere.
+$("back-btn").onclick = () => {};
+
+// The same request a customer can type. A button for it because asking for a
+// human is a decision, not a phrasing exercise.
+// Phrased to hit the `human_agent` anchor in app/nlu.py rather than to read
+// well in isolation - the button has to take the same route a typed request
+// would, or it is demonstrating a code path the customer cannot reach.
+$("talk-to-person").onclick = () => send("Tôi muốn gặp nhân viên");
+
 /* ---------- wiring ---------- */
 
 $("raw-toggle").onchange = (e) => toggleRawMode(e.target.checked);
 
 $("composer").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
+$("input").oninput = updateSendState;
+$("suggestions").querySelectorAll("button").forEach((b) => {
+  b.onclick = () => send(b.textContent);
+});
 
 // Starting over drops the server-side session too. Clearing only the visible
 // transcript would leave the customer talking to a conversation they cannot
@@ -853,18 +1102,18 @@ function newConversation() {
   renderHandoff(null);
   $("inspector").innerHTML =
     '<p class="empty">Gửi một câu hỏi để xem nguồn.</p>';
-  setRailUser(null);
-  greet();
+  $("trace").innerHTML = '<p class="empty">-</p>';
+  setRailUser(false);
+  startTranscript();
   $("input").focus();
 }
 $("new-chat").onclick = newConversation;
-$("clear-chat").onclick = newConversation;
 
 // Decorative controls are inert by design. Saying so out loud beats a silent
 // no-op that leaves someone clicking a dead button during a demo.
-document.querySelectorAll("[data-demo]").forEach((el) => {
-  el.title = (el.title ? el.title + " - " : "") + "minh hoạ giao diện, chưa hoạt động";
-  el.addEventListener("click", (e) => e.preventDefault());
+document.querySelectorAll("[data-demo]").forEach((node) => {
+  node.title = (node.title ? node.title + " - " : "") + "minh hoạ giao diện, chưa hoạt động";
+  node.addEventListener("click", (e) => e.preventDefault());
 });
 
 $("login-btn").onclick = () => { showScreen("login"); $("login-pass").focus(); };
@@ -935,26 +1184,36 @@ $("cfg-key-toggle").onclick = () => {
   $("cfg-key-toggle").textContent = hidden ? "Hide" : "Show";
 };
 
-function greet() {
+/** Open a transcript: the day divider the design asks for, then the greeting.
+    One function so "new conversation" and first load cannot drift apart - the
+    divider went missing from the reset path when they were two. */
+function startTranscript() {
+  $("messages").appendChild(el("div", "day-divider", "Hôm nay"));
   addMessage("assistant",
     "Xin chào! Tôi là trợ lý ảo của **ABC Bank**. Tôi có thể tra cứu số dư và "
     + "giao dịch, khoá hoặc mở khoá thẻ, kiểm tra hồ sơ vay, và giải đáp về sản "
     + "phẩm, biểu phí của ngân hàng.\n\nAnh/chị cần hỗ trợ điều gì ạ?");
 }
 
-// The rail footer names whoever the session has verified, so the demo shows
+// Whether this session has passed the identity check, so the demo shows
 // identity being established rather than just asserted in a chat bubble.
-function setRailUser(customer) {
-  $("rail-user").textContent = customer ? customer.name : "Khách";
-  $("rail-user-sub").textContent = customer
-    ? `Đã xác thực · ${customer.segment || "MASS"}` : "Chưa xác thực";
-  const avatar = document.querySelector(".rail-foot .avatar");
-  if (avatar) avatar.textContent = customer ? customer.name.trim().slice(-1) : "K";
+//
+// main drove this from a customer record and had nowhere to get one - only the
+// null branch was ever reached, which was invisible in the old dark rail but
+// not in the left nav, where the line now sits in view for the whole session.
+// /api/chat returns `verified` and deliberately not the record, so this reports
+// the state and never the name.
+function setRailUser(verified) {
+  $("rail-user").textContent = verified ? "Khách hàng" : "Khách";
+  $("rail-user-sub").textContent = verified ? "Đã xác thực" : "Chưa xác thực";
+  $("rail-avatar").textContent = verified ? "✓" : "K";
 }
 
 (async function init() {
+  updateSendState();
+  refreshChatStatus();
   await refreshHealth();
   await refreshStaff();
-  greet();
+  startTranscript();
   if (staff) { showScreen("agent"); showPanel("dashboard"); }
 })();

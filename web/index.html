@@ -4,124 +4,107 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ABC Bank - Trợ lý ảo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- Instrument Sans ships a `vietnamese` subset, so the diacritics the whole
+       interface is written in render in the design's typeface rather than
+       falling back per-glyph to the system font. -->
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap"
+        rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header class="topbar">
+
+<!-- ============================================================
+     APP SHELL - left nav (chrome) + the active screen.
+     ============================================================ -->
+<div class="app-shell">
+
+  <div class="nav-scrim" id="nav-scrim" hidden></div>
+
+  <aside class="sidenav" id="sidenav">
     <div class="brand">
-      <span class="mark" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="24" height="24">
-          <path d="M16 3 3 9v8c0 7 5.6 10.9 13 12 7.4-1.1 13-5 13-12V9L16 3z"
-                fill="none" stroke="currentColor" stroke-width="2.4"
-                stroke-linejoin="round"/>
-          <path d="M11 16.2l3.4 3.4L21.5 12" fill="none" stroke="currentColor"
-                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </span>
-      <div class="brand-text">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-text">
         <strong>ABC Bank</strong>
         <span class="sub" id="brand-sub">Trợ lý ảo</span>
+      </span>
+    </div>
+
+    <nav class="nav-list" aria-label="Điều hướng chính">
+      <button type="button" class="nav-item active" id="nav-assistant">Trợ lý ảo</button>
+      <!-- The design's remaining sections have nothing behind them in this
+           demo. They stay as inert chrome rather than buttons that lie. -->
+      <span class="nav-item muted" aria-disabled="true">Tài khoản</span>
+      <span class="nav-item muted" aria-disabled="true">Thanh toán</span>
+      <span class="nav-item muted" aria-disabled="true">Thẻ</span>
+      <span class="nav-item muted" aria-disabled="true">Hỗ trợ</span>
+    </nav>
+
+    <div class="nav-section">
+      <span class="nav-eyebrow">Phiên làm việc</span>
+      <div class="nav-meta">
+        <span id="mode-pill" class="pill">đang kiểm tra…</span>
+        <span id="staff-pill" class="pill hidden"></span>
+      </div>
+      <!-- Names whoever the session has verified, so the demo shows identity
+           being established rather than just asserted in a chat bubble. -->
+      <div class="nav-user">
+        <span class="avatar sm" id="rail-avatar">K</span>
+        <span class="nav-user-text">
+          <b id="rail-user">Khách</b><em id="rail-user-sub">Chưa xác thực</em>
+        </span>
       </div>
     </div>
 
-    <div class="modes">
-      <span id="mode-pill" class="pill">đang kiểm tra…</span>
-      <span id="staff-pill" class="pill hidden"></span>
+    <div class="nav-foot">
       <button id="view-customer-btn" class="ghost small hidden" type="button">Màn hình khách</button>
       <button id="view-console-btn" class="ghost small hidden" type="button">Bảng điều khiển</button>
-      <button id="login-btn" class="ghost small">Đăng nhập</button>
+      <button id="login-btn" class="ghost small" type="button">Đăng nhập</button>
       <button id="logout" class="ghost small hidden" type="button">Đăng xuất</button>
     </div>
-  </header>
+  </aside>
+
+  <div class="app-main">
 
   <!-- ============================================================
        CUSTOMER - the default. No sign-in, no tabs, just the chat.
        ============================================================ -->
-  <main id="screen-customer" class="screen">
-
-    <!-- Left rail. Everything in it except the New-chat button is decorative:
-         a demo of a bank assistant is judged partly on whether it looks like
-         software the bank would ship, and a bare chat box does not. Marked
-         `data-demo` so nobody mistakes it for wired-up behaviour. -->
-    <aside class="rail">
-      <div class="rail-brand">
-        <span class="rail-logo">AB</span>
-        <div>
-          <strong>ABC Bank</strong>
-          <span>Trợ lý số</span>
-        </div>
-      </div>
-
-      <button class="rail-new" id="new-chat">
-        <span class="ic">+</span> Cuộc trò chuyện mới
-      </button>
-
-      <div class="rail-section">Gần đây</div>
-      <nav class="rail-list">
-        <button class="rail-item active" data-demo>
-          <span class="ic">💬</span>
-          <span class="rail-item-text">
-            <b>Cuộc trò chuyện hiện tại</b><em>Vừa xong</em>
-          </span>
-        </button>
-        <button class="rail-item" data-demo>
-          <span class="ic">💳</span>
-          <span class="rail-item-text">
-            <b>Khoá thẻ tạm thời</b><em>Hôm qua</em>
-          </span>
-        </button>
-        <button class="rail-item" data-demo>
-          <span class="ic">📄</span>
-          <span class="rail-item-text">
-            <b>Phí chuyển tiền quốc tế</b><em>3 ngày trước</em>
-          </span>
-        </button>
-        <button class="rail-item" data-demo>
-          <span class="ic">🏦</span>
-          <span class="rail-item-text">
-            <b>Hồ sơ vay mua xe</b><em>Tuần trước</em>
-          </span>
-        </button>
-      </nav>
-
-      <div class="rail-section">Lối tắt</div>
-      <nav class="rail-list compact">
-        <button class="rail-item" data-demo><span class="ic">📊</span>
-          <span class="rail-item-text"><b>Sao kê</b></span></button>
-        <button class="rail-item" data-demo><span class="ic">🎁</span>
-          <span class="rail-item-text"><b>Ưu đãi của tôi</b></span></button>
-        <button class="rail-item" data-demo><span class="ic">🛡️</span>
-          <span class="rail-item-text"><b>Trung tâm an toàn</b></span></button>
-      </nav>
-
-      <div class="rail-foot">
-        <span class="avatar sm">K</span>
-        <div class="rail-item-text">
-          <b id="rail-user">Khách</b><em id="rail-user-sub">Chưa xác thực</em>
-        </div>
-      </div>
-    </aside>
-
+  <main id="screen-customer" class="screen screen-chat">
     <section class="chat-panel">
-      <header class="chat-head">
-        <span class="avatar bot">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path d="M12 2.6 4 6.2v5.1c0 4.6 3.4 7.2 8 8 4.6-.8 8-3.4 8-8V6.2z"
-                  fill="none" stroke="currentColor" stroke-width="1.9"
-                  stroke-linejoin="round"/>
-            <path d="M8.6 12.1 11 14.5l4.4-4.6" fill="none" stroke="currentColor"
-                  stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </span>
-        <div class="chat-head-text">
-          <strong>Trợ lý ABC Bank</strong>
-          <span class="presence"><i></i> Trực tuyến · Hỗ trợ 24/7</span>
+
+      <header class="chat-header">
+        <!-- Mock only: the surrounding banking app owns where "back" goes, so
+             here it is a real, focusable control that deliberately navigates
+             nowhere. Replace the handler when this is embedded. -->
+        <button type="button" class="icon-btn back-btn" id="back-btn" aria-label="Quay lại">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <div class="chat-id">
+          <span class="chat-name">Trợ lý ABC Bank</span>
+          <span class="chat-status ok" id="chat-status">
+            <i class="dot" aria-hidden="true"></i><span id="chat-status-text">Trực tuyến</span>
+          </span>
         </div>
-        <div class="chat-head-actions">
-          <button class="icon-btn" title="Tìm trong hội thoại" data-demo>🔍</button>
-          <button class="icon-btn" title="Gọi tổng đài" data-demo>📞</button>
-          <button class="icon-btn" id="clear-chat" title="Xoá hội thoại">🗑️</button>
-        </div>
+        <button type="button" class="link-btn" id="talk-to-person">Gặp chuyên viên</button>
+        <!-- The old left rail carried this as a full-width "Cuộc trò chuyện
+             mới" button and repeated it as a bin icon in the header. The rail
+             is gone with the mobile-first layout, so the two collapse into one
+             control here - the header is the only chrome a phone gets. -->
+        <button type="button" class="icon-btn" id="new-chat"
+                aria-label="Cuộc trò chuyện mới" title="Cuộc trò chuyện mới">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button type="button" class="icon-btn rail-toggle" id="rail-toggle"
+                aria-label="Nguồn câu trả lời">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round"><path d="M12 16v-5M12 8h.01"/>
+            <circle cx="12" cy="12" r="9"/></svg>
+        </button>
       </header>
 
       <div class="arch-toggle hidden" id="arch-toggle-box">
@@ -135,7 +118,8 @@
         </label>
       </div>
 
-      <div id="messages" class="messages"></div>
+      <div id="messages" class="messages" role="log" aria-live="polite"
+           aria-label="Nội dung hội thoại"></div>
 
       <div id="raw-banner" class="raw-banner hidden">
         <div>
@@ -149,21 +133,28 @@
       <div id="handoff-banner" class="handoff-banner hidden"></div>
       <div id="chat-actions" class="chat-actions hidden"></div>
 
+      <div class="suggestions" id="suggestions" role="group" aria-label="Câu hỏi gợi ý">
+        <button type="button">Phí chuyển tiền quốc tế là bao nhiêu?</button>
+        <button type="button">Tôi làm mất thẻ ghi nợ</button>
+        <button type="button">Kiểm tra số dư của tôi</button>
+        <button type="button">Tôi có bao nhiêu ngày để khiếu nại một giao dịch?</button>
+        <button type="button">Tôi có nên đầu tư tiền tiết kiệm vào cổ phiếu công nghệ không?</button>
+        <button type="button">Ngân hàng có bảo hiểm cây trồng cho vườn nho không?</button>
+      </div>
+
       <form id="composer" class="composer" autocomplete="off">
-        <button type="button" class="icon-btn ghost-ic" title="Đính kèm" data-demo>📎</button>
-        <input id="input" type="text"
-               placeholder="Nhập câu hỏi, hoặc dùng @agent / @bot để gọi trực tiếp…" />
-        <button type="button" class="icon-btn ghost-ic" title="Biểu tượng cảm xúc" data-demo>😊</button>
-        <button type="button" class="icon-btn ghost-ic" title="Nhập bằng giọng nói" data-demo>🎙️</button>
-        <button type="submit" id="send" class="send-btn" title="Gửi">
-          <!-- Filled and symmetric about the horizontal axis, so its bounding
-               box centre and its visual centre coincide. The previous outline
-               wedge spanned y 4-20.4 in a 24 box and carried its mass toward
-               the lower left, which reads as misaligned however the box is
-               centred. -->
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <path d="M2.5 21 22 12 2.5 3v7l13 2-13 2z" fill="currentColor"/>
-          </svg>
+        <!-- Attach, emoji and voice input are chrome, not features: a bank
+             assistant that ships without them looks unfinished, and wiring
+             them is out of scope for a routing demo. `data-demo` makes the
+             inertness explicit rather than a silent dead click. -->
+        <button type="button" class="icon-btn ghost-ic ic-attach" title="Đính kèm" data-demo>📎</button>
+        <input id="input" type="text" placeholder="Nhập câu hỏi về tài chính của anh/chị…" />
+        <button type="button" class="icon-btn ghost-ic ic-emoji" title="Biểu tượng cảm xúc" data-demo>😊</button>
+        <button type="button" class="icon-btn ghost-ic ic-voice" title="Nhập bằng giọng nói" data-demo>🎙️</button>
+        <button type="submit" id="send" class="send-btn" aria-label="Gửi">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h13M12 5l7 7-7 7"/></svg>
         </button>
       </form>
       <p class="composer-note">
@@ -172,21 +163,35 @@
       </p>
     </section>
 
-    <aside class="panel inspector">
-      <h2>Nguồn câu trả lời</h2>
-      <p class="hint">Câu trả lời vừa rồi dựa trên đâu. Kỹ thuật chi tiết -
-        định tuyến, độ tin cậy, đường ra quyết định - đã chuyển sang màn hình
-        nhân viên, nơi người đọc chúng thực sự làm việc.</p>
-      <div id="inspector">
-        <p class="empty">Gửi một câu hỏi để xem nguồn.</p>
+    <!-- Off-canvas below 1024px, behind the ⓘ button in the header. That is
+         what settles the old objection to putting instrumentation on the
+         customer screen: the technical view is opt-in here, and the agent
+         console still owns it for the people who read it all day. -->
+    <aside class="context-rail" id="context-rail">
+      <div class="rail-block">
+        <span class="rail-eyebrow">Nguồn câu trả lời</span>
+        <p class="hint">Câu trả lời vừa rồi dựa trên đâu - đúng phần mà bộ phận
+          tuân thủ sẽ soát lại.</p>
+        <div id="inspector">
+          <p class="empty">Gửi một câu hỏi để xem nguồn.</p>
+        </div>
       </div>
+      <div class="rail-block">
+        <span class="rail-eyebrow">Đường ra quyết định</span>
+        <p class="hint">Các chốt kiểm soát lượt hỏi này đã đi qua, và quy tắc
+          áp dụng tại mỗi chốt.</p>
+        <div id="trace"><p class="empty">-</p></div>
+      </div>
+      <p class="rail-note">Trợ lý đọc được thông tin tài khoản nhưng không bao giờ
+        thấy số thẻ đầy đủ. Mọi thao tác liên quan đến tiền hoặc trạng thái thẻ
+        đều hỏi xác nhận trước.</p>
     </aside>
   </main>
 
   <!-- ============================================================
        STAFF SIGN-IN
        ============================================================ -->
-  <main id="screen-login" class="screen hidden">
+  <main id="screen-login" class="screen screen-doc hidden">
     <section class="panel">
       <h2>Đăng nhập</h2>
       <p class="hint">Màn hình khách không cần đăng nhập. Trang này dành cho nhân viên
@@ -225,7 +230,7 @@
   <!-- ============================================================
        AGENT - a separate screen, not a tab on the customer view.
        ============================================================ -->
-  <main id="screen-agent" class="screen hidden">
+  <main id="screen-agent" class="screen screen-doc hidden">
     <nav class="subtabs">
       <button class="subtab active" data-panel="dashboard">Tổng quan</button>
       <button class="subtab" data-panel="queue">
@@ -343,7 +348,6 @@
       </div>
     </section>
 
-    <!-- ---------- GROUNDING CHECK ---------- -->
     <!-- ---------- KNOWLEDGE BASE ---------- -->
     <section id="panel-kb" class="agent-panel hidden">
       <div class="split">
@@ -505,6 +509,9 @@
       </div>
     </section>
   </main>
+
+  </div><!-- /app-main -->
+</div><!-- /app-shell -->
 
   <script src="/app.js"></script>
 </body>
