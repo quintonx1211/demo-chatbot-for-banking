@@ -456,6 +456,12 @@ class Router:
                 return "new-question-during-verify"
             return None
 
+        # Card action flows ("freeze", "unfreeze", "report_lost"): "có"/"không"
+        # và tên thẻ đều là slot answers ngắn, NLU không phân biệt được với
+        # intent thật. Để state machine của card tự xử lý retry qua flow_misses.
+        if session.pending_flow in flows.CARD_ACTIONS:
+            return None
+
         if session.flow_misses >= flows.MAX_FLOW_MISSES:
             return f"no-progress-after-{session.flow_misses}"
 
