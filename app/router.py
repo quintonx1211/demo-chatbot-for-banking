@@ -342,11 +342,6 @@ class Router:
                 # customer knows the earlier request was dropped rather than
                 # silently forgotten.
                 result = self._route_fresh(session, text)
-                if abandon != "new-question-during-verify" and result.text:
-                    result.text = (
-                        f"_Được rồi - tôi đã dừng {_flow_label(flow_name)}._"
-                        f"\n\n{result.text}"
-                    )
                 result.debug["note"] = " · ".join(
                     filter(None, [f"abandoned:{flow_name}({abandon})",
                                   result.debug.get("note", "")])
