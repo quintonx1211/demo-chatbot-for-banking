@@ -830,10 +830,14 @@ table.events code { font-size: 11.5px; }
 /* ---------- composer chrome ---------- */
 /* Attach / emoji / voice. Borderless and smaller than the send button, which is
    the only control in the row that does anything. */
+/* Line icons rather than emoji: emoji render in the platform's own colour and
+   art style, which is the one part of the composer the product cannot art
+   direct. Stroked glyphs inherit currentColor and match the send arrow. */
 .composer .ghost-ic {
   width: 36px; height: 36px; border: none; background: none;
-  font-size: 16px; color: var(--text-subtle);
+  color: var(--text-subtle);
 }
+.composer .ghost-ic svg { width: 19px; height: 19px; }
 .composer .ghost-ic:hover { background: var(--bg-canvas); }
 .icon-btn svg, .send-btn svg { display: block; }
 
@@ -858,7 +862,8 @@ table.events code { font-size: 11.5px; }
      hiding two of them bought the width more cheaply but left the composer
      looking like a different product on mobile. */
   .composer { gap: 5px; padding: 10px 12px calc(14px + env(safe-area-inset-bottom)); }
-  .composer .ghost-ic { width: 32px; height: 32px; font-size: 15px; }
+  .composer .ghost-ic { width: 32px; height: 32px; }
+  .composer .ghost-ic svg { width: 18px; height: 18px; }
   .composer input { padding: 0 12px; min-width: 0; }
   .msg { max-width: 88%; }
   .chat-notice { margin: 0 4px; }
