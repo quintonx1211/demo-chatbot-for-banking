@@ -190,6 +190,9 @@ INTENTS: dict[str, dict] = {
         "utterances": [
             "làm sao để kích hoạt thẻ mới",
             "thẻ mới về rồi tôi dùng thế nào",
+            "thẻ mới về rồi tôi bắt đầu dùng thế nào",
+            "thẻ mới về bắt đầu dùng như thế nào",
+            "nhận thẻ rồi dùng thế nào",
             "kích hoạt thẻ",
             "thẻ chưa kích hoạt",
             "thẻ lâu rồi tôi không dùng còn dùng được không",

@@ -193,7 +193,24 @@ def _activate_card(session: Session) -> FlowResult:
     """
     customer = session.customer
     inactive = [c for c in customer["cards"] if c["status"] == "inactive"]
+    dormant = [c for c in customer["cards"] if c["status"] == "dormant"]
     campaign = CAMPAIGNS.campaigns.get("CARD-ACTIVATION", {})
+    dormant_campaign = CAMPAIGNS.campaigns.get("DORMANT-REACTIVATION", {})
+
+    if dormant:
+        card = dormant[0]
+        offer = dormant_campaign.get("offer", "")
+        offer_line = f"\n\n**Ưu đãi kích hoạt lại:** {offer}" if offer else ""
+        return FlowResult(
+            text=(
+                f"Thẻ **{card['type']} {card['mask']}** của bạn đang ở trạng thái ngủ đông do "
+                f"không có giao dịch trong thời gian dài.{offer_line}\n\n"
+                f"**{dormant_campaign.get('cta', 'Thực hiện một giao dịch để kích hoạt lại')}** - "
+                f"{dormant_campaign.get('deeplink', '')}\n\n"
+                "_Không cần liên hệ chi nhánh - chỉ cần dùng thẻ là thẻ tự động hoạt động trở lại._"
+            ),
+            note=f"dormant_reactivation:{card['card_id']}",
+        )
 
     if not inactive:
         return FlowResult(
