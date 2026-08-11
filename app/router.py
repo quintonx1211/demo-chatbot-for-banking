@@ -48,12 +48,11 @@ _LEAVE_RE = re.compile(r"^\s*(/leave|/bot|/back|end chat|leave chat)\s*$",
 # queue they just said they did not want.
 _AFFIRM_RE = re.compile(
     r"^\s*(yes|yeah|yep|yup|ok(ay)?|sure|please|go ahead|do it|connect me|"
-    r"put me through|transfer me|i do"
-    r"|có|dạ|vâng|ừ|đồng ý|nối máy|chuyển giúp|cho tôi gặp)(?=[\s.!,]|$)",
-    re.IGNORECASE)
+    r"put me through|transfer me|i do|"
+    r"có|được|đồng ý|kết nối|vâng|ừ|oke|ok)(?=[\s.!,]|$)", re.IGNORECASE)
 _DECLINE_RE = re.compile(
-    r"^\s*(no|nope|not now|no thanks|nah|don'?t|cancel"
-    r"|không|khỏi|thôi|chưa cần|để sau)(?=[\s.!,]|$)", re.IGNORECASE)
+    r"^\s*(no|nope|not now|no thanks|nah|don'?t|cancel|"
+    r"không|thôi|không cần|không muốn|tiếp tục)(?=[\s.!,]|$)", re.IGNORECASE)
 
 
 def split_mention(text: str) -> tuple[str | None, str]:
@@ -66,11 +65,8 @@ def split_mention(text: str) -> tuple[str | None, str]:
     return who, text[match.end():].strip()
 
 _FLOW_LABELS = {
-    "verify": "bước xác minh danh tính",
-    "block_card": "thao tác khoá thẻ",
-    "freeze_card": "thao tác tạm khoá thẻ",
-    "unfreeze_card": "thao tác mở khoá thẻ",
-    "report_lost": "thao tác báo mất thẻ",
+    "verify": "xác minh danh tính",
+    "block_card": "khóa thẻ",
 }
 
 
@@ -79,14 +75,14 @@ def _flow_label(name: str | None) -> str:
 
 
 ESCALATION_MESSAGE = (
-    "Tôi xin chuyển anh/chị sang chuyên viên hỗ trợ. Chuyên viên sẽ thấy toàn bộ "
-    "nội dung trao đổi này nên anh/chị không phải trình bày lại từ đầu ạ.\n\n"
-    "**Anh/chị đang trong hàng chờ gặp chuyên viên.**"
+    "Để tôi kết nối bạn với một chuyên viên - họ sẽ có đầy đủ nội dung cuộc hội thoại này, "
+    "bạn không cần phải giải thích lại.\n\n"
+    "**Bạn đang trong hàng chờ nhân viên hỗ trợ.**"
 )
 
 REQUEUED_MESSAGE = (
-    "Câu này cũng ngoài phạm vi tôi trả lời được. Tôi đã ghi chú lại để chuyên "
-    "viên tiếp nhận nắm được. **Anh/chị vẫn đang trong hàng chờ.**"
+    "Câu hỏi này cũng nằm ngoài phạm vi tôi có thể trả lời - tôi đã ghi vào ghi chú "
+    "cho chuyên viên tiếp nhận bạn. **Bạn vẫn đang trong hàng chờ.**"
 )
 
 
@@ -157,12 +153,11 @@ class Router:
                 note=(f"customer left the chat with {agent_name}" if agent_name
                       else "customer left the handoff queue before it was claimed"),
             )
-            reply = ((f"Anh/chị đã quay lại với trợ lý ảo - chuyên viên "
-                      f"{agent_name} đã rời cuộc trò chuyện. Tôi có thể hỗ trợ "
-                      "gì thêm ạ?")
+            reply = ((f"Bạn đã quay lại với trợ lý - {agent_name} đã kết thúc cuộc hội thoại này. "
+                      "Tôi có thể giúp gì cho bạn?")
                      if agent_name else
-                     ("Anh/chị đã quay lại với trợ lý ảo và tôi đã rút anh/chị "
-                      "khỏi hàng chờ. Tôi có thể hỗ trợ gì thêm ạ?"))
+                     ("Bạn đã quay lại với trợ lý, tôi đã đưa bạn ra khỏi hàng chờ. "
+                      "Tôi có thể giúp gì cho bạn?"))
             session.add_message("assistant", reply)
             return TurnResult(
                 text=reply, route="deterministic", intent="left_agent",
@@ -175,7 +170,7 @@ class Router:
         # it as one offered the customer a handoff, which is the opposite of
         # what they asked for.
         if _LEAVE_RE.match(text):
-            reply = "Anh/chị đang trò chuyện với trợ lý ảo mà ạ. Tôi giúp gì được không?"
+            reply = "Bạn đang trò chuyện với trợ lý ảo. Tôi có thể giúp gì cho bạn?"
             session.add_message("assistant", reply)
             session.record(utterance=text, route="deterministic",
                            intent="left_agent", confidence=1.0,
@@ -324,8 +319,7 @@ class Router:
                 self.trace.decide("handoff_offer", "customer declined",
                                   "assistant continues")
                 return TurnResult(
-                    text=("Vâng ạ, tôi tiếp tục hỗ trợ anh/chị. Anh/chị cần tôi "
-                          "kiểm tra thêm điều gì không?"),
+                    text="Được rồi, tôi sẽ tiếp tục hỗ trợ bạn. Bạn cần hỏi thêm điều gì không?",
                     route="deterministic", intent="escalation_declined",
                     confidence=1.0, debug={"note": "customer declined the handoff"},
                 )
@@ -348,10 +342,11 @@ class Router:
                 # customer knows the earlier request was dropped rather than
                 # silently forgotten.
                 result = self._route_fresh(session, text)
-                result.text = (
-                    f"_Vâng, tôi đã dừng {_flow_label(flow_name)}._"
-                    f"\n\n{result.text}" if result.text else result.text
-                )
+                if abandon != "new-question-during-verify" and result.text:
+                    result.text = (
+                        f"_Được rồi - tôi đã dừng {_flow_label(flow_name)}._"
+                        f"\n\n{result.text}"
+                    )
                 result.debug["note"] = " · ".join(
                     filter(None, [f"abandoned:{flow_name}({abandon})",
                                   result.debug.get("note", "")])
@@ -453,18 +448,13 @@ class Router:
         if flows.wants_out(text):
             return "explicit-cancel"
 
-        # Verification owns its own retry ceiling: `_handle_verification`
-        # escalates with "Identity verification failed three times" on the
-        # third wrong attempt. That check has to run *before* the generic
-        # no-progress rule below, because MAX_FLOW_MISSES (2) is reached one
-        # turn earlier than verification's own three strikes - the generic
-        # rule fired first, silently abandoning the identity check and
-        # answering the third bad guess as if it were a fresh question,
-        # which drops the security-relevant escalation on the floor instead
-        # of raising it. The exemption is checked first for the same reason
-        # the flow itself is exempt from the "different intent" rule further
-        # down: it is a gate in front of something the customer asked for.
+        # Verification flow: chỉ giữ nguyên nếu input trông như mã xác minh
+        # (có nhóm 4 chữ số). Nếu không có số → rõ ràng là câu hỏi mới,
+        # bỏ verify và route lại ngay.
         if session.pending_flow == "verify":
+            import re as _re
+            if not _re.search(r"\b\d{4}\b", text):
+                return "new-question-during-verify"
             return None
 
         if session.flow_misses >= flows.MAX_FLOW_MISSES:
@@ -719,12 +709,11 @@ class Router:
         """
         session.pending_escalation = reason
         body = (
-            "Tôi xin phép nói thẳng: tôi chưa có tài liệu nào đã được thẩm định về nội "
-            "dung này, và tôi không muốn trả lời phỏng đoán.\n\n"
-            "**Anh/chị có muốn tôi kết nối với chuyên viên hỗ trợ không ạ?** "
-            "Chuyên viên sẽ thấy sẵn nội dung trao đổi này nên anh/chị không "
-            "phải nhắc lại. Hoặc anh/chị cứ hỏi tôi nội dung khác, tôi vẫn hỗ "
-            "trợ bình thường ạ."
+            "Thành thật mà nói - tôi không có thông tin đã được xác minh về vấn đề này, "
+            "và tôi thà nói thẳng còn hơn đoán mò.\n\n"
+            "**Bạn có muốn tôi kết nối với một chuyên viên để hỗ trợ không?** "
+            "Họ sẽ có đầy đủ nội dung cuộc hội thoại này, bạn không cần giải thích lại. "
+            "Hoặc bạn có thể hỏi tôi câu khác."
         )
         message = f"{prefix.strip()}\n\n{body}" if prefix.strip() else body
         return TurnResult(

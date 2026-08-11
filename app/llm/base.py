@@ -21,36 +21,31 @@ from ..retriever import RetrievedPassage
 ANSWER_MAX_TOKENS = 4000
 SUMMARY_MAX_TOKENS = 3000
 
-ANSWER_SYSTEM_PROMPT = """You are the customer service assistant for ABC Bank, a Vietnamese retail bank. You reply in Vietnamese.
+ANSWER_SYSTEM_PROMPT = """Bạn là trợ lý chăm sóc khách hàng của Ngân hàng ABC.
 
-You answer ONLY from the knowledge base passages provided in the user message. \
-These passages are the bank's verified documentation and are the sole source of \
-truth available to you.
+Bạn chỉ trả lời DUY NHẤT từ các đoạn văn trong cơ sở tri thức được cung cấp. \
+Đây là tài liệu đã được ngân hàng xác minh và là nguồn thông tin chính thức duy nhất.
 
-Rules, in priority order:
-1. Every factual claim - figures, fees, timeframes, eligibility, policy - must \
-come from the passages. Never supply a number or condition that is not written \
-there, even if you believe it is correct.
-2. If the passages do not cover the question, or cover it only partially, say so \
-plainly and offer to connect the customer with a specialist. Do not fill gaps.
-3. Never give investment, tax, or legal advice, and never speculate about an \
-individual customer's account, application, or eligibility - you cannot see \
-account data.
-4. Never ask for, repeat, or confirm a full card number, PIN, password, or \
-one-time passcode.
-5. Some passages are market references about OTHER banks' products, marked with \
-a doc_id beginning KB-MKT-. They are compiled from public sources, not verified \
-by this bank. When you answer from one, say so in a short closing line and tell \
-the customer to confirm with the issuing bank. Never present another bank's fee, \
-rate or limit as something this bank stands behind, and never answer a question \
-about a customer's own account at another bank - you hold no data from one.
+Quy tắc, theo thứ tự ưu tiên:
+1. Mọi thông tin thực tế - con số, phí, thời hạn, điều kiện, chính sách - phải \
+lấy từ các đoạn văn. Không được cung cấp con số hoặc điều kiện không có trong đó, \
+dù bạn cho là đúng.
+2. Nếu các đoạn văn không đề cập hoặc chỉ đề cập một phần câu hỏi, hãy nói thẳng \
+và đề nghị kết nối khách hàng với chuyên viên. Không bịa thêm thông tin.
+3. Không đưa ra tư vấn đầu tư, thuế hoặc pháp lý; không phỏng đoán về tài khoản, \
+hồ sơ hay điều kiện của khách hàng cụ thể - bạn không thể xem dữ liệu tài khoản.
+4. Không yêu cầu, nhắc lại hay xác nhận số thẻ đầy đủ, mã PIN, mật khẩu hoặc \
+mã OTP.
+5. Một số đoạn văn là tài liệu tham khảo thị trường về sản phẩm của ngân hàng KHÁC, \
+có doc_id bắt đầu bằng KB-MKT-. Chúng được tổng hợp từ nguồn công khai, không được \
+ngân hàng này xác minh. Khi trả lời từ nguồn đó, hãy ghi rõ ở cuối và yêu cầu \
+khách hàng xác nhận với ngân hàng phát hành. Không trình bày phí, lãi suất hay hạn \
+mức của ngân hàng khác như thông tin của ngân hàng này.
 
-Style: reply in Vietnamese, addressing the customer as "anh/chị" and referring \
-to yourself as "tôi". 2-4 short sentences or a brief bullet list. No preamble, \
-no restating the question. Do not cite document IDs - the interface renders \
-sources separately.
+Phong cách: xưng hô "bạn", 2-4 câu ngắn hoặc danh sách gạch đầu dòng ngắn gọn. \
+Không mở đầu dài dòng, không nhắc lại câu hỏi. Không trích dẫn ID tài liệu.
 
-Answer in English only if the customer wrote in English."""
+QUAN TRỌNG: Luôn trả lời bằng tiếng Việt, bất kể ngôn ngữ khách hàng sử dụng."""
 
 # Tone presets, appended to the system prompt above.
 #
@@ -68,24 +63,21 @@ Answer in English only if the customer wrote in English."""
 # confidence, or what to do when the passages come up short.
 TONES: dict[str, str] = {
     "professional": (
-        "Tone: professional and precise. Courteous but economical, the register "
-        "of a competent bank officer who respects the customer's time."
+        "Giọng điệu: chuyên nghiệp và chính xác. Lịch sự nhưng súc tích, "
+        "như phong cách của một nhân viên ngân hàng có năng lực, tôn trọng thời gian khách hàng."
     ),
     "friendly": (
-        "Tone: warm and conversational. Plain words over banking vocabulary, "
-        "contractions welcome, and a short reassuring opener when the customer "
-        "sounds worried. Never chatty for its own sake."
+        "Giọng điệu: thân thiện và gần gũi. Dùng ngôn từ đơn giản thay vì thuật ngữ ngân hàng, "
+        "thêm lời trấn an ngắn khi khách hàng có vẻ lo lắng. Không dài dòng quá mức."
     ),
     "concise": (
-        "Tone: brief. Lead with the answer in the first sentence. Prefer a "
-        "bullet list to a paragraph. No softeners and no closing offer of "
-        "further help."
+        "Giọng điệu: ngắn gọn. Trả lời thẳng vào câu hỏi ngay câu đầu tiên. "
+        "Ưu tiên danh sách hơn đoạn văn. Không thêm lời nhạt nhẽo hay lời chào hỏi kết thúc."
     ),
     "empathetic": (
-        "Tone: patient and reassuring. Acknowledge the situation in one short "
-        "clause before the answer when the customer reports money lost, fraud, "
-        "or a card problem. Never perform sympathy at length - one clause, then "
-        "help."
+        "Giọng điệu: kiên nhẫn và trấn an. Khi khách hàng báo mất tiền, gian lận hoặc sự cố thẻ, "
+        "hãy thừa nhận tình huống trong một mệnh đề ngắn trước khi trả lời. "
+        "Không thể hiện sự đồng cảm quá dài — một mệnh đề, rồi giúp đỡ."
     ),
 }
 
@@ -97,19 +89,21 @@ def tone_instruction(name: str | None = None) -> str:
     key = (name or DEFAULT_TONE).strip().lower()
     return TONES.get(key, TONES[DEFAULT_TONE])
 
-SUMMARY_SYSTEM_PROMPT = """You write handover briefs for bank contact-centre agents \
-picking up a conversation escalated from the virtual assistant.
+SUMMARY_SYSTEM_PROMPT = """Bạn viết tóm tắt bàn giao cho nhân viên trung tâm chăm sóc khách hàng \
+tiếp nhận cuộc hội thoại được chuyển từ trợ lý ảo.
 
-Produce exactly these four sections, in this order, using these headings:
+Tạo đúng bốn mục sau, theo thứ tự này, với các tiêu đề này:
 
-**Customer & verification** - who they are and whether identity was verified, in one line.
-**What they asked for** - the actual goal, not a turn-by-turn replay.
-**What the assistant did** - actions already taken (blocks placed, data shown) and what it could not resolve.
-**Recommended next step** - one concrete action for the agent.
+**Khách hàng & xác minh** - danh tính và trạng thái xác minh, trong một dòng.
+**Yêu cầu của khách hàng** - mục tiêu thực sự, không phải tóm tắt từng lượt hội thoại.
+**Trợ lý đã làm gì** - các hành động đã thực hiện (khóa thẻ, hiển thị dữ liệu) và vấn đề chưa giải quyết được.
+**Bước tiếp theo đề xuất** - một hành động cụ thể cho nhân viên.
 
-Be factual and compressed: an agent reads this in under fifteen seconds. State \
-only what the transcript supports - if something is unclear, write "not \
-established". Never include card numbers, passcodes, or other credentials."""
+Viết ngắn gọn, chính xác: nhân viên đọc trong dưới mười lăm giây. Chỉ ghi \
+những gì được xác nhận trong cuộc hội thoại - nếu không rõ, ghi "chưa xác định". \
+Không bao gồm số thẻ, mã bảo mật hoặc thông tin nhạy cảm khác.
+
+QUAN TRỌNG: Viết bằng tiếng Việt."""
 
 # Used only in "raw mode" - the demo lever that strips away routing,
 # guardrails, retrieval and the grounding check, leaving a plain LLM call over
@@ -117,8 +111,9 @@ established". Never include card numbers, passcodes, or other credentials."""
 # refusal rules beyond whatever the model brings on its own, because the point
 # of this path is to show what the assistant would be *without* the rest of
 # the architecture, not a weaker copy of the grounded prompt.
-RAW_SYSTEM_PROMPT = """You are a helpful virtual assistant for ABC Bank. \
-Answer naturally from the conversation so far and your own general knowledge."""
+RAW_SYSTEM_PROMPT = """Bạn là trợ lý ảo hữu ích của Ngân hàng ABC. \
+Trả lời tự nhiên dựa trên cuộc hội thoại và kiến thức chung của bạn. \
+Luôn trả lời bằng tiếng Việt."""
 
 
 @dataclass
@@ -194,18 +189,15 @@ def build_answer_request(
     temperature: float | None = None,
 ) -> LLMRequest:
     history_block = (
-        f"Earlier in this conversation:\n{history}\n\n" if history.strip() else ""
+        f"Cuộc hội thoại trước đó:\n{history}\n\n" if history.strip() else ""
     )
     return LLMRequest(
-        # Tone goes last so it reads as a refinement of the rules above it, not
-        # a replacement for them. The rules stay first either way, because the
-        # preset cannot contradict them - see TONES.
         system=f"{ANSWER_SYSTEM_PROMPT}\n\n{tone_instruction(tone)}",
         user=(
             f"{history_block}"
-            f"Knowledge base passages:\n\n{format_context(passages)}\n\n"
-            f"---\nCustomer question: {question}\n\n"
-            "Answer using only the passages above."
+            f"Các đoạn văn trong cơ sở tri thức:\n\n{format_context(passages)}\n\n"
+            f"---\nCâu hỏi của khách hàng: {question}\n\n"
+            "Trả lời chỉ dựa trên các đoạn văn trên. Viết bằng tiếng Việt."
         ),
         max_tokens=ANSWER_MAX_TOKENS,
         temperature=temperature,
@@ -215,11 +207,11 @@ def build_answer_request(
 def build_raw_request(message: str, history: str = "",
                       temperature: float | None = None) -> LLMRequest:
     history_block = (
-        f"Conversation so far:\n{history}\n\n" if history.strip() else ""
+        f"Hội thoại trước đó:\n{history}\n\n" if history.strip() else ""
     )
     return LLMRequest(
         system=RAW_SYSTEM_PROMPT,
-        user=f"{history_block}Customer: {message}",
+        user=f"{history_block}Khách hàng: {message}",
         max_tokens=ANSWER_MAX_TOKENS,
         temperature=temperature,
     )
@@ -230,9 +222,9 @@ def build_summary_request(transcript: str, context_lines: list[str]) -> LLMReque
     return LLMRequest(
         system=SUMMARY_SYSTEM_PROMPT,
         user=(
-            f"Session facts:\n{metadata}\n\n"
-            f"Full transcript:\n{transcript}\n\n"
-            "Write the handover brief."
+            f"Thông tin phiên:\n{metadata}\n\n"
+            f"Bản ghi đầy đủ:\n{transcript}\n\n"
+            "Viết tóm tắt bàn giao bằng tiếng Việt."
         ),
         max_tokens=SUMMARY_MAX_TOKENS,
     )
@@ -311,20 +303,16 @@ def extractive_answer(passages: list[RetrievedPassage]) -> str:
     excerpt = _excerpt(best.text)
 
     if is_unverified(best):
-        # Saying "trích nguyên văn từ tài liệu của chúng tôi" about a
-        # competitor's fee schedule is precisely the misattribution these
-        # documents warn about in their own headers.
-        return (f"Đây là thông tin tham khảo của chúng tôi về "
+        return (f"Đây là nội dung từ tài liệu tham khảo thị trường của chúng tôi về "
                 f"**{best.heading.lower()}**:\n\n{excerpt}\n\n"
                 f"_Đây là thông tin tham khảo về sản phẩm của ngân hàng khác, "
-                f"thu thập từ nguồn công khai chứ chưa được chúng tôi thẩm "
-                f"định. Anh/chị vui lòng xác nhận lại điều kiện hiện hành với "
-                f"ngân hàng phát hành trước khi sử dụng._")
+                f"được thu thập từ nguồn công khai và chưa được chúng tôi xác minh. "
+                f"Vui lòng xác nhận các điều khoản hiện hành với ngân hàng đó trước khi sử dụng._")
 
-    return (f"Về **{best.heading.lower()}**, đây là nội dung trích nguyên văn "
-            f"từ tài liệu đã được ngân hàng thẩm định:\n\n"
+    return (f"Đây là thông tin chúng tôi có về **{best.heading.lower()}** - "
+            f"trích dẫn trực tiếp từ tài liệu hướng dẫn của chúng tôi:\n\n"
             f"{excerpt}\n\n"
-            f"Anh/chị cần tôi làm rõ thêm phần nào không ạ?")
+            f"Bạn muốn tìm hiểu thêm phần nào không?")
 
 
 def extractive_summary(transcript: str, context_lines: list[str]) -> str:
@@ -334,17 +322,17 @@ def extractive_summary(transcript: str, context_lines: list[str]) -> str:
         if line.startswith("Customer:")
     ]
     facts = "\n".join(f"- {line}" for line in context_lines)
-    asked = customer_turns[0] if customer_turns else "not established"
-    latest = customer_turns[-1] if customer_turns else "not established"
+    asked = customer_turns[0] if customer_turns else "chưa xác định"
+    latest = customer_turns[-1] if customer_turns else "chưa xác định"
     return (
-        "**Customer & verification**\n"
+        "**Khách hàng & xác minh**\n"
         f"{facts}\n\n"
-        "**What they asked for**\n"
-        f"- Opening request: {asked}\n"
-        f"- Most recent message: {latest}\n\n"
-        "**What the assistant did**\n"
-        f"- Handled {len(customer_turns)} customer turn(s); see the transcript below.\n\n"
-        "**Recommended next step**\n"
-        "- Review the transcript and continue from the last customer message.\n\n"
-        "_(Offline summary - configure an LLM provider for the written brief.)_"
+        "**Yêu cầu của khách hàng**\n"
+        f"- Yêu cầu ban đầu: {asked}\n"
+        f"- Tin nhắn gần nhất: {latest}\n\n"
+        "**Trợ lý đã làm gì**\n"
+        f"- Xử lý {len(customer_turns)} lượt hội thoại; xem bản ghi phía dưới.\n\n"
+        "**Bước tiếp theo đề xuất**\n"
+        "- Xem lại bản ghi và tiếp tục từ tin nhắn cuối của khách hàng.\n\n"
+        "_(Tóm tắt offline - cấu hình nhà cung cấp LLM để có tóm tắt chi tiết hơn.)_"
     )

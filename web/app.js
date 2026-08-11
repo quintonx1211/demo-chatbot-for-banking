@@ -78,7 +78,7 @@ function showPanel(name) {
   document.querySelectorAll(".subtab").forEach((t) =>
     t.classList.toggle("active", t.dataset.panel === name));
   const load = { dashboard: refreshDashboard, queue: refreshQueue,
-                 kb: refreshKb, settings: refreshProviders };
+                 kb: refreshKb, settings: () => { refreshProviders(); refreshTtsStatus(); } };
   if (load[name]) load[name]();
 }
 
@@ -132,7 +132,7 @@ function addMessage(role, text, meta, author) {
   bubble.innerHTML = role === "system" ? escapeHtml(text) : render(text);
   body.appendChild(bubble);
 
-  if (role === "assistant" && voiceAvailable && text.trim()) {
+  if (role === "assistant" && text.trim()) {
     body.appendChild(makeVoiceButton(text));
   }
 
@@ -612,16 +612,16 @@ async function sendAgentReply(event) {
 async function refreshKb() {
   const data = await api("/api/kb");
   $("kb-stats").textContent =
-    `${data.stats.passages} retrievable passages across ${data.stats.documents} documents`;
+    `${data.stats.passages} đoạn trích có thể truy xuất trong ${data.stats.documents} tài liệu`;
 
   $("kb-list").innerHTML = data.documents.map((d) => `
     <button class="queue-item ${d.filename === selectedDoc ? "active" : ""}"
             data-name="${escapeHtml(d.filename)}">
       <strong>${escapeHtml(d.title)}</strong>
       <small>${escapeHtml(d.filename)} · ${escapeHtml(d.format)}</small>
-      <small>${d.passages} passages · ${(d.bytes / 1024).toFixed(1)} KB</small>
+      <small>${d.passages} đoạn · ${(d.bytes / 1024).toFixed(1)} KB</small>
     </button>`).join("") ||
-    '<p class="empty">No documents. Every knowledge question will escalate.</p>';
+    '<p class="empty">Chưa có tài liệu. Mọi câu hỏi về kiến thức sẽ được chuyển tiếp.</p>';
 
   $("kb-list").querySelectorAll(".queue-item").forEach((b) => {
     b.onclick = () => openDoc(b.dataset.name);
@@ -636,7 +636,7 @@ async function openDoc(filename) {
   $("kb-view").classList.remove("hidden");
   $("kb-title").textContent = filename;
   $("kb-edit").classList.toggle("hidden", !data.editable);
-  $("kb-passage-count").textContent = `${data.passages.length} passages`;
+  $("kb-passage-count").textContent = `${data.passages.length} đoạn trích`;
   $("kb-raw").textContent = data.content;
   $("kb-passages").innerHTML = data.passages.map((p) => `
     <div class="passage">
@@ -740,13 +740,13 @@ async function refreshProviders() {
     b.onclick = () => { $("cfg-provider").value = b.dataset.name; $("cfg-key").focus(); };
   });
 
-  const rows = [["Chế độ", active.mode], ["Provider", active.provider || "-"],
-                ["Model", active.model || "-"], ["Effort", active.effort || "-"]];
+  const rows = [["Chế độ", active.mode], ["Nhà cung cấp", active.provider || "-"],
+                ["Model", active.model || "-"], ["Mức suy luận", active.effort || "-"]];
   if (active.tone) rows.push(["Văn phong", active.tone]);
-  rows.push(["Temperature",
+  rows.push(["Nhiệt độ",
     active.temperature === null || active.temperature === undefined
-      ? "mặc định của provider" : String(active.temperature)]);
-  if (active.endpoint) rows.push(["Endpoint", active.endpoint]);
+      ? "mặc định của nhà cung cấp" : String(active.temperature)]);
+  if (active.endpoint) rows.push(["Điểm cuối", active.endpoint]);
   if (active.detail) rows.push(["Chi tiết", active.detail]);
   $("active-config").innerHTML = rows.map(([k, v]) =>
     `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("");
@@ -840,23 +840,23 @@ async function refreshHealth() {
   const h = await api("/api/health");
   const pill = $("mode-pill");
   pill.textContent = h.mode === "live" ? `${h.provider}: ${h.model}` : "Model: ngoại tuyến";
-  pill.title = h.detail || `effort: ${h.effort}`;
+  pill.title = h.detail || `mức suy luận: ${h.effort}`;
   pill.className = `pill ${h.mode}`;
 }
 
-/* ---------- voice (Vbee STT/TTS) ---------- */
+/* ---------- voice (TTS/STT) ---------- */
 
-let voiceAvailable = false;
+let voiceAvailable = true;   // luôn hiện mic & loa, lỗi sẽ báo sau
 let currentAudio = null;
+let currentTtsAbort = null;
 
 async function checkVoiceStatus() {
+  // Kiểm tra TTS của chúng ta (không cần Vbee voice.py)
   try {
-    const data = await api("/api/voice/status");
-    voiceAvailable = Boolean(data.available);
-  } catch {
-    voiceAvailable = false;
-  }
-  $("mic-btn").classList.toggle("hidden", !voiceAvailable);
+    const s = await api("/api/tts/provider");
+    voiceAvailable = Boolean(s.gtts_available || s.vbee_available);
+  } catch { voiceAvailable = true; }
+  $("mic-btn").classList.toggle("hidden", false); // luôn hiện mic
 }
 
 function makeVoiceButton(text) {
@@ -864,13 +864,90 @@ function makeVoiceButton(text) {
   btn.type = "button";
   btn.className = "voice-btn";
   btn.title = "Nghe câu trả lời";
-  btn.textContent = "🔊";
-  btn.onclick = () => playReply(text, btn);
+  btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+    <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>
+  </svg>`;
+  btn.onclick = () => playTts(text, btn);
   return btn;
 }
 
+// Phát TTS qua endpoint /api/tts (trả về binary audio)
+async function playTts(text, btn) {
+  // Nếu đang phát hoặc đang tải → dừng lại
+  if (btn.classList.contains("playing")) {
+    if (currentTtsAbort) { currentTtsAbort.abort(); currentTtsAbort = null; }
+    stopCurrentAudio();
+    return;
+  }
+  if (currentTtsAbort) { currentTtsAbort.abort(); currentTtsAbort = null; }
+  stopCurrentAudio();
+  if ($("tts-stop-btn")) $("tts-stop-btn").classList.remove("hidden");
+
+  const origHTML = btn.innerHTML;
+  btn.classList.add("playing");
+  btn.title = "Đang tải… (nhấn để dừng)";
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="2.2" stroke-linecap="round" class="spin">
+    <path d="M21 12a9 9 0 1 1-9-9"/>
+  </svg>`;
+
+  const abortCtrl = new AbortController();
+  currentTtsAbort = abortCtrl;
+
+  try {
+    const resp = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text.replace(/[*_`#>]/g, "") }),
+      signal: abortCtrl.signal,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.status }));
+      throw new Error(err.error || resp.status);
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    const cleanup = () => { URL.revokeObjectURL(url); _resetVoiceBtn(btn, origHTML); };
+    audio._cleanup = cleanup;
+    currentAudio = audio;
+    // Khi đang phát: đổi icon thành pause
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+      <rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>
+    </svg>`;
+    btn.title = "Đang phát – nhấn để dừng";
+    audio.onended = cleanup;
+    audio.onerror = cleanup;
+    currentTtsAbort = null;
+    await audio.play();
+    return; // không chạy reset nếu audio đang phát
+  } catch (err) {
+    if (err.name !== "AbortError") {
+      addMessage("system", `Không phát được giọng nói: ${err.message}`);
+    }
+  }
+  currentTtsAbort = null;
+  _resetVoiceBtn(btn, origHTML);
+}
+
+function _resetVoiceBtn(btn, origHTML) {
+  btn.classList.remove("playing");
+  btn.innerHTML = origHTML;
+  btn.title = "Nghe câu trả lời";
+  if ($("tts-stop-btn")) $("tts-stop-btn").classList.add("hidden");
+  currentAudio = null;
+}
+
 function stopCurrentAudio() {
-  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  if (currentTtsAbort) { currentTtsAbort.abort(); currentTtsAbort = null; }
+  if (currentAudio) {
+    currentAudio.pause();
+    if (currentAudio._cleanup) currentAudio._cleanup();
+    currentAudio = null;
+  }
+  if ($("tts-stop-btn")) $("tts-stop-btn").classList.add("hidden");
 }
 
 // Vbee's realtime TTS caps a single request at 300 characters, so a long
@@ -895,6 +972,7 @@ function playChunks(chunks, format) {
 
 async function playReply(text, btn) {
   stopCurrentAudio();
+  if ($("tts-stop-btn")) $("tts-stop-btn").classList.remove("hidden");
   btn.disabled = true;
   btn.classList.add("playing");
   // Vbee's TTS runs as a background job now (see app/voice.py) - the request
@@ -1037,7 +1115,7 @@ async function finishRecording() {
   try {
     const wav = encodeWav(merged, sourceRate, RECORD_SAMPLE_RATE);
     const audioBase64 = await readAsBase64(wav);
-    const data = await postJson("/api/voice/stt", { audio_base64: audioBase64 });
+    const data = await postJson("/api/stt", { audio_b64: audioBase64 });
     if (data.error) throw new Error(data.error);
     // Fills the composer rather than sending straight away - a misheard digit
     // in a verification code is exactly the kind of STT error a customer
@@ -1061,6 +1139,16 @@ $("raw-toggle").onchange = (e) => toggleRawMode(e.target.checked);
 
 $("composer").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
 $("mic-btn").onclick = toggleRecording;
+
+// Nút dừng TTS
+if ($("tts-stop-btn")) {
+  $("tts-stop-btn").onclick = stopCurrentAudio;
+}
+
+// Suggestions: luôn hiển thị, có thể nhấn nhiều lần
+document.querySelectorAll("#suggestions button").forEach((btn) => {
+  btn.onclick = () => send(btn.textContent.trim());
+});
 
 // Starting over drops the server-side session too. Clearing only the visible
 // transcript would leave the customer talking to a conversation they cannot
@@ -1157,6 +1245,69 @@ $("cfg-key-toggle").onclick = () => {
   $("cfg-key-toggle").textContent = hidden ? "Ẩn" : "Hiện";
 };
 
+/* ---------- TTS bar (khung chat) ---------- */
+
+function _ttsToggleVbeeFields() {
+  const isVbee = $("tts-provider") && $("tts-provider").value === "vbee";
+  if ($("tts-voice-field")) $("tts-voice-field").style.display = isVbee ? "" : "none";
+}
+
+async function refreshTtsStatus() {
+  try {
+    const s = await api("/api/tts/provider");
+    if ($("tts-provider")) $("tts-provider").value = s.provider;
+    if (s.vbee_voice && $("tts-voice")) $("tts-voice").value = s.vbee_voice;
+    if ($("tts-status")) {
+      $("tts-status").textContent = s.provider === "vbee"
+        ? (s.vbee_available ? `Vbee AI – giọng ${s.vbee_voice}` : "Vbee – chưa cấu hình credentials")
+        : "gTTS – Google (đang dùng)";
+    }
+    _ttsToggleVbeeFields();
+    _syncTtsBar(s);
+  } catch (_) {}
+}
+
+async function saveTtsConfig() {
+  if ($("tts-error")) clearError($("tts-error"));
+  if ($("tts-save")) $("tts-save").disabled = true;
+  try {
+    const body = { provider: $("tts-provider").value };
+    if (body.provider === "vbee" && $("tts-voice")) body.vbee_voice = $("tts-voice").value;
+    await postJson("/api/tts/provider", body);
+    await refreshTtsStatus();
+  } catch (err) {
+    if ($("tts-error")) showError($("tts-error"), err.message);
+  } finally {
+    if ($("tts-save")) $("tts-save").disabled = false;
+  }
+}
+
+function _syncTtsBar(s) {
+  if ($("tts-bar-provider")) $("tts-bar-provider").value = s.provider;
+  if ($("tts-bar-voice")) {
+    $("tts-bar-voice").value = s.vbee_voice || "hn_female_ngochuyen_full_48k-fhg";
+    $("tts-bar-voice").style.display = s.provider === "vbee" ? "" : "none";
+  }
+}
+
+async function _applyTtsBar() {
+  const provider = $("tts-bar-provider").value;
+  const body = { provider };
+  if (provider === "vbee" && $("tts-bar-voice")) body.vbee_voice = $("tts-bar-voice").value;
+  try {
+    await postJson("/api/tts/provider", body);
+    if ($("tts-bar-voice")) $("tts-bar-voice").style.display = provider === "vbee" ? "" : "none";
+    if ($("tts-provider")) $("tts-provider").value = provider;
+    if (body.vbee_voice && $("tts-voice")) $("tts-voice").value = body.vbee_voice;
+    _ttsToggleVbeeFields();
+  } catch (_) {}
+}
+
+if ($("tts-bar-provider")) $("tts-bar-provider").onchange = _applyTtsBar;
+if ($("tts-bar-voice")) $("tts-bar-voice").onchange = _applyTtsBar;
+if ($("tts-save")) $("tts-save").onclick = saveTtsConfig;
+if ($("tts-provider")) $("tts-provider").onchange = _ttsToggleVbeeFields;
+
 function greet() {
   addMessage("assistant",
     "Xin chào! Tôi là trợ lý ảo của **ABC Bank**. Tôi có thể tra cứu số dư và "
@@ -1178,6 +1329,7 @@ function setRailUser(customer) {
   await refreshHealth();
   await refreshStaff();
   await checkVoiceStatus();
+  refreshTtsStatus();
   greet();
   if (staff) { showScreen("agent"); showPanel("dashboard"); }
 })();

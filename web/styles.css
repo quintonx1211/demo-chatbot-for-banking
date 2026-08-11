@@ -220,14 +220,17 @@ code {
   50% { box-shadow: 0 0 0 6px rgba(200, 50, 43, 0); }
 }
 .voice-btn {
-  width: 26px; height: 26px; border-radius: 50%; border: none;
+  width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line);
   background: var(--panel-2); color: var(--muted); cursor: pointer;
   display: inline-grid; place-items: center; font-size: 12px;
   margin-top: 6px; transition: background .15s, color .15s;
 }
+.voice-btn svg { display: block; }
 .voice-btn:hover { background: var(--brand-soft); color: var(--brand); }
-.voice-btn.playing { color: var(--brand); background: var(--brand-soft); }
-.voice-btn:disabled { opacity: .5; cursor: default; }
+.voice-btn.playing { color: var(--brand); background: var(--brand-soft); border-color: var(--brand); }
+.voice-btn:disabled { opacity: .7; cursor: wait; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin .8s linear infinite; transform-origin: center; }
 .voice-status {
   font-size: 11.5px; color: var(--red); margin: 4px 18px 0;
 }
@@ -311,6 +314,35 @@ code {
 .sources { margin-top: 7px; font-size: 12px; color: var(--muted); }
 .sources b { color: var(--text); font-weight: 600; }
 .sources ul { margin: 4px 0 0; padding-left: 17px; }
+
+/* ---------- tts bar ---------- */
+/* ---------- suggestions ---------- */
+.suggestions {
+  display: flex; gap: 8px; padding: 8px 14px 4px;
+  overflow-x: auto; scrollbar-width: none;
+  background: var(--panel);
+}
+.suggestions::-webkit-scrollbar { display: none; }
+.suggestions button {
+  flex: none; white-space: nowrap; font-size: 12.5px;
+  padding: 6px 13px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel-2);
+  color: var(--text); cursor: pointer; transition: background .12s;
+}
+.suggestions button:hover { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-700); }
+
+.tts-bar {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 4px 14px 0;
+  background: var(--panel);
+}
+.tts-bar-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.tts-bar select {
+  height: 26px; font-size: 12px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--panel-2);
+  color: var(--text); padding: 0 6px; cursor: pointer;
+}
+.tts-bar select:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
 
 /* ---------- composer ---------- */
 .composer {

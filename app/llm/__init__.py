@@ -209,6 +209,37 @@ def summarize_for_agent(transcript: str, context_lines: list[str]) -> LLMResult:
     )
 
 
+_translation_cache: dict[str, str] = {}
+
+def translate_for_retrieval(text: str) -> str:
+    """Dịch query tiếng Việt sang tiếng Anh để search KB tiếng Anh.
+
+    Trả về nguyên bản nếu không có LLM hoặc bị lỗi.
+    Cache kết quả để tránh gọi LLM lặp lại cho cùng một query.
+    """
+    if text in _translation_cache:
+        return _translation_cache[text]
+
+    provider = active_provider()
+    if provider is None:
+        return text
+
+    req = LLMRequest(
+        system="You are a translation assistant. Translate the banking query to concise English search keywords. Return only the English query, nothing else.",
+        user=text,
+        max_tokens=80,
+        temperature=0.0,
+    )
+    try:
+        result = provider.complete(req, "low")
+        translated = result.text.strip() if result.text.strip() else text
+    except Exception:
+        translated = text
+
+    _translation_cache[text] = translated
+    return translated
+
+
 __all__ = [
     "LLMResult", "answer_from_kb", "raw_chat", "summarize_for_agent",
     "is_live", "describe", "active_provider", "PROVIDERS",

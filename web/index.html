@@ -35,14 +35,14 @@
   </header>
 
   <!-- ============================================================
-       CUSTOMER - the default. No sign-in, no tabs, just the chat.
+       KHÁCH HÀNG - mặc định. Không cần đăng nhập, chỉ có khung chat.
        ============================================================ -->
   <main id="screen-customer" class="screen">
 
-    <!-- Left rail. Everything in it except the New-chat button is decorative:
-         a demo of a bank assistant is judged partly on whether it looks like
-         software the bank would ship, and a bare chat box does not. Marked
-         `data-demo` so nobody mistakes it for wired-up behaviour. -->
+    <!-- Thanh bên trái. Mọi thứ trong đó ngoài nút "Cuộc trò chuyện mới" đều mang tính
+         trang trí: demo trợ lý ngân hàng được đánh giá một phần qua việc giao diện
+         có giống phần mềm ngân hàng thực không. Đánh dấu `data-demo` để không ai
+         nhầm là chức năng đã kết nối. -->
     <aside class="rail">
       <div class="rail-brand">
         <span class="rail-logo">AB</span>
@@ -149,12 +149,52 @@
       <div id="handoff-banner" class="handoff-banner hidden"></div>
       <div id="chat-actions" class="chat-actions hidden"></div>
 
+      <div class="suggestions" id="suggestions" role="group" aria-label="Câu hỏi gợi ý">
+        <button type="button">Phí chuyển khoản quốc tế là bao nhiêu?</button>
+        <button type="button">Tôi bị mất thẻ ghi nợ</button>
+        <button type="button">Kiểm tra số dư tài khoản</button>
+        <button type="button">Tôi có bao lâu để khiếu nại giao dịch?</button>
+        <button type="button">Điều kiện mở thẻ tín dụng là gì?</button>
+        <button type="button">Hạn mức chuyển khoản trong ngày là bao nhiêu?</button>
+      </div>
+
+      <div class="tts-bar" id="tts-bar">
+        <span class="tts-bar-label">Giọng:</span>
+        <select id="tts-bar-provider" title="Nhà cung cấp TTS">
+          <option value="vbee">Vbee</option>
+          <option value="gtts">gTTS</option>
+        </select>
+        <select id="tts-bar-voice" title="Chọn giọng Vbee">
+          <option value="hn_female_ngochuyen_full_48k-fhg">Ngọc Huyền – nữ HN</option>
+          <option value="hn_female_hermer_stor_48k-fhg">Ngọc Lan – nữ HN</option>
+          <option value="hn_female_lenka_stor_48k-phg">Nguyệt Dương – nữ HN</option>
+          <option value="hn_male_minhquan_yt-stable">Minh Quân – nam HN</option>
+          <option value="hn_male_manhdung_news_48k-fhg">Mạnh Dũng – nam HN</option>
+          <option value="sg_female_tuongvy_call_44k-fhg">Tường Vy – nữ SG</option>
+          <option value="sg_female_thaotrinh_full_44k-phg">Thảo Trinh – nữ SG</option>
+          <option value="sg_male_chidat_ebook_48k-phg">Chí Đạt – nam SG</option>
+        </select>
+      </div>
+
       <form id="composer" class="composer" autocomplete="off">
         <button type="button" class="icon-btn ghost-ic" title="Đính kèm" data-demo>📎</button>
         <input id="input" type="text"
                placeholder="Nhập câu hỏi, hoặc dùng @agent / @bot để gọi trực tiếp…" />
         <button type="button" class="icon-btn ghost-ic" title="Biểu tượng cảm xúc" data-demo>😊</button>
-        <button type="button" id="mic-btn" class="icon-btn ghost-ic hidden" title="Nhập bằng giọng nói">🎙️</button>
+        <button type="button" id="tts-stop-btn" class="icon-btn ghost-ic hidden" title="Dừng phát âm">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+          </svg>
+        </button>
+        <button type="button" id="mic-btn" class="icon-btn ghost-ic hidden" title="Nhập bằng giọng nói">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="2" width="6" height="12" rx="3"/>
+            <path d="M5 10a7 7 0 0 0 14 0M12 19v3M8 22h8"/>
+          </svg>
+        </button>
         <button type="submit" id="send" class="send-btn" title="Gửi">
           <!-- Filled and symmetric about the horizontal axis, so its bounding
                box centre and its visual centre coincide. The previous outline
@@ -184,7 +224,7 @@
   </main>
 
   <!-- ============================================================
-       STAFF SIGN-IN
+       ĐĂNG NHẬP NHÂN VIÊN
        ============================================================ -->
   <main id="screen-login" class="screen hidden">
     <section class="panel">
@@ -224,7 +264,7 @@
   </main>
 
   <!-- ============================================================
-       AGENT - a separate screen, not a tab on the customer view.
+       NHÂN VIÊN - màn hình riêng, không phải tab trong giao diện khách.
        ============================================================ -->
   <main id="screen-agent" class="screen hidden">
     <nav class="subtabs">
@@ -236,7 +276,7 @@
       <button class="subtab" data-panel="settings">Cấu hình</button>
     </nav>
 
-    <!-- ---------- DASHBOARD ---------- -->
+    <!-- ---------- TỔNG QUAN ---------- -->
     <section id="panel-dashboard" class="agent-panel">
       <div class="row-between">
         <div>
@@ -297,7 +337,7 @@
       </div>
     </section>
 
-    <!-- ---------- QUEUE ---------- -->
+    <!-- ---------- HÀNG CHỜ ---------- -->
     <section id="panel-queue" class="agent-panel hidden">
       <div class="split">
         <div class="panel">
@@ -344,7 +384,7 @@
       </div>
     </section>
 
-    <!-- ---------- KNOWLEDGE BASE ---------- -->
+    <!-- ---------- KHO TRI THỨC ---------- -->
     <section id="panel-kb" class="agent-panel hidden">
       <div class="split">
         <div class="panel">
@@ -415,7 +455,7 @@
       </div>
     </section>
 
-    <!-- ---------- SETTINGS ---------- -->
+    <!-- ---------- CẤU HÌNH ---------- -->
     <section id="panel-settings" class="agent-panel hidden">
       <div class="split">
         <div class="panel">
@@ -431,7 +471,7 @@
           <div class="panel">
             <h3>Cấu hình</h3>
             <label class="field">
-              <span>Provider</span>
+              <span>Nhà cung cấp</span>
               <select id="cfg-provider">
                 <option value="auto">auto - dùng provider đầu tiên đã cấu hình</option>
                 <option value="anthropic">anthropic</option>
@@ -455,9 +495,9 @@
               <label class="field">
                 <span>Mức suy luận</span>
                 <select id="cfg-effort">
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
+                  <option value="low">thấp</option>
+                  <option value="medium">trung bình</option>
+                  <option value="high">cao</option>
                 </select>
               </label>
               <label class="field">
@@ -478,7 +518,7 @@
               <label class="field">
                 <span>Temperature <em>- để trống dùng mặc định của nhà cung cấp</em></span>
                 <input id="cfg-temp" type="number" min="0" max="2" step="0.1"
-                       placeholder="e.g. 0.3" />
+                       placeholder="vd: 0.3" />
               </label>
             </div>
             <p class="hint">
@@ -502,6 +542,34 @@
             <p>Tuy vậy nó vẫn ở dạng plaintext trong biến môi trường của tiến
               trình. Phù hợp cho demo, <b>không</b> phải cách xử lý thông tin xác
               thực trong môi trường production.</p>
+          </div>
+          <div class="panel">
+            <h3>Giọng nói (TTS)</h3>
+            <div class="grid-2">
+              <label class="field">
+                <span>Nhà cung cấp</span>
+                <select id="tts-provider">
+                  <option value="vbee">Vbee AI – tiếng Việt tự nhiên</option>
+                  <option value="gtts">gTTS – Google (miễn phí)</option>
+                </select>
+              </label>
+              <label class="field" id="tts-voice-field">
+                <span>Giọng Vbee</span>
+                <select id="tts-voice">
+                  <option value="hn_female_ngochuyen_full_48k-fhg">Ngọc Huyền – nữ HN</option>
+                  <option value="hn_female_hermer_stor_48k-fhg">Ngọc Lan – nữ HN</option>
+                  <option value="hn_female_lenka_stor_48k-phg">Nguyệt Dương – nữ HN</option>
+                  <option value="hn_male_minhquan_yt-stable">Minh Quân – nam HN</option>
+                  <option value="hn_male_manhdung_news_48k-fhg">Mạnh Dũng – nam HN</option>
+                  <option value="sg_female_tuongvy_call_44k-fhg">Tường Vy – nữ SG</option>
+                  <option value="sg_female_thaotrinh_full_44k-phg">Thảo Trinh – nữ SG</option>
+                  <option value="sg_male_chidat_ebook_48k-phg">Chí Đạt – nam SG</option>
+                </select>
+              </label>
+            </div>
+            <div id="tts-status" class="hint"></div>
+            <div id="tts-error" class="error hidden"></div>
+            <button id="tts-save" class="primary">Áp dụng</button>
           </div>
         </div>
       </div>

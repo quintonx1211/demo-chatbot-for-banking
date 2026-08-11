@@ -70,10 +70,9 @@ def _verification_prompt(session: Session, intent: str) -> FlowResult:
     session.slots["target_intent"] = intent
     return FlowResult(
         text=(
-            "Vâng, tôi hỗ trợ anh/chị ngay. Trước tiên xin phép xác minh nhanh "
-            "để chắc chắn đúng là chủ tài khoản ạ.\n\n"
-            "Anh/chị vui lòng cho tôi **4 số cuối của số điện thoại đã đăng ký** "
-            "và **4 số cuối CCCD**, cách nhau một dấu cách."
+            "Tôi sẵn sàng hỗ trợ. Trước tiên, cần xác minh nhanh để đảm bảo đây là bạn.\n\n"
+            "Bạn có thể gửi **4 số cuối số điện thoại đã đăng ký** và "
+            "**4 số cuối CMND/CCCD**, cách nhau bằng dấu cách không?"
         ),
         note="verification_started",
     )
@@ -91,10 +90,10 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
     digits = re.findall(r"\d{4}", re.sub(r"[^0-9]+", " ", text))
     if len(digits) != 2 or re.search(r"\d{5,}", re.sub(r"[^0-9]+", " ", text)):
         return FlowResult(
-            text=("Chưa đúng định dạng ạ. Tôi chỉ cần đúng hai nhóm 4 số: 4 số "
-                  "cuối điện thoại, rồi 4 số cuối CCCD, ví dụ `1234 5678`.\n\n"
-                  "Anh/chị lưu ý không gửi số thẻ đầy đủ hay mã PIN - tôi không "
-                  "bao giờ cần những thông tin đó."),
+            text=("Chưa đúng - tôi cần hai mã gồm 4 chữ số: "
+                  "4 số cuối số điện thoại, rồi 4 số cuối CMND/CCCD. "
+                  "Ví dụ: `1234 5678`.\n\n"
+                  "Vui lòng không gửi số thẻ đầy đủ hoặc mã PIN - tôi không bao giờ cần những thông tin đó."),
             note="verification_retry",
         )
 
@@ -110,16 +109,16 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
         if attempts >= 3:
             session.reset_flow()
             return FlowResult(
-                text=("Tôi rất tiếc, thông tin xác minh vẫn chưa khớp và tôi "
-                      "không thể thử thêm ở đây. Tôi xin chuyển anh/chị sang "
-                      "chuyên viên để được hỗ trợ trực tiếp ạ."),
+                text=("Xin lỗi - tôi không thể xác minh thông tin của bạn, "
+                      "và không thể tiếp tục thử thêm. Để tôi chuyển bạn đến "
+                      "chuyên viên để hỗ trợ bạn trực tiếp."),
                 escalate=True,
-                escalation_reason="Identity verification failed three times",
+                escalation_reason="Xác minh danh tính thất bại ba lần",
                 note="verification_failed",
             )
         return FlowResult(
-            text=(f"Thông tin chưa khớp với hồ sơ của chúng tôi (lần {attempts}/3). "
-                  "Anh/chị vui lòng nhập lại cả hai mã giúp tôi ạ."),
+            text=(f"Thông tin không khớp với hồ sơ của chúng tôi (lần thử {attempts}/3). "
+                  "Vui lòng thử lại với cả hai mã."),
             note="verification_retry",
         )
 
@@ -131,7 +130,7 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
     # Cross-session recall lands here and nowhere earlier: before this line the
     # session has no verified customer, so there is nobody to remember.
     recalled = memory.store.summary(match["customer_id"])
-    greeting = f"Cảm ơn anh/chị {_first_name(match)}, đã xác thực thành công. "
+    greeting = f"Cảm ơn, {_first_name(match)} - bạn đã được xác minh. "
     if recalled:
         greeting += recalled + " "
     if target:
@@ -140,16 +139,14 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
                           escalate=follow_up.escalate,
                           escalation_reason=follow_up.escalation_reason,
                           note="verified_then_" + target)
-    return FlowResult(text=greeting + "Tôi có thể hỗ trợ gì cho anh/chị ạ?",
-                      note="verified")
+    return FlowResult(text=greeting + "Tôi có thể giúp gì cho bạn?", note="verified")
 
 
 # -- account flows --------------------------------------------------------
 
 def _balance(session: Session) -> FlowResult:
     customer = session.customer
-    lines = [f"Số dư tài khoản của anh/chị {_first_name(customer)} tính đến "
-             f"hôm nay:"]
+    lines = [f"Đây là số dư tài khoản của bạn tính đến hôm nay, {_first_name(customer)}:"]
     for account in customer["accounts"]:
         lines.append(
             f"- **{account['type']}** {account['mask']} - "
@@ -167,10 +164,10 @@ def _account_summary(session: Session) -> FlowResult:
     """
     customer = session.customer
     lines = [
-        f"Anh/chị là **{customer['name']}** ({customer['customer_id']}), "
-        f"đã xác thực trong phiên này.",
+        f"Bạn là **{customer['name']}** ({customer['customer_id']}), "
+        f"đã được xác minh trong cuộc hội thoại này.",
         "",
-        "Các sản phẩm anh/chị đang có tại ngân hàng:",
+        "Đây là các sản phẩm bạn đang có với chúng tôi:",
     ]
     for account in customer["accounts"]:
         lines.append(f"- **{account['type']}** {account['mask']}")
@@ -178,10 +175,10 @@ def _account_summary(session: Session) -> FlowResult:
         state = "" if card["status"] == "active" else f" - {card['status']}"
         lines.append(f"- **Thẻ {card['type']}** {card['mask']}{state}")
     for loan in customer.get("loans", []):
-        lines.append(f"- **{loan['product']}** - hồ sơ {loan['application_id']} "
+        lines.append(f"- **{loan['product']}** hồ sơ {loan['application_id']} "
                      f"- {loan['status']}")
     lines.append("")
-    lines.append("Anh/chị muốn xem chi tiết mục nào, tôi tra cứu giúp ạ.")
+    lines.append("Tôi có thể xem chi tiết về bất kỳ mục nào ở trên cho bạn.")
     return FlowResult(text="\n".join(lines), note="account_summary_from_core")
 
 
@@ -200,22 +197,20 @@ def _activate_card(session: Session) -> FlowResult:
 
     if not inactive:
         return FlowResult(
-            text=("Tất cả thẻ trên hồ sơ của anh/chị đều đã kích hoạt rồi ạ. "
-                  "Nếu có giao dịch bị từ chối thì đó là vấn đề khác, tôi kiểm "
-                  "tra giúp anh/chị được."),
+            text=("Tất cả thẻ trong hồ sơ của bạn đã được kích hoạt. Nếu một "
+                  "giao dịch bị từ chối, đó là vấn đề khác và tôi có thể kiểm tra cho bạn."),
             note="activation_none_pending",
         )
 
     card = inactive[0]
     return FlowResult(
         text=(
-            f"**Thẻ {card['type']} {card['mask']}** của anh/chị đã được phát "
-            f"hành nhưng chưa kích hoạt.\n\n"
-            f"**{campaign.get('cta', 'Kích hoạt trong ứng dụng')}** - "
+            f"Thẻ **{card['type']} {card['mask']}** của bạn đã được cấp nhưng chưa kích hoạt.\n\n"
+            f"**{campaign.get('cta', 'Kích hoạt trong ứng dụng di động')}** - "
             f"{campaign.get('deeplink', '')}\n\n"
-            f"Hoặc: {campaign.get('sms_alternative', 'gọi số in trên thẻ')}.\n\n"
-            "_Tôi sẽ không bao giờ hỏi mã OTP trong khung chat này. Nếu có ai "
-            "tự xưng là ngân hàng mà hỏi, đó không phải chúng tôi._"
+            f"Hoặc: {campaign.get('sms_alternative', 'gọi số điện thoại trên thẻ')}.\n\n"
+            "_Tôi sẽ không bao giờ yêu cầu mã OTP trong cuộc hội thoại này. "
+            "Nếu ai đó tự xưng là chúng tôi và yêu cầu mã OTP, đó không phải chúng tôi._"
         ),
         note=f"activation_redirect:{card['card_id']}",
     )
@@ -232,13 +227,12 @@ def _card_offers(session: Session) -> FlowResult:
     offers = CAMPAIGNS.offers_for(session.customer_id)
     if not offers:
         return FlowResult(
-            text=("Hiện chưa có chương trình ưu đãi nào dành cho anh/chị nên "
-                  "tôi chưa có gì để giới thiệu hôm nay ạ. Anh/chị cần hỗ trợ "
-                  "gì khác không?"),
+            text=("Bạn hiện không có ưu đãi nào, vậy nên tôi không có gì để "
+                  "hiển thị hôm nay. Bạn cần hỏi thêm điều gì không?"),
             note="offers_none",
         )
 
-    lines = ["Đây là các ưu đãi đang có trên tài khoản của anh/chị:", ""]
+    lines = ["Đây là các ưu đãi hiện có trên tài khoản của bạn hôm nay:", ""]
     for offer in offers:
         lines.append(f"**{offer.name}**")
         lines.append(offer.body)
@@ -246,8 +240,8 @@ def _card_offers(session: Session) -> FlowResult:
             lines.append(f"→ {offer.cta}: {offer.deeplink}")
         lines.append("")
     lines.append(
-        f"_Do hệ thống chiến dịch của ngân hàng chọn lọc, cập nhật cách đây "
-        f"{CAMPAIGNS.age_hours:.0f} giờ._" if CAMPAIGNS.age_hours is not None
+        f"_Được hệ thống chiến dịch của ngân hàng chọn, cập nhật lần cuối "
+        f"{CAMPAIGNS.age_hours:.0f} giờ trước._" if CAMPAIGNS.age_hours is not None
         else ""
     )
     return FlowResult(
@@ -285,8 +279,8 @@ def _transactions(session: Session) -> FlowResult:
     customer = session.customer
     transactions = customer["transactions"][:5]
     if not transactions:
-        return FlowResult(text="Tôi không thấy giao dịch nào gần đây trên tài khoản của anh/chị ạ.")
-    lines = ["Các giao dịch gần nhất của anh/chị:"]
+        return FlowResult(text="Tôi không thấy giao dịch gần đây nào trên tài khoản của bạn.")
+    lines = ["Các giao dịch gần nhất của bạn:"]
     for txn in transactions:
         sign = "+" if txn["amount"] > 0 else "−"
         lines.append(
@@ -301,18 +295,17 @@ def _loan_status(session: Session) -> FlowResult:
     loans = customer.get("loans", [])
     if not loans:
         return FlowResult(
-            text=("Tôi không thấy hồ sơ vay nào đang mở trên hồ sơ của anh/chị. "
-                  "Nếu anh/chị vừa nộp tại quầy trong 24 giờ qua thì có thể hệ "
-                  "thống chưa đồng bộ - tôi chuyển sang bộ phận tín dụng kiểm "
-                  "tra giúp anh/chị nhé."),
+            text=("Tôi không thấy hồ sơ vay nào đang mở trong tài khoản của bạn. "
+                  "Nếu bạn nộp hồ sơ tại chi nhánh trong vòng 24 giờ qua, có thể chưa đồng bộ - "
+                  "tôi có thể chuyển bạn đến bộ phận tín dụng để kiểm tra."),
             note="no_loan_on_file",
         )
-    lines = ["Tình trạng hồ sơ của anh/chị như sau:"]
+    lines = ["Đây là trạng thái hồ sơ vay của bạn:"]
     for loan in loans:
         lines.append(
-            f"- **{loan['product']}** ({loan['application_id']}) for "
+            f"- **{loan['product']}** ({loan['application_id']}) - "
             f"{_money(loan['amount'])}\n"
-            f"  Status: **{loan['status']}** · submitted {loan['submitted_on']}\n"
+            f"  Trạng thái: **{loan['status']}** · nộp ngày {loan['submitted_on']}\n"
             f"  {loan['note']}"
         )
     return FlowResult(text="\n".join(lines), note="loan_read_from_core")
@@ -324,37 +317,33 @@ def _loan_status(session: Session) -> FlowResult:
 # way back: the only transition that existed was terminal.
 CARD_ACTIONS: dict[str, dict] = {
     "report_lost": {
-        "verb": "báo mất và khoá",
+        "verb": "báo mất và khóa",
         "from": ("active", "frozen", "dormant", "inactive"),
         "reversible": False,
-        "confirm": ("Anh/chị xác nhận báo mất và khoá **thẻ {type} {mask}** ạ?\n\n"
-                    "Thao tác này **không thể hoàn tác** - thẻ đã khoá do báo mất "
-                    "sẽ không mở lại được, nên tôi sẽ phát hành thẻ thay thế "
-                    "ngay cho anh/chị. Nếu anh/chị chỉ để quên và nghĩ sẽ tìm "
-                    "lại được, hãy nhắn **tạm khoá thẻ** - loại này anh/chị tự "
-                    "mở lại bất cứ lúc nào."),
-        "none_left": "Hiện anh/chị không có thẻ nào ở trạng thái có thể khoá ạ.",
+        "confirm": ("Xác nhận lại: báo mất và khóa **thẻ {type} {mask}** của bạn?\n\n"
+                    "Thao tác này không thể hoàn tác - thẻ đã khóa sẽ không mở lại được, "
+                    "vì vậy tôi sẽ đặt thẻ thay thế cho bạn cùng lúc. Nếu bạn chỉ thất lạc "
+                    "tạm thời và nghĩ sẽ tìm lại được, hãy nói **tạm khóa** để có thể mở khóa sau."),
+        "none_left": "Hiện bạn không có thẻ nào để khóa.",
     },
     "freeze": {
-        "verb": "tạm khoá",
+        "verb": "tạm khóa",
         "from": ("active",),
         "reversible": True,
-        "confirm": ("Tôi có thể tạm khoá **thẻ {type} {mask}** ngay cho anh/chị. "
-                    "Mọi giao dịch trên thẻ sẽ dừng cho tới khi anh/chị mở lại, "
-                    "và anh/chị mở lại ngay tại đây bất cứ lúc nào.\n\n"
-                    "Anh/chị nhắn **có** để tôi thực hiện ạ."),
-        "none_left": "Anh/chị hiện không có thẻ nào đang hoạt động để tạm khoá ạ.",
+        "confirm": ("Tôi có thể tạm khóa **thẻ {type} {mask}** của bạn ngay. "
+                    "Mọi giao dịch sẽ bị từ chối cho đến khi bạn mở khóa, "
+                    "và bạn có thể làm điều đó bất cứ lúc nào tại đây.\n\nTrả lời **có** để tạm khóa."),
+        "none_left": "Bạn không có thẻ đang hoạt động nào để tạm khóa.",
     },
     "unfreeze": {
-        "verb": "mở khoá",
+        "verb": "mở khóa",
         "from": ("frozen",),
         "reversible": True,
-        "confirm": ("Tôi sẽ mở khoá **thẻ {type} {mask}** cho anh/chị - thẻ dùng lại "
-                    "được ngay sau đó.\n\nAnh/chị nhắn **có** để tôi thực hiện ạ."),
-        "none_left": ("Hiện không có thẻ nào của anh/chị đang tạm khoá. Nếu "
-                      "trước đó anh/chị đã báo mất thẻ thì thẻ ở trạng thái "
-                      "khoá vĩnh viễn, không mở lại được - nhưng tôi có thể "
-                      "kiểm tra giúp anh/chị thẻ thay thế ạ."),
+        "confirm": ("Sẵn sàng mở khóa **thẻ {type} {mask}** của bạn - thẻ sẽ hoạt động "
+                    "ngay lập tức.\n\nTrả lời **có** để xác nhận."),
+        "none_left": ("Hiện không có thẻ nào đang bị tạm khóa. Nếu thẻ đã bị báo mất "
+                      "thì đang ở trạng thái khóa vĩnh viễn, không thể mở lại - "
+                      "nhưng tôi có thể kiểm tra thẻ thay thế cho bạn."),
     },
 }
 
@@ -395,11 +384,11 @@ def _card_action(session: Session, action: str, text: str) -> FlowResult:
     if stage == "confirm":
         if _NO_RE.search(text) and not _YES_RE.search(text):
             session.reset_flow()
-            return FlowResult(text="Vâng, tôi giữ nguyên trạng thái thẻ cho anh/chị ạ.",
+            return FlowResult(text="Được rồi - tôi đã giữ nguyên trạng thái thẻ.",
                               note=f"{action}_cancelled")
         if not _YES_RE.search(text):
             return FlowResult(
-                text=f"Anh/chị nhắn **có** để {spec['verb']} thẻ, hoặc **không** để giữ nguyên ạ.",
+                text=f"Trả lời **có** để {spec['verb']} thẻ, hoặc **không** để giữ nguyên.",
                 note=f"{action}_confirm_retry")
 
         try:
@@ -441,24 +430,22 @@ def _confirmation(action: str, card: dict) -> str:
     """What the customer is told after the record actually changed."""
     reference = card["reference"]
     if action == "freeze":
-        return (f"Đã xong - **thẻ {card['type']} {card['mask']}** của anh/chị đã "
-                f"tạm khoá từ bây giờ. Mã tham chiếu **{reference}**.\n\n"
-                "Mọi giao dịch trên thẻ sẽ không thực hiện được, bao gồm cả các "
-                "khoản thanh toán định kỳ. Khi cần dùng lại, anh/chị chỉ cần "
-                "nhắn **mở khoá thẻ**, tôi mở ngay ạ.")
+        return (f"Xong - **thẻ {card['type']} {card['mask']}** của bạn đã được tạm khóa "
+                f"ngay bây giờ. Mã tham chiếu **{reference}**.\n\n"
+                "Mọi giao dịch sẽ bị từ chối, kể cả thanh toán định kỳ. "
+                "Chỉ cần nói **mở khóa thẻ** khi bạn muốn dùng lại.")
     if action == "unfreeze":
-        return (f"**Thẻ {card['type']} {card['mask']}** của anh/chị đã hoạt động "
-                f"trở lại - mã tham chiếu **{reference}**. Anh/chị dùng được ngay ạ.\n\n"
-                "Nếu có giao dịch nào bị từ chối trong thời gian thẻ tạm khoá, "
-                "anh/chị vui lòng đề nghị đơn vị bán hàng thực hiện lại giúp.")
+        return (f"**Thẻ {card['type']} {card['mask']}** của bạn đã được kích hoạt trở lại - "
+                f"mã tham chiếu **{reference}**. Bạn có thể sử dụng ngay bây giờ.\n\n"
+                "Nếu có giao dịch nào bị từ chối trong thời gian tạm khóa, "
+                "đơn vị thụ hưởng sẽ cần thực hiện lại giao dịch đó.")
     replacement = card.get("replacement") or {}
-    return (f"Đã xong - **thẻ {card['type']} {card['mask']}** của anh/chị đã "
-            f"khoá, có hiệu lực ngay. Mã tham chiếu **{reference}**.\n\n"
-            f"Tôi đã phát hành thẻ thay thế: **{replacement.get('mask', 'thẻ mới')}**, "
-            "dự kiến 5-7 ngày làm việc, miễn phí. Thẻ mới cần kích hoạt khi nhận "
-            "được, và do số thẻ thay đổi nên anh/chị nhớ cập nhật lại các thanh "
-            "toán định kỳ ạ.\n\n"
-            "Anh/chị có giao dịch nào trên thẻ cũ cần tra soát không?")
+    return (f"Xong - **thẻ {card['type']} {card['mask']}** của bạn đã bị khóa "
+            f"có hiệu lực ngay lập tức. Mã tham chiếu **{reference}**.\n\n"
+            f"Tôi đã đặt thẻ thay thế: **{replacement.get('mask', 'thẻ mới')}**, "
+            "sẽ đến trong 5-7 ngày làm việc, miễn phí. Bạn cần kích hoạt thẻ khi nhận được, "
+            "và do số thẻ thay đổi, hãy cập nhật các thanh toán định kỳ liên kết với thẻ cũ.\n\n"
+            "Bạn có muốn hỏi thêm về thẻ cũ không?")
 
 
 def _card_choice_prompt(cards: list[dict], verb: str) -> str:
@@ -466,8 +453,8 @@ def _card_choice_prompt(cards: list[dict], verb: str) -> str:
         f"- Thẻ {c['type']} {c['mask']}"
         + ("" if c["status"] == "active" else f" ({c['status']})")
         for c in cards)
-    return (f"Anh/chị muốn {verb} thẻ nào ạ?\n{options}\n\n"
-            "Vui lòng trả lời bằng 4 số cuối hoặc loại thẻ.")
+    return (f"Bạn muốn tôi {verb} thẻ nào?\n{options}\n\n"
+            "Trả lời bằng 4 số cuối hoặc loại thẻ.")
 
 
 def _match_card(cards: list[dict], text: str) -> dict | None:
@@ -503,10 +490,9 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
         return _card_action(session, "unfreeze", text)
     if intent == "greeting":
         return FlowResult(
-            text=("Xin chào! Tôi là trợ lý ảo của **ABC Bank**. Tôi có thể tra "
-                  "cứu số dư và giao dịch, khoá hoặc mở khoá thẻ, kiểm tra hồ sơ "
-                  "vay, và giải đáp về sản phẩm, biểu phí của ngân hàng.\n\n"
-                  "Anh/chị cần hỗ trợ điều gì ạ?"),
+            text=("Xin chào! Tôi là trợ lý ảo của Ngân hàng ABC. Tôi có thể "
+                  "kiểm tra số dư và giao dịch, khóa thẻ mất cắp, tra cứu hồ sơ vay, "
+                  "hoặc trả lời câu hỏi về sản phẩm và phí dịch vụ. Bạn cần hỗ trợ gì?"),
             note="greeting",
         )
     if intent == "activate_card":
@@ -518,15 +504,15 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
         # through retrieval produced the worst turn in the demo: a customer
         # typing "ok thanks" was offered a human agent.
         return FlowResult(
-            text="Tôi vẫn ở đây ạ. Anh/chị cần hỗ trợ gì thêm không?",
+            text="Tôi đây. Bạn cần hỏi thêm điều gì không?",
             note="smalltalk",
         )
     if intent == "goodbye":
         return FlowResult(
-            text="Rất vui được hỗ trợ anh/chị. Chúc anh/chị một ngày tốt lành!", note="goodbye")
+            text="Rất vui được hỗ trợ bạn. Chúc bạn một ngày tốt lành!", note="goodbye")
     if intent == "human_agent":
         return FlowResult(
-            text="Dạ được ạ, để tôi kết nối anh/chị với chuyên viên ngay.",
+            text="Được, để tôi kết nối bạn ngay.",
             escalate=True,
             escalation_reason="Customer explicitly asked for a human agent",
             note="explicit_handoff_request",
