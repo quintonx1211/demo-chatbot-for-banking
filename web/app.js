@@ -1192,14 +1192,29 @@ function updateTtsVoiceFieldVisibility() {
 
 async function refreshTtsStatus() {
   const data = await api("/api/tts/provider");
+  // Đồng bộ cả Settings panel lẫn chat bar
   $("tts-provider").value = data.provider;
   if (data.vbee_voice) $("tts-voice").value = data.vbee_voice;
   updateTtsVoiceFieldVisibility();
+  // Chat bar
+  $("tts-bar-provider").value = data.provider;
+  $("tts-bar-voice").classList.toggle("hidden", data.provider !== "vbee");
+  if (data.vbee_voice) $("tts-bar-voice").value = data.vbee_voice;
 
   const parts = [];
   parts.push(data.vbee_available ? "Vbee: đã cấu hình key" : "Vbee: chưa có key");
   parts.push(data.gtts_available ? "gTTS: đã cài" : "gTTS: chưa cài (pip install gtts)");
   $("tts-status").textContent = parts.join(" · ");
+}
+
+async function saveTtsFromChatBar() {
+  try {
+    await postJson("/api/tts/provider", {
+      provider: $("tts-bar-provider").value,
+      vbee_voice: $("tts-bar-voice").value,
+    });
+    await refreshTtsStatus();
+  } catch { /* silent — chat bar không có chỗ hiển thị lỗi */ }
 }
 
 async function saveTtsConfig() {
@@ -1413,6 +1428,11 @@ $("cfg-key-toggle").onclick = () => {
 
 $("tts-save").onclick = saveTtsConfig;
 $("tts-provider").onchange = updateTtsVoiceFieldVisibility;
+$("tts-bar-provider").onchange = () => {
+  $("tts-bar-voice").classList.toggle("hidden", $("tts-bar-provider").value !== "vbee");
+  saveTtsFromChatBar();
+};
+$("tts-bar-voice").onchange = saveTtsFromChatBar;
 $("mic-btn").onclick = toggleRecording;
 
 /** Open a transcript: the standing notice, the day divider the design asks for,
