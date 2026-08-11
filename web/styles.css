@@ -206,6 +206,8 @@ button.nav-item:hover { background: var(--bg-canvas); color: var(--text); }
 }
 .icon-btn:hover { background: var(--bg-canvas); color: var(--text); }
 .icon-btn:active { transform: scale(.97); }
+.icon-btn:disabled { opacity: .35; cursor: not-allowed; }
+.icon-btn:disabled:hover { background: var(--bg-surface); color: var(--text-muted); }
 /* Both are mobile-only: the left nav carries navigation on desktop, and the
    rail is a column there rather than a drawer. */
 .back-btn, .rail-toggle { display: none; }
@@ -214,11 +216,6 @@ button.nav-item:hover { background: var(--bg-canvas); color: var(--text); }
 .messages {
   flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
   padding: 28px 32px; display: flex; flex-direction: column; gap: 16px;
-}
-@media (min-width: 1440px) {
-  /* Cap the measure and centre it - bubbles must not stretch further. */
-  .messages { padding-left: max(32px, calc((100% - 760px) / 2));
-              padding-right: max(32px, calc((100% - 760px) / 2)); }
 }
 
 .day-divider {
@@ -774,6 +771,31 @@ table.events code { font-size: 11.5px; }
   font-variant-numeric: tabular-nums;
 }
 .msg.customer .msg-time { justify-content: flex-end; }
+
+/* Sits under the bubble like msg-time, not beside it - a reply can be long
+   enough that anchoring the button to the bubble's top would put it out of
+   view by the time someone finishes reading and decides they want it read
+   aloud instead. */
+.speak-btn {
+  width: 26px; height: 26px; margin-top: 2px;
+  border-radius: 8px; border: 1px solid transparent; background: none;
+  font-size: 13px; opacity: .6;
+}
+.speak-btn:hover:not(:disabled) { opacity: 1; background: var(--bg-canvas); }
+.speak-btn:disabled { opacity: .25; cursor: not-allowed; }
+.speak-btn.playing { opacity: 1; color: var(--accent); }
+
+#mic-btn.recording {
+  color: #fff; background: #e5484d; border-color: #e5484d;
+  animation: mic-pulse 1.4s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, .45); }
+  50% { box-shadow: 0 0 0 6px rgba(229, 72, 77, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #mic-btn.recording { animation: none; }
+}
 
 /* The label under the dots, which changes at three seconds. Past a couple of
    seconds people start wondering whether the send worked, and naming what is

@@ -1,6 +1,6 @@
-"""TTS đa nhà cung cấp – gTTS & Vbee AI.
+"""Multi-provider TTS - gTTS & Vbee AI.
 
-Chuyển đổi runtime không cần restart.
+Provider switch happens at runtime, no restart needed.
 """
 from __future__ import annotations
 
@@ -132,7 +132,7 @@ _VBEE_POLL_URL = "https://vbee.vn/api/v1/tts/{request_id}"
 
 
 def _call_vbee(text: str, api_key: str, app_id: str, voice: str) -> bytes:
-    # 1. Gửi yêu cầu TTS
+    # 1. Send the TTS request
     body = json.dumps({
         "input_text": text,
         "voice_code":  voice,
@@ -157,7 +157,7 @@ def _call_vbee(text: str, api_key: str, app_id: str, voice: str) -> bytes:
     if not request_id:
         raise RuntimeError(f"Vbee không trả về request_id: {payload}")
 
-    # 2. Poll cho đến khi progress == 100
+    # 2. Poll until progress == 100
     poll_url = _VBEE_POLL_URL.format(request_id=request_id)
     for _ in range(30):
         time.sleep(0.6)

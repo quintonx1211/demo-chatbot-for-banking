@@ -15,3 +15,7 @@
 
 anthropic>=0.40
 openai>=1.40
+
+# Required (not optional like the LLM providers above) - server.py loads .env
+# at startup before any app imports so provider keys are picked up.
+python-dotenv>=1.0

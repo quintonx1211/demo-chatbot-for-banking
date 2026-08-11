@@ -4,10 +4,10 @@ Endpoints
     GET  /                     customer chat, agent console, knowledge base, settings
     GET  /api/health           model mode and knowledge-base stats
     POST /api/chat             {session_id?, message} -> assistant turn
-    POST /api/tts              {text} -> audio bytes (TTS trực tiếp)
-    POST /api/stt              {audio_b64} -> {text} transcript (tiếng Việt)
-    GET  /api/tts/provider     trạng thái nhà cung cấp TTS hiện tại
-    POST /api/tts/provider     {provider, vbee_voice?} -> cấu hình TTS
+    POST /api/tts              {text} -> audio bytes (direct TTS)
+    POST /api/stt              {audio_b64} -> {text} transcript (Vietnamese)
+    GET  /api/tts/provider     current TTS provider status
+    POST /api/tts/provider     {provider, vbee_voice?} -> configure TTS
     POST /api/session/raw-mode {session_id?, enabled} -> demo lever (staff):
                                strips routing/guardrails/retrieval/grounding
                                down to a plain LLM chat, scoped to one session
@@ -28,13 +28,6 @@ Endpoints
     GET  /api/auth/me          current staff session, or null
     POST /api/auth/login       {username, password} -> sets the staff cookie
     POST /api/auth/logout      clears it
-    GET  /api/voice/status     whether Vbee is configured (public)
-    POST /api/voice/tts        {text} -> {chunks: [base64 mp3, …]} (public)
-    POST /api/voice/stt        {audio_base64} -> {text} (public)
-    POST /api/voice/webhook/tts  Vbee's TTS callback target (public, see
-                                app/voice.py - the result is fetched by
-                                polling, not read from here)
-
 Two trust zones. `/`, `/api/health` and `/api/chat` are public - the customer
 chat is a widget on a public page, and identity is established inside the
 conversation only when an action needs it. Everything else is staff-only and
@@ -47,15 +40,22 @@ be reachable from off-box even with the sign-in in place.
 """
 from __future__ import annotations
 
-# Load .env BEFORE any app imports so env vars are set when modules initialize.
-from dotenv import load_dotenv
-load_dotenv()
-
 import base64
 import json
 import os
 import sys
 import threading
+
+# Windows consoles default to cp1252, which cannot print the Vietnamese text
+# this server logs at startup and the banner below - reconfigure before any
+# such output happens.
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+# Load .env BEFORE any app imports so env vars are set when modules initialize.
+from dotenv import load_dotenv
+load_dotenv()
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -68,14 +68,6 @@ from app import tts, stt
 from app.kbstore import KBError, KnowledgeBaseStore
 from app.llm import runtime
 from app.router import Router
-
-# Import voice nếu có (từ main branch)
-try:
-    from app import voice as _voice_mod
-    _VOICE_AVAILABLE = True
-except ImportError:
-    _voice_mod = None
-    _VOICE_AVAILABLE = False
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 HOST = "127.0.0.1"
@@ -268,15 +260,6 @@ class Handler(BaseHTTPRequestHandler):
                 "database": db.stats(),
                 "card_events": db.card_events(limit=12),
             })
-
-        elif path == "/api/voice/status":
-            # Public and cheap: the client calls this once on load to decide
-            # whether to show the mic and speaker controls at all, rather
-            # than show them and have the first tap fail.
-            if _VOICE_AVAILABLE:
-                self._send_json({"available": _voice_mod.available()})
-            else:
-                self._send_json({"available": False})
 
         elif path == "/api/auth/me":
             staff = self._staff()
@@ -487,50 +470,6 @@ class Handler(BaseHTTPRequestHandler):
                 "debug": result.debug,
             })
 
-        elif path == "/api/voice/tts":
-            # Public, same trust zone as /api/chat: this reads back a reply
-            # the customer already received, not anything privileged.
-            if not _VOICE_AVAILABLE:
-                self._send_json({"error": "voice_not_configured"}, status=503)
-                return
-            text = (payload.get("text") or "").strip()
-            if not text:
-                self._send_json({"error": "text is required"}, status=400)
-                return
-            if not _voice_mod.available():
-                self._send_json({"error": "voice_not_configured"}, status=503)
-                return
-            chunks, error = _voice_mod.synthesize(text)
-            self._send_json({
-                "chunks": [base64.b64encode(c).decode("ascii") for c in chunks],
-                "format": "mp3",
-                "error": error,
-            })
-
-        elif path == "/api/voice/stt":
-            if not _VOICE_AVAILABLE or not _voice_mod.available():
-                self._send_json({"error": "voice_not_configured"}, status=503)
-                return
-            audio_b64 = payload.get("audio_base64") or ""
-            try:
-                wav_bytes = base64.b64decode(audio_b64, validate=True)
-            except Exception:
-                self._send_json({"error": "audio_base64 is not valid base64"},
-                                status=400)
-                return
-            text, error = _voice_mod.transcribe(wav_bytes)
-            self._send_json({"text": text, "error": error})
-
-        elif path == "/api/voice/webhook/tts":
-            # Vbee's Batch TTS requires a webhookUrl and will POST here when a
-            # job finishes. `voice.synthesize` doesn't wait for this - it
-            # polls Vbee's own Get Request endpoint instead, so nothing here
-            # needs to be read or correlated back to a request. This exists
-            # only to give Vbee somewhere valid to deliver to; logging the
-            # arrival is enough to confirm the tunnel is actually working.
-            print(f"  [voice webhook] {payload}", file=sys.stderr)
-            self._send_json({"received": True})
-
         elif path == "/api/summary":
             if not self._require_staff():
                 return
@@ -591,7 +530,7 @@ def main() -> None:
     try:
         import time as _time
         import pyngrok.ngrok as _ngrok
-        # Disconnect tunnels cũ qua API trước khi kill agent
+        # Disconnect stale tunnels via the API before killing the agent
         try:
             for t in _ngrok.get_tunnels():
                 _ngrok.disconnect(t.public_url)

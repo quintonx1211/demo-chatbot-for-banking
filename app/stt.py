@@ -1,7 +1,7 @@
-"""STT wrapper – PhoWhisper medium (tiếng Việt).
+"""STT wrapper - PhoWhisper medium (Vietnamese).
 
-vinai/PhoWhisper-medium được fine-tune chuyên biệt cho tiếng Việt,
-cho độ chính xác vượt trội so với Whisper thông thường.
+vinai/PhoWhisper-medium is fine-tuned specifically for Vietnamese,
+giving noticeably better accuracy than plain Whisper.
 """
 from __future__ import annotations
 

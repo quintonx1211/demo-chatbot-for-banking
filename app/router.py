@@ -448,12 +448,11 @@ class Router:
         if flows.wants_out(text):
             return "explicit-cancel"
 
-        # Verification flow: chỉ giữ nguyên nếu input trông như mã xác minh
-        # (có nhóm 4 chữ số). Nếu không có số → rõ ràng là câu hỏi mới,
-        # bỏ verify và route lại ngay.
+        # Verification flow: only keep it if the input looks like a
+        # verification code (a 4-digit group). No digits means this is
+        # clearly a new question, so drop verify and re-route immediately.
         if session.pending_flow == "verify":
-            import re as _re
-            if not _re.search(r"\b\d{4}\b", text):
+            if not re.search(r"\b\d{4}\b", text):
                 return "new-question-during-verify"
             return None
 

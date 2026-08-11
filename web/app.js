@@ -120,6 +120,184 @@ function showPanel(name) {
   if (load[name]) load[name]();
 }
 
+/* ---------- voice (TTS/STT) ---------- */
+
+// Read from /api/health on every refresh - the server's TTS/STT providers
+// can go from unavailable to available (or back) without a page reload if
+// an operator changes Settings mid-demo, so this is state, not a constant.
+let ttsAvailable = false;
+let sttAvailable = false;
+const canRecord = Boolean(
+  navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+
+function updateVoiceUI() {
+  const mic = $("mic-btn");
+  // Always shown, like the other composer icons - a browser with no
+  // recording API is the only reason to hide it outright. When the server's
+  // STT provider isn't configured the button stays visible but disabled, so
+  // a customer sees the feature exists instead of wondering why it's gone.
+  mic.classList.toggle("hidden", !canRecord);
+  mic.disabled = !sttAvailable;
+  mic.title = sttAvailable ? "Nhập bằng giọng nói" : "Giọng nói chưa khả dụng";
+  // Reruns already-rendered speak buttons too, so a provider going dark
+  // mid-conversation greys out replies already on screen, not just future
+  // ones - a button that plays nothing on click is worse than one visibly
+  // disabled.
+  document.querySelectorAll(".speak-btn").forEach((b) => { b.disabled = !ttsAvailable; });
+}
+
+// Played through a single <audio> element rather than one per bubble, so
+// starting a second reply's audio stops the first instead of overlapping it.
+const ttsPlayer = new Audio();
+let ttsPlayingBtn = null;
+
+function resetSpeakBtn(btn) {
+  btn.textContent = "🔊";
+  btn.classList.remove("playing");
+}
+
+async function playTts(text, btn) {
+  if (ttsPlayingBtn === btn) {
+    ttsPlayer.pause();
+    resetSpeakBtn(btn);
+    ttsPlayingBtn = null;
+    return;
+  }
+  if (ttsPlayingBtn) resetSpeakBtn(ttsPlayingBtn);
+
+  btn.textContent = "⏳";
+  btn.classList.remove("playing");
+  try {
+    const response = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `${response.status}`);
+    }
+    const url = URL.createObjectURL(await response.blob());
+    ttsPlayer.src = url;
+    ttsPlayingBtn = btn;
+    btn.textContent = "⏸";
+    btn.classList.add("playing");
+    await ttsPlayer.play();
+    ttsPlayer.onended = () => { resetSpeakBtn(btn); ttsPlayingBtn = null; URL.revokeObjectURL(url); };
+  } catch (error) {
+    resetSpeakBtn(btn);
+    ttsPlayingBtn = null;
+    addMessage("system", `Không đọc được câu trả lời: ${error.message}`);
+  }
+}
+
+/** 16-bit PCM mono WAV, hand-written header - MediaRecorder gives WebM/Opus,
+    but /api/stt expects WAV, so this is the bridge between them. */
+function encodeWav(audioBuffer) {
+  const channels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const length = audioBuffer.length;
+  const mono = new Float32Array(length);
+  for (let c = 0; c < channels; c++) {
+    const data = audioBuffer.getChannelData(c);
+    for (let i = 0; i < length; i++) mono[i] += data[i] / channels;
+  }
+
+  const buffer = new ArrayBuffer(44 + length * 2);
+  const view = new DataView(buffer);
+  const writeStr = (offset, str) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + length * 2, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, "data");
+  view.setUint32(40, length * 2, true);
+  let offset = 44;
+  for (let i = 0; i < length; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, mono[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(",", 2)[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordingTimer = null;
+const RECORDING_MAX_MS = 9500; // /api/stt is a realtime cap, not a batch job
+
+async function toggleRecording() {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (error) {
+    addMessage("system", `Không truy cập được micro: ${error.message}`);
+    return;
+  }
+  recordedChunks = [];
+  mediaRecorder = new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
+  mediaRecorder.onstop = () => {
+    stream.getTracks().forEach((track) => track.stop());
+    $("mic-btn").classList.remove("recording");
+    clearTimeout(recordingTimer);
+    handleRecording(new Blob(recordedChunks, { type: mediaRecorder.mimeType }));
+  };
+  mediaRecorder.start();
+  $("mic-btn").classList.add("recording");
+  recordingTimer = setTimeout(() => {
+    if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+  }, RECORDING_MAX_MS);
+}
+
+async function handleRecording(blob) {
+  const mic = $("mic-btn");
+  mic.disabled = true;
+  const original = mic.textContent;
+  mic.textContent = "⏳";
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioCtx();
+    const audioBuffer = await audioCtx.decodeAudioData(await blob.arrayBuffer());
+    const wav = encodeWav(audioBuffer);
+    audioCtx.close();
+    const data = await postJson("/api/stt", { audio_b64: await blobToBase64(wav) });
+    if (!data.text) {
+      addMessage("system", "Không nhận dạng được giọng nói, anh/chị vui lòng gõ câu hỏi giúp.");
+      return;
+    }
+    $("input").value = data.text;
+    $("input").focus();
+    updateSendState();
+  } catch (error) {
+    addMessage("system", `Xử lý giọng nói thất bại: ${error.message}`);
+  } finally {
+    mic.disabled = false;
+    mic.textContent = original;
+  }
+}
+
 /* ---------- customer chat ---------- */
 
 // Screen readers get told who is speaking; sighted users get the bubble side,
@@ -189,6 +367,18 @@ function addMessage(role, text, meta, author) {
     // feel unfinished.
     body.appendChild(el("div", "msg-time",
       role === "customer" ? `${clockNow()} ✓✓` : clockNow()));
+  }
+
+  // Read-aloud is offered per reply, not as a global auto-play toggle: a
+  // customer glancing at their phone in public may not want every answer
+  // spoken, so playback stays an explicit choice made bubble by bubble.
+  if (role === "assistant") {
+    const speak = el("button", "icon-btn ghost-ic speak-btn", "🔊");
+    speak.type = "button";
+    speak.title = "Đọc câu trả lời";
+    speak.disabled = !ttsAvailable;
+    speak.onclick = () => playTts(text, speak);
+    body.appendChild(speak);
   }
 
   // Route, intent, confidence, latency and the grounding citations all live in
@@ -996,6 +1186,39 @@ async function saveConfig(clearKey) {
   }
 }
 
+function updateTtsVoiceFieldVisibility() {
+  $("tts-voice-field").classList.toggle("hidden", $("tts-provider").value !== "vbee");
+}
+
+async function refreshTtsStatus() {
+  const data = await api("/api/tts/provider");
+  $("tts-provider").value = data.provider;
+  if (data.vbee_voice) $("tts-voice").value = data.vbee_voice;
+  updateTtsVoiceFieldVisibility();
+
+  const parts = [];
+  parts.push(data.vbee_available ? "Vbee: đã cấu hình key" : "Vbee: chưa có key");
+  parts.push(data.gtts_available ? "gTTS: đã cài" : "gTTS: chưa cài (pip install gtts)");
+  $("tts-status").textContent = parts.join(" · ");
+}
+
+async function saveTtsConfig() {
+  clearError($("tts-error"));
+  $("tts-save").disabled = true;
+  try {
+    await postJson("/api/tts/provider", {
+      provider: $("tts-provider").value,
+      vbee_voice: $("tts-voice").value,
+    });
+    await refreshTtsStatus();
+    await refreshHealth();
+  } catch (error) {
+    showError($("tts-error"), error.message);
+  } finally {
+    $("tts-save").disabled = false;
+  }
+}
+
 /* ---------- auth ---------- */
 
 function renderStaff() {
@@ -1051,6 +1274,10 @@ async function refreshHealth() {
   pill.textContent = h.mode === "live" ? `${h.provider}: ${h.model}` : "Model: ngoại tuyến";
   pill.title = h.detail || `mức suy luận: ${h.effort}`;
   pill.className = `pill ${h.mode}`;
+
+  ttsAvailable = Boolean(h.tts_available);
+  sttAvailable = Boolean(h.stt_available);
+  updateVoiceUI();
 }
 
 /* ---------- app shell ---------- */
@@ -1183,6 +1410,10 @@ $("cfg-key-toggle").onclick = () => {
   f.type = hidden ? "text" : "password";
   $("cfg-key-toggle").textContent = hidden ? "Ẩn" : "Hiện";
 };
+
+$("tts-save").onclick = saveTtsConfig;
+$("tts-provider").onchange = updateTtsVoiceFieldVisibility;
+$("mic-btn").onclick = toggleRecording;
 
 /** Open a transcript: the standing notice, the day divider the design asks for,
     then the greeting. One function so "new conversation" and first load cannot
