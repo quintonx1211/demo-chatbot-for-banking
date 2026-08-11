@@ -289,7 +289,7 @@ class Router:
         topic = " ".join(dict.fromkeys(tokenize(text)))[:60].strip()
         if result.route in ("escalation", "escalation_offered"):
             memory_mod.store.remember(session.customer_id, "outcome", "unresolved",
-                                      detail=topic or "an unlisted subject")
+                                      detail=topic or "chủ đề chưa xác định")
         elif result.route == "rag" and result.sources:
             memory_mod.store.remember(session.customer_id, "topic",
                                       result.sources[0]["heading"].lower(),

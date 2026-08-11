@@ -192,6 +192,15 @@ INTENTS: dict[str, dict] = {
             "thẻ mới về rồi tôi dùng thế nào",
             "kích hoạt thẻ",
             "thẻ chưa kích hoạt",
+            "thẻ lâu rồi tôi không dùng còn dùng được không",
+            "thẻ lâu không dùng thì có bị khóa không",
+            "thẻ ngủ đông còn dùng được không",
+            "thẻ đang ngủ đông",
+            "thẻ bị ngủ đông",
+            "thẻ cũ không hoạt động được nữa",
+            "kích hoạt lại thẻ ngủ đông",
+            "thẻ không dùng lâu còn sử dụng được không",
+            "thẻ tôi để lâu không dùng",
             "how do I activate my new card",
             "my new card arrived how do I start using it",
             "I need to activate my debit card",
@@ -202,7 +211,9 @@ INTENTS: dict[str, dict] = {
         "anchors": [
             r"kích hoạt",r"activat(e|ing|ion)",
                     r"new card[^?.]{0,24}(start|use|using|work)",
-                    r"card[^?.]{0,20}(not|isn.t) (working|active|activated)"],
+                    r"card[^?.]{0,20}(not|isn.t) (working|active|activated)",
+                    r"thẻ[^?.]{0,30}(ngủ đông|lâu[^?.]{0,15}không dùng|lâu không dùng|không hoạt động)",
+                    r"ngủ đông"],
     },
     "card_offers": {
         "utterances": [
