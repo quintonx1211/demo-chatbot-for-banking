@@ -14,4 +14,3 @@ data/db/
 # The demo itself needs no dependencies; this only exists for the optional
 # provider SDKs.
 venv-chatbot-banking/
-*.md
