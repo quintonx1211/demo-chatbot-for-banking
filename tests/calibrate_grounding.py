@@ -6,13 +6,18 @@ answer and will escalate turns it should have answered; one that stays closer
 to the source scores higher and makes the gate too permissive. Either way the
 number has to be re-measured per provider, not assumed.
 
-    python calibrate_grounding.py
+    python tests/calibrate_grounding.py
 
 With no provider configured this still runs, scoring hand-written reference
 answers so you can see the metric's behaviour and the separation it needs.
 """
 
 from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import guardrails, llm
 from app.retriever import KnowledgeBase

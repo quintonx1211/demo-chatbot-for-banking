@@ -1,10 +1,13 @@
-"""End-to-end smoke test for the routing layers. Run: python smoke_test.py
+"""End-to-end smoke test for the routing layers. Run: python tests/smoke_test.py
 
 Exercises every branch of the router without needing the HTTP server or an API
 key - the generative layer degrades to extractive mode when no key is present.
 """
 
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # The Windows console defaults to cp1252, which cannot encode Vietnamese. Now
 # that the assistant answers in Vietnamese, printing a reply raised

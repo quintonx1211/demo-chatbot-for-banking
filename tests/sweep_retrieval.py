@@ -1,4 +1,4 @@
-"""Compare retrieval ranking strategies. Run: python sweep_retrieval.py
+"""Compare retrieval ranking strategies. Run: python tests/sweep_retrieval.py
 
 Scratch harness, not part of the app. It reimplements the candidate ranking
 against the live index so alternatives can be measured before any of them is
@@ -9,7 +9,11 @@ reasoned about instead of measured.
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.retriever import (
     MIN_RELEVANCE,

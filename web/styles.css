@@ -312,31 +312,20 @@ button.nav-item:hover { background: var(--bg-canvas); color: var(--text); }
 .txn-amount { font-size: 14.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .txn-row.credit .txn-amount { color: var(--positive); }
 
-/* ---------- quick replies ---------- */
+/* Lives inside the "Nguồn câu trả lời" rail-block, not the composer - voice
+   output is a reading preference for this session, same shelf as the
+   grounding inspector it sits above, not chat chrome. */
 .tts-bar {
-  flex: none; display: flex; align-items: center; gap: 8px;
-  padding: 8px 32px 4px; background: var(--bg-canvas);
+  flex: none; display: flex; align-items: center; flex-wrap: wrap;
+  gap: 6px; margin: 2px 0 14px;
 }
 .tts-bar-label { font-size: 12.5px; color: var(--text-muted); white-space: nowrap; }
 .tts-bar select {
-  font: inherit; font-size: 12.5px; color: var(--text);
+  width: auto; flex: none; font: inherit; font-size: 12.5px; color: var(--text);
   border: 1px solid var(--border-strong); border-radius: var(--radius-control);
   background: var(--bg-surface); padding: 4px 8px; cursor: pointer;
 }
 .tts-bar select:focus { outline: 2px solid rgba(14,75,69,.3); outline-offset: 1px; }
-
-.suggestions {
-  flex: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0 32px 12px;
-  background: var(--bg-canvas);
-}
-.suggestions button {
-  padding: 9px 14px; border-radius: var(--radius-pill);
-  border: 1px solid var(--border-strong); background: var(--bg-surface);
-  font: inherit; font-size: 13.5px; font-weight: 500; color: var(--accent);
-  cursor: pointer; transition: background .12s;
-}
-.suggestions button:hover { background: var(--tint); }
-.suggestions button:active { transform: scale(.97); }
 
 /* ---------- composer ---------- */
 .composer {
@@ -710,14 +699,6 @@ table.events code { font-size: 11.5px; }
   .msg.has-cards { max-width: 92%; }
   .msg.customer { max-width: 80%; }
   .msg .bubble { padding: 13px 15px; font-size: 15px; line-height: 1.5; }
-  /* One scrolling row rather than five stacked ones - the chips must not eat
-     the transcript on a phone. */
-  .suggestions {
-    padding: 0 18px 10px; flex-wrap: nowrap; overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .suggestions::-webkit-scrollbar { display: none; }
-  .suggestions button { flex: none; }
   .composer { padding: 12px 14px calc(20px + env(safe-area-inset-bottom)); }
   .chat-actions { padding: 11px 18px; }
   .arch-toggle { padding: 11px 18px; }

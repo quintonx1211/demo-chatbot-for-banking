@@ -1202,8 +1202,8 @@ async function refreshTtsStatus() {
   if (data.vbee_voice) $("tts-bar-voice").value = data.vbee_voice;
 
   const parts = [];
-  parts.push(data.vbee_available ? "Vbee: đã cấu hình key" : "Vbee: chưa có key");
-  parts.push(data.gtts_available ? "gTTS: đã cài" : "gTTS: chưa cài (pip install gtts)");
+  parts.push(data.vbee_available ? "Giọng 1: đã cấu hình key" : "Giọng 1: chưa có key");
+  parts.push(data.gtts_available ? "Giọng 2: đã cài" : "Giọng 2: chưa cài (pip install gtts)");
   $("tts-status").textContent = parts.join(" · ");
 }
 
@@ -1327,9 +1327,6 @@ $("raw-toggle").onchange = (e) => toggleRawMode(e.target.checked);
 
 $("composer").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
 $("input").oninput = updateSendState;
-$("suggestions").querySelectorAll("button").forEach((b) => {
-  b.onclick = () => send(b.textContent);
-});
 
 // Starting over drops the server-side session too. Clearing only the visible
 // transcript would leave the customer talking to a conversation they cannot

@@ -495,31 +495,31 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> None:
     info = llm.describe()
     stats = router.kb.stats
-    print("Ngân hàng ABC – Demo trợ lý lai")
+    print("ABC Bank - Virtual Assistant Demo")
     if info["mode"] == "live":
         endpoint = f" → {info['endpoint']}" if info.get("endpoint") else ""
-        print(f"  Tầng sinh thành   : LIVE qua {info['provider']}{endpoint}")
+        print(f"  Generation layer  : LIVE via {info['provider']}{endpoint}")
         print(f"  Model             : {info['model']} (effort={info['effort']})")
     else:
-        print("  Tầng sinh thành   : OFFLINE (fallback trích xuất)")
-        print(f"  Lý do             : {info['detail']}")
-    print(f"  Cơ sở tri thức    : {stats['passages']} đoạn văn "
-          f"trong {stats['documents']} tài liệu")
+        print("  Generation layer  : OFFLINE (extractive fallback)")
+        print(f"  Reason            : {info['detail']}")
+    print(f"  Knowledge base    : {stats['passages']} passages "
+          f"across {stats['documents']} documents")
 
     # Pre-warm TTS and STT in parallel background threads
     def _warmup_tts():
         if tts.available():
             ok = tts.warmup()
-            print(f"  TTS               : {'sẵn sàng' if ok else 'cảnh báo - warmup thất bại'}")
+            print(f"  TTS               : {'ready' if ok else 'warning - warm up failed'}")
         else:
-            print("  TTS               : không khả dụng (chạy setup_voice.py + pip install piper-tts)")
+            print("  TTS               : not available (run setup_voice.py + pip install piper-tts)")
 
     def _warmup_stt():
         if stt.available():
             ok = stt.warmup()
-            print(f"  STT               : {'sẵn sàng' if ok else 'cảnh báo - warmup thất bại'}")
+            print(f"  STT               : {'ready' if ok else 'warning - warm up failed'}")
         else:
-            print("  STT               : không khả dụng (pip install transformers torch soundfile)")
+            print("  STT               : not available (pip install transformers torch soundfile)")
 
     t_tts = threading.Thread(target=_warmup_tts, daemon=True)
     t_stt = threading.Thread(target=_warmup_stt, daemon=True)
@@ -540,9 +540,9 @@ def main() -> None:
         _time.sleep(1)
         tunnel = _ngrok.connect(PORT, "http", pooling_enabled=True)
         public_url = tunnel.public_url
-        print(f"  URL công khai     : {public_url}")
+        print(f"  Public URL     : {public_url}")
     except Exception as exc:
-        print(f"  ngrok             : không khả dụng ({exc})")
+        print(f"  ngrok             : not available ({exc})")
 
     print(f"  Local             : http://{HOST}:{PORT}\n")
 
@@ -553,4 +553,4 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nĐã dừng.")
+        print("\nStop.")

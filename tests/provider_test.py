@@ -1,4 +1,4 @@
-"""Contract test for the provider adapter layer. Run: python provider_test.py
+"""Contract test for the provider adapter layer. Run: python tests/provider_test.py
 
 The three real adapters cannot be exercised here without their SDKs and paid
 API keys. What *can* be verified - and is what actually breaks in a refactor -
@@ -12,6 +12,10 @@ checks each real adapter still satisfies the structural contract.
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import llm
 from app.llm.base import LLMRequest, LLMResult

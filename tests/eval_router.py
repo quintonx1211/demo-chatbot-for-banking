@@ -3,8 +3,8 @@
 Answers the question that decides whether to switch: on this traffic, how often
 do the two disagree, and when they disagree, which one is right?
 
-    python eval_router.py              # lexical only - no provider needed
-    python eval_router.py --llm        # both, needs a configured provider
+    python tests/eval_router.py        # lexical only - no provider needed
+    python tests/eval_router.py --llm  # both, needs a configured provider
 
 The labelled set is small and hand-written, which is the honest description of
 it. It is enough to catch a regression and enough to show a direction; it is
@@ -18,7 +18,7 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.llm import route                       # noqa: E402
 from app.nlu import HIGH_CONFIDENCE, IntentClassifier  # noqa: E402
@@ -113,29 +113,29 @@ def main(argv: list[str]) -> int:
         rows.append((message, expected, lexical, lex_ok, llm_label, llm_ok))
 
     width = max(len(m) for m, *_ in rows)
-    header = f"  {'CÂU':<{width}}  {'KỲ VỌNG':<18} {'LEXICAL':<18}"
+    header = f"  {'MESSAGE':<{width}}  {'EXPECTED':<18} {'LEXICAL':<18}"
     if use_llm:
         header += f" {'LLM':<18}"
     print(f"\n{header}")
     print("  " + "-" * (width + (58 if use_llm else 38)))
     for message, expected, lexical, lex_ok, llm_label, llm_ok in rows:
         line = (f"  {message:<{width}}  {expected:<18} "
-                f"{('OK ' if lex_ok else 'SAI') + ' ' + lexical:<18}")
+                f"{('OK ' if lex_ok else 'FAIL') + ' ' + lexical:<18}")
         if use_llm:
-            mark = "" if llm_ok is None else ("OK " if llm_ok else "SAI")
+            mark = "" if llm_ok is None else ("OK " if llm_ok else "FAIL")
             line += f" {mark + ' ' + str(llm_label):<18}"
         print(line)
 
     total = len(CASES)
-    print(f"\n  Lexical : {lex_right}/{total}  ({lex_right / total * 100:.0f}%)")
+    print(f"\n  Lexical  : {lex_right}/{total}  ({lex_right / total * 100:.0f}%)")
     if use_llm:
-        print(f"  LLM     : {llm_right}/{total}  ({llm_right / total * 100:.0f}%)")
-        print(f"  Trùng ý : {agree}/{total}  ({agree / total * 100:.0f}%)")
+        print(f"  LLM      : {llm_right}/{total}  ({llm_right / total * 100:.0f}%)")
+        print(f"  Agreement: {agree}/{total}  ({agree / total * 100:.0f}%)")
         if llm_right <= lex_right:
             print("\n  LLM routing did NOT beat the lexical classifier on this set.")
             print("  Do not switch router_mode to 'llm' on the strength of this run.")
     else:
-        print("\n  Chạy lại với --llm (và một provider) để so sánh.")
+        print("\n  Re-run with --llm (and a configured provider) to compare.")
     return 0
 
 

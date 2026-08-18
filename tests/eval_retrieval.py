@@ -1,4 +1,4 @@
-"""Retrieval quality harness. Run: python eval_retrieval.py [-v]
+"""Retrieval quality harness. Run: python tests/eval_retrieval.py [-v]
 
 Exists so changes to the retrieval pipeline can be argued from numbers instead
 of asserted. Every question below is labelled with the passage heading that
@@ -27,6 +27,9 @@ if hasattr(sys.stdout, "reconfigure"):
 
 
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.retriever import KnowledgeBase
 

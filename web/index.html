@@ -133,33 +133,6 @@
       <div id="handoff-banner" class="handoff-banner hidden"></div>
       <div id="chat-actions" class="chat-actions hidden"></div>
 
-      <div class="tts-bar" id="tts-bar-chat">
-        <span class="tts-bar-label">Giọng:</span>
-        <select id="tts-bar-provider">
-          <option value="vbee">Vbee</option>
-          <option value="gtts">gTTS</option>
-        </select>
-        <select id="tts-bar-voice">
-          <option value="hn_female_ngochuyen_full_48k-fhg">Ngọc Huyền – nữ HN</option>
-          <option value="hn_female_hermer_stor_48k-fhg">Ngọc Lan – nữ HN</option>
-          <option value="hn_female_lenka_stor_48k-phg">Nguyệt Dương – nữ HN</option>
-          <option value="hn_male_minhquan_yt-stable">Minh Quân – nam HN</option>
-          <option value="hn_male_manhdung_news_48k-fhg">Mạnh Dũng – nam HN</option>
-          <option value="sg_female_tuongvy_call_44k-fhg">Tường Vy – nữ SG</option>
-          <option value="sg_female_thaotrinh_full_44k-phg">Thảo Trinh – nữ SG</option>
-          <option value="sg_male_chidat_ebook_48k-phg">Chí Đạt – nam SG</option>
-        </select>
-      </div>
-
-      <div class="suggestions" id="suggestions" role="group" aria-label="Câu hỏi gợi ý">
-        <button type="button">Phí chuyển tiền quốc tế là bao nhiêu?</button>
-        <button type="button">Tôi làm mất thẻ ghi nợ</button>
-        <button type="button">Kiểm tra số dư của tôi</button>
-        <button type="button">Tôi có bao nhiêu ngày để khiếu nại một giao dịch?</button>
-        <button type="button">Tôi có nên đầu tư tiền tiết kiệm vào cổ phiếu công nghệ không?</button>
-        <button type="button">Ngân hàng có bảo hiểm cây trồng cho vườn nho không?</button>
-      </div>
-
       <form id="composer" class="composer" autocomplete="off">
         <!-- Attach and emoji are chrome, not features: a bank assistant that
              ships without them looks unfinished, and wiring them is out of
@@ -188,6 +161,23 @@
         <span class="rail-eyebrow">Nguồn câu trả lời</span>
         <p class="hint">Câu trả lời vừa rồi dựa trên đâu - đúng phần mà bộ phận
           tuân thủ sẽ soát lại.</p>
+        <div class="tts-bar" id="tts-bar-chat">
+          <span class="tts-bar-label">Giọng đọc:</span>
+          <select id="tts-bar-provider">
+            <option value="vbee">Giọng 1</option>
+            <option value="gtts">Giọng 2</option>
+          </select>
+          <select id="tts-bar-voice">
+            <option value="hn_female_ngochuyen_full_48k-fhg">Ngọc Huyền – nữ HN</option>
+            <option value="hn_female_hermer_stor_48k-fhg">Ngọc Lan – nữ HN</option>
+            <option value="hn_female_lenka_stor_48k-phg">Nguyệt Dương – nữ HN</option>
+            <option value="hn_male_minhquan_yt-stable">Minh Quân – nam HN</option>
+            <option value="hn_male_manhdung_news_48k-fhg">Mạnh Dũng – nam HN</option>
+            <option value="sg_female_tuongvy_call_44k-fhg">Tường Vy – nữ SG</option>
+            <option value="sg_female_thaotrinh_full_44k-phg">Thảo Trinh – nữ SG</option>
+            <option value="sg_male_chidat_ebook_48k-phg">Chí Đạt – nam SG</option>
+          </select>
+        </div>
         <div id="inspector">
           <p class="empty">Gửi một câu hỏi để xem nguồn.</p>
         </div>
@@ -530,12 +520,12 @@
               <label class="field">
                 <span>Nhà cung cấp</span>
                 <select id="tts-provider">
-                  <option value="vbee">Vbee AI – tiếng Việt tự nhiên</option>
-                  <option value="gtts">gTTS – Google (miễn phí)</option>
+                  <option value="vbee">Giọng 1</option>
+                  <option value="gtts">Giọng 2</option>
                 </select>
               </label>
               <label class="field" id="tts-voice-field">
-                <span>Giọng Vbee</span>
+                <span>Chọn giọng đọc</span>
                 <select id="tts-voice">
                   <option value="hn_female_ngochuyen_full_48k-fhg">Ngọc Huyền – nữ HN</option>
                   <option value="hn_female_hermer_stor_48k-fhg">Ngọc Lan – nữ HN</option>

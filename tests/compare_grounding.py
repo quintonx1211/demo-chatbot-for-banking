@@ -6,8 +6,8 @@ about the architecture. The comparison is a thing you show once, deliberately,
 while narrating it - which makes it a scripted demo step, not an operational
 surface. See TEST-SCENARIOS.txt section B4.
 
-    python compare_grounding.py                     # run the suggested set
-    python compare_grounding.py "your question"     # one question
+    python tests/compare_grounding.py                     # run the suggested set
+    python tests/compare_grounding.py "your question"     # one question
 
 Needs a provider configured, and says so plainly when there is not - a run
 where the model never answered proves nothing either way, and this script
@@ -31,7 +31,7 @@ import os
 import sys
 import textwrap
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.llm import compare as compare_mod   # noqa: E402
 from app.retriever import KnowledgeBase      # noqa: E402

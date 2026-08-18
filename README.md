@@ -33,11 +33,11 @@ every knob. `LLM_PROVIDER=auto` (the default) picks the first provider that is
 both installed and keyed.
 
 ```bash
-python smoke_test.py            # all seven routing branches, no key needed
-python provider_test.py         # adapter contract, using stub adapters
-python eval_retrieval.py -v     # labelled retrieval metrics (57 labelled questions)
-python make_fixtures.py         # regenerate the .docx test document
-python calibrate_grounding.py   # re-measure the grounding threshold per provider
+python tests/smoke_test.py            # all seven routing branches, no key needed
+python tests/provider_test.py         # adapter contract, using stub adapters
+python tests/eval_retrieval.py -v     # labelled retrieval metrics (57 labelled questions)
+python make_fixtures.py               # regenerate the .docx test document
+python tests/calibrate_grounding.py   # re-measure the grounding threshold per provider
 ```
 
 The **Agent console**, **Knowledge base** and **Settings** tabs need a staff
@@ -71,8 +71,8 @@ number as a measured one is where a demo loses the room under questioning.
 ## Grounding check - the argument, run live
 
 ```bash
-python compare_grounding.py                     # the suggested set
-python compare_grounding.py "your question"     # one question
+python tests/compare_grounding.py                     # the suggested set
+python tests/compare_grounding.py "your question"     # one question
 ```
 
 The same question is asked twice, of the same model at the same settings. One
@@ -140,18 +140,18 @@ Then open the **Agent console** tab to see the escalated conversation, the
 handover brief, the full transcript, and the per-turn audit trail.
 
 Full credentials for all fifteen demo customers, and the scenario each one
-exercises, are in **`TEST-SCENARIOS.txt`** - along with the questions that are
+exercises, are in **`tests/TEST-SCENARIOS.txt`** - along with the questions that are
 known to fail, which is the more useful half of that file.
 
 ## Retrieval quality
 
-Retrieval changes are argued from numbers, not asserted. `eval_retrieval.py`
+Retrieval changes are argued from numbers, not asserted. `tests/eval_retrieval.py`
 holds 41 questions labelled with the passage that should answer them, plus 7
 the corpus genuinely does not cover:
 
 ```bash
-python eval_retrieval.py -v          # lexical pipeline
-python eval_retrieval.py --rerank    # adds the LLM stage (needs a provider)
+python tests/eval_retrieval.py -v          # lexical pipeline
+python tests/eval_retrieval.py --rerank    # adds the LLM stage (needs a provider)
 ```
 
 Measured on the shipped corpus (51 passages, 8 documents):
@@ -205,7 +205,7 @@ better at P@1 and slightly worse at Recall@3 - one or two questions out of 41,
 which is noise at this sample size. At the pool size that matters for reranking
 (N=10) both reach 90.2% and are indistinguishable. So the fused score is
 computed and shown in the inspector, but coverage still decides the order. The
-sweep that produced this is `sweep_retrieval.py`.
+sweep that produced this is `tests/sweep_retrieval.py`.
 
 **Lexical retrieval has a hard ceiling here, and no threshold fixes it.** Four
 labelled questions fail because the words genuinely do not overlap - "salary
@@ -233,7 +233,7 @@ the audit note (`rerank:skipped-no-provider`, `rerank:unparseable`,
 **Its effect is unmeasured** - no API key was available in the environment this
 was built in. The headroom is quantified above (84.2% of answers reach the
 candidate pool); whether the model picks them out of ten is the open question.
-Run `python eval_retrieval.py --rerank` with a provider configured to settle it.
+Run `python tests/eval_retrieval.py --rerank` with a provider configured to settle it.
 
 ## Managing the knowledge base
 
@@ -436,16 +436,10 @@ SSNs, emails and phone numbers (`guardrails.redact`).
 
 ```
 server.py            stdlib HTTP server + JSON API
-smoke_test.py        end-to-end test of all seven routing branches
 make_customers.py    regenerates the 15-customer fixture (deterministic)
-compare_grounding.py grounded vs ungrounded, side by side, from the terminal
-diagnose_provider.py why a provider call is failing, without printing the key
-TEST-SCENARIOS.txt   manual test script, structured by case-study capability
-provider_test.py     adapter contract test (stub adapters, no SDK needed)
-eval_retrieval.py    labelled retrieval metrics (P@1, recall, MRR, rejection)
-sweep_retrieval.py   compares ranking strategies before one is adopted
 make_fixtures.py     generates the .docx test document
-calibrate_grounding.py   re-measure the grounding threshold per provider
+tests/                see tests/README.md - every test/eval script + the
+                       manual test scenarios, one line each
 app/
   router.py          the orchestrator - routing, escalation, audit
   nlu.py             intent classifier with confidence bands and regex anchors
@@ -579,7 +573,7 @@ will escalate turns it should have answered; one that stays closer to the
 source makes the gate too permissive. Run:
 
 ```bash
-python calibrate_grounding.py
+python tests/calibrate_grounding.py
 ```
 
 It scores real answers from the active provider against the retrieved context,
@@ -642,7 +636,7 @@ The UI carries no branding. Three colour values at the top of `web/styles.css`
 drive the whole palette, so re-theming means changing those and nothing else.
 
 **No provider adapter has been verified against a successful API response.**
-The adapter *layer* is covered by `provider_test.py` - dispatch, refusal
+The adapter *layer* is covered by `tests/provider_test.py` - dispatch, refusal
 handling, fallback, the grounding gate - using stub adapters. Beyond that, each
 adapter was run with a deliberately invalid key:
 

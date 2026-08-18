@@ -7,7 +7,7 @@ extractive knowledge-base text on *any* provider failure, so a dead provider
 produces a grounded column that reads like a working answer. This script makes
 both calls directly, with no fallback in the way, so the two are comparable.
 
-    python diagnose_provider.py
+    python tests/diagnose_provider.py
 
 Reads the key from the environment only. Nothing here prints a credential; the
 key is reported as "set"/"not set" and by length.
@@ -30,7 +30,7 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import llm                                    # noqa: E402
 from app.llm import compare as compare_mod             # noqa: E402

@@ -213,8 +213,8 @@ B3. Ngoài phạm vi phải bị từ chối, không được đoán
              không biết mới là trợ lý ngân hàng dám đưa vào vận hành.
 
 B4. So sánh có nền và không nền - là script, không phải tab trong console
-        python compare_grounding.py
-        python compare_grounding.py "hạn mức chuyển tiền một ngày là bao nhiêu?"
+        python tests/compare_grounding.py
+        python tests/compare_grounding.py "hạn mức chuyển tiền một ngày là bao nhiêu?"
     KỲ VỌNG  cột GROUNDED dẫn tài liệu và hiện điểm dẫn nguồn; cột UNGROUNDED
              trả lời trôi chảy và bịa ra con số.
     KỲ VỌNG  dòng cuối ghi "N of N comparisons were valid".
