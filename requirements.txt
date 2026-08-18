@@ -25,3 +25,7 @@ python-dotenv>=1.0
 #   transformers>=4.40     # STT (PhoWhisper) - also needs torch + soundfile
 #   torch>=2.0
 #   soundfile>=0.12
+
+# KB ingest - optional. .md/.txt/.docx need nothing extra; PDF upload and
+# app/ingest/extract.py::extract_pdf need this.
+#   pdfplumber>=0.11       # PDF text + table extraction for KB ingest

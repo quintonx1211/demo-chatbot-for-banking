@@ -108,13 +108,14 @@ def run(kb: KnowledgeBase, strategy, top_k: int = 3) -> dict:
     hits1 = hitsk = 0
     rr = 0.0
 
-    for question, expected in IN_SCOPE:
+    for question, expected_doc, expected_heading in IN_SCOPE:
         sig = signals_for(kb, question)
         indices = ([] if max(sig.coverage, default=0.0) < MIN_RELEVANCE
                    else strategy(sig, top_k))
-        headings = [passages[i].heading for i in indices]
-        rank = next((r for r, h in enumerate(headings, 1)
-                     if h.lower().startswith(expected.lower()[:24])), None)
+        candidates = [passages[i] for i in indices]
+        rank = next((r for r, p in enumerate(candidates, 1)
+                     if p.doc_id == expected_doc
+                     and p.heading.lower().startswith(expected_heading.lower()[:24])), None)
         if rank == 1:
             hits1 += 1
         if rank:

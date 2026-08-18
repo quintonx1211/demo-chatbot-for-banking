@@ -17,46 +17,63 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
+from app import cards, db
 from app.replay import cred
 from app.router import Router
 
 # Scenario tuples are (title, turns, expected_route, must_verify).
 #
-# `must_verify` exists because of a bug this file was hiding. Three scenarios
-# hard-coded verification codes, and asserted only that the final route was
-# "deterministic". A failed identity check is *also* deterministic - it returns
-# "those details don't match our records" from a scripted flow - so when the
-# customer fixture was regenerated and the codes stopped existing, the test
-# went on passing while testing nothing but the failure path. A route assertion
-# alone cannot tell those two apart; the session state can.
+# `must_verify` exists because of a bug this file was hiding, back when it
+# tested account actions. A failed identity check is *also* "deterministic" -
+# it returns "those details don't match our records" from a scripted flow -
+# so a route assertion alone cannot tell a working personalised flow apart
+# from one whose verification silently regressed. The session state is the
+# only thing that actually proves the identity check ran and passed.
 #
-# Codes come from the fixture via `cred()`, so regenerating customers no longer
-# silently breaks the tests.
+# Codes come from the fixture via `cred()`, so regenerating customers no
+# longer silently breaks the tests. Covers the client's 3 target scenarios:
+# #1 Automated Cross-Selling (proactive pitch after verification), #2
+# Customer Service (customer states an interest, agent explains card fit),
+# #3 Card Operations (close card, adjust limit, reward inquiry).
 SCENARIOS: list[tuple[str, list[str], str, bool]] = [
     (
-        "Deterministic flow with identity verification",
-        ["xin chào", "số dư của tôi còn bao nhiêu?", cred("travel_offer")],
+        "Scenario 1: proactive cross-sell pitch after verification (Mass segment target)",
+        ["thẻ của tôi có ưu đãi gì?", cred("An")],
         "deterministic", True,
     ),
     (
-        "Card block - two-step confirmation, writes to the record",
-        ["tôi làm mất thẻ ghi nợ", cred("multi_card"), "6591", "có"],
+        "Scenario 2: customer states an interest, agent explains why the card fits",
+        ["tôi thích đi du lịch nước ngoài", cred("Ha")],
         "deterministic", True,
     ),
     (
-        "Freeze then unfreeze - the reversible path",
-        ["tạm khoá thẻ giúp tôi", cred("loan_in_review"), "có",
-         "mở khoá thẻ giúp tôi", "có"],
+        "Scenario 2: no stated interest on file - one-question slot-fill",
+        ["có ưu đãi nào phù hợp với sở thích của tôi không?", cred("Bich"), "mua sắm online"],
         "deterministic", True,
     ),
     (
-        "Loan status lookup",
-        ["hồ sơ vay của tôi đến đâu rồi?", cred("loan_in_review")],
+        "Scenario 3: reward inquiry - lists the card's reward lines",
+        ["thẻ của tôi có ưu đãi gì?", cred("Hieu")],
         "deterministic", True,
     ),
     (
-        "RAG-grounded answer from the knowledge base",
-        ["chuyển tiền quốc tế phí bao nhiêu?"],
+        "Scenario 3: close card - confirmed then closed",
+        ["tôi muốn đóng thẻ", cred("Long"), "có"],
+        "deterministic", True,
+    ),
+    (
+        "Scenario 3: limit adjustment request - logged, never auto-approved",
+        ["tôi muốn tăng hạn mức thẻ", cred("Chau"), "200 triệu"],
+        "deterministic", True,
+    ),
+    (
+        "Product comparison - public, no identity needed",
+        ["so sánh thẻ Classic và thẻ Platinum"],
+        "deterministic", False,
+    ),
+    (
+        "RAG-grounded FAQ answer from the knowledge base",
+        ["phí thường niên thẻ Classic là bao nhiêu?"],
         "rag", False,
     ),
     (
@@ -75,9 +92,9 @@ SCENARIOS: list[tuple[str, list[str], str, bool]] = [
         "escalation", False,
     ),
     (
-        "Handoff declined - assistant carries on",
+        "Handoff declined - assistant carries on and answers the next question",
         ["ngân hàng có bảo hiểm cây trồng cho vườn nho ở Bồ Đào Nha không?", "không, cảm ơn",
-         "chi nhánh mở cửa mấy giờ?"],
+         "phí thường niên thẻ Classic là bao nhiêu?"],
         "rag", False,
     ),
     (
@@ -94,6 +111,12 @@ SCENARIOS: list[tuple[str, list[str], str, bool]] = [
 
 
 def main() -> int:
+    # Card Operations scenarios mutate data/db/cards.csv on disk (close,
+    # limit-adjust request) - reset first so a rerun starts from the same
+    # known state instead of tripping on a card an earlier run already closed.
+    db.reset()
+    cards.reset()
+
     router = Router()
     failures = 0
 

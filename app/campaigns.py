@@ -11,9 +11,11 @@ cross-selling bot defensible in a bank. A model that infers "you look like
 someone who wants a travel card" is making a suitability judgement about a
 financial product. Reading a row from a segmentation file is not.
 
-Card activation is redirection only, again per the client: the assistant hands
-over a deeplink or an SMS instruction. It never collects an OTP and never calls
-a card system.
+This is deliberately separate from `rules_engine.py`, which computes
+cross-sell matches from a customer's structured attributes at request time.
+This module answers a different question: which marketing campaigns has the
+CRM already flagged this specific customer for, independent of whether the
+rule engine would also suggest the same product.
 """
 
 from __future__ import annotations
@@ -91,33 +93,16 @@ class CampaignBook:
                 deeplink=spec.get("deeplink", ""),
                 context=row.get("context", {}),
             ))
-        # Service before selling: an unactivated or dormant card is something
-        # the customer is already stuck on, and leading with an upgrade offer
-        # while their card does not work is how a campaign bot earns complaints.
-        order = {"activation": 0, "reactivation": 1, "cross_sell": 2}
-        offers.sort(key=lambda o: order.get(o.type, 3))
         return offers
 
     @staticmethod
     def _body(spec: dict, context: dict) -> str:
-        kind = spec.get("type")
-        if kind == "activation":
-            mask = context.get("card_mask", "thẻ mới của anh/chị")
-            return (
-                f"Tôi thấy **thẻ {mask}** của anh/chị chưa được kích hoạt - thẻ "
-                f"được phát hành ngày {context.get('issued_on', 'gần đây')}.\n\n"
-                f"Anh/chị kích hoạt trong ứng dụng, hoặc "
-                f"{spec.get('sms_alternative', 'gọi số in trên thẻ')}."
-            )
-        if kind == "reactivation":
-            mask = context.get("card_mask", "thẻ của anh/chị")
-            return (
-                f"**Thẻ {mask}** của anh/chị chưa phát sinh giao dịch từ "
-                f"{context.get('dormant_since', 'a while ago')}, so it's currently "
-                f"dormant.\n\n**{spec.get('offer', '')}** if you start using it "
-                f"again."
-            )
-        return f"{spec.get('detail', '')}"
+        parts = [f"**{spec['name']}**"]
+        if spec.get("offer"):
+            parts.append(spec["offer"])
+        if spec.get("terms"):
+            parts.append(f"_{spec['terms']}_")
+        return "\n\n".join(parts)
 
     @property
     def stats(self) -> dict:

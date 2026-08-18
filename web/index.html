@@ -262,13 +262,6 @@
       </div>
       <div id="stat-grid" class="stat-grid"></div>
       <div class="panel" style="margin-top:16px">
-        <h3>Thao tác thẻ <span class="tag">đã ghi vào dữ liệu</span></h3>
-        <p class="hint">Mỗi lần thẻ đổi trạng thái, kèm bước chuyển và hội thoại yêu cầu.
-          Một thao tác tài khoản mà ngân hàng không chứng minh được về sau thì
-          coi như chưa từng xảy ra.</p>
-        <div id="card-events"></div>
-      </div>
-      <div class="panel" style="margin-top:16px">
         <h3>Định tuyến: lexical so với LLM <span id="router-mode" class="tag"></span></h3>
         <p class="hint">Chế độ shadow chạy song song hai bộ phân loại, dùng kết quả
           của bộ lexical, và ghi lại mọi chỗ hai bên khác nhau. Tỷ lệ trùng khớp
@@ -367,10 +360,10 @@
             </div>
           </div>
           <p class="hint" id="kb-stats">-</p>
-          <input id="kb-file" type="file" accept=".md,.txt,.docx" class="hidden" />
+          <input id="kb-file" type="file" accept=".md,.txt,.docx,.pdf" class="hidden" />
           <div id="kb-drop" class="dropzone">
-            Kéo thả tệp <b>.md</b>, <b>.txt</b> hoặc <b>.docx</b> vào đây
-            <small>Tệp Word sẽ được giải nén và trích xuất tiêu đề, danh sách, bảng biểu -
+            Kéo thả tệp <b>.md</b>, <b>.txt</b>, <b>.docx</b> hoặc <b>.pdf</b> vào đây
+            <small>Tệp Word/PDF sẽ được giải nén và trích xuất tiêu đề, danh sách, bảng biểu -
               khung xem lại hiển thị đúng những gì được đánh index.</small>
           </div>
           <div id="kb-upload-error" class="error hidden"></div>

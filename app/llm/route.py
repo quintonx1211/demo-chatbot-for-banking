@@ -16,9 +16,10 @@ So this replaces one component, not the architecture:
     behind a model call would turn a structural block into a prompt
     instruction, which is a different and much weaker guarantee - and it is
     the guarantee this whole product is sold on.
-  * It never touches `db.set_card_status`. The card state machine stays in
-    code, because a model that can be talked into reopening a card reported
-    stolen is a vulnerability, and models can be talked into things.
+  * It never touches `rules_engine.py`. Whether a customer is eligible for a
+    product stays deterministic code, because a model that can be talked into
+    saying "yes, you qualify" is a vulnerability, and models can be talked
+    into things.
 
 Three modes, set by `router_mode` in config.json:
 
@@ -50,12 +51,12 @@ intent. Reply with JSON only, no prose:
 
 Rules:
 - Pick exactly one intent from the list given in the user message.
-- Use "knowledge_query" for any question about products, fees, policy, \
-timeframes or procedure - including questions that mention a card or an \
-account. A question about HOW something works is knowledge_query, not an \
-instruction to do it.
-- Use an action intent only when the customer is asking you to DO something to \
-their own account right now.
+- Use "product_faq" for any question about products, fees, policy, \
+timeframes or procedure - including questions that name a specific product. \
+A question about HOW something works is product_faq, not a personal request.
+- Use a personal intent (cross_sell_interest, card_close, card_limit_adjust, \
+reward_inquiry) only when the customer is asking about THEIR OWN card or \
+situation, not the product in general.
 - Use "unknown" when nothing fits. Do not guess to avoid saying unknown.
 - confidence is your own certainty. Below 0.55 the system will treat the turn \
 as a knowledge question regardless of the intent you picked, so use a low \

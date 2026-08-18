@@ -394,26 +394,16 @@ function addMessage(role, text, meta, author) {
 
 /* ---------- figures as cards ---------- */
 
-/** Read an amount aloud with the currency spelled out. */
-function spokenAmount(amount) {
-  const text = amount.trim();
-  if (text.startsWith("$")) return `${text.slice(1)} đô la Mỹ`;
-  if (text.endsWith(" VND")) return `${text.slice(0, -4)} đồng`;
-  return text;
-}
-
-const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2)
-  .map((word) => word[0].toUpperCase()).join("");
-
-// A flow reached straight away and the same flow reached through the
-// verification sub-flow report different notes, and both render the same
-// figures, so both spellings are listed rather than pattern-matched.
-const BALANCE_NOTES = new Set(["balance_read_from_core", "verified_then_balance_inquiry"]);
-const TXN_NOTES = new Set(["transactions_read_from_core", "verified_then_transaction_history"]);
-
+// Two shapes for the same case: a flow reached straight away carries its own
+// note ("cross_sell_recommended:..."), but one reached through the
+// verification sub-flow is re-noted "verified_then_<intent>" by
+// `flows.py::_handle_verification` - the intent name, not the flow's own
+// note. Both render the same cards.
 function accountCards(text, note) {
-  if (BALANCE_NOTES.has(note)) return balanceCards(text);
-  if (TXN_NOTES.has(note)) return transactionCard(text);
+  const n = note || "";
+  if (n.startsWith("cross_sell_recommended:") || n === "verified_then_cross_sell_interest") {
+    return productCards(text);
+  }
   return null;
 }
 
@@ -429,72 +419,40 @@ function splitFlowText(text, pattern) {
   };
 }
 
-// "- **Tài khoản thanh toán** ····4417 - số dư 41.238.000 VND, khả dụng 40.938.000 VND"
-//
-// Both spellings are matched. `_balance` in app/flows.py speaks Vietnamese now,
-// but the English wording is what the flow shipped with and what any untranslated
-// fixture still produces - and a card that silently stops rendering is worse than
-// one that never rendered, because nothing in the transcript says it was meant to.
-const BALANCE_LINE =
-  /^-\s+\*\*(.+?)\*\*\s+(\S+)\s+-\s+(?:số dư|balance)\s+(.+?),\s+(?:khả dụng|available)\s+(.+)$/;
+// "- **Premier Credit Card** - Has a Salary Account and income above..."
+// followed on the next line by "  _disclaimer text_" - see
+// `flows.py::_cross_sell`, the only place that produces this shape.
+const PRODUCT_LINE = /^-\s+\*\*(.+?)\*\*\s+-\s+(.+)$/;
+const DISCLAIMER_LINE = /^\s+_(.+)_$/;
 
-function balanceCards(text) {
-  const parsed = splitFlowText(text, BALANCE_LINE);
-  if (!parsed) return null;
+function productCards(text) {
+  const lines = text.split("\n");
+  const firstIdx = lines.findIndex((line) => PRODUCT_LINE.test(line));
+  if (firstIdx === -1) return null;
+
+  const intro = lines.slice(0, firstIdx).join("\n").trim();
   const cards = el("div", "data-cards");
 
-  for (const match of parsed.rows) {
-    const [, type, mask, balance, available] = match;
+  for (let i = firstIdx; i < lines.length; i++) {
+    const match = lines[i].match(PRODUCT_LINE);
+    if (!match) continue;
+    const [, name, reason] = match;
+    const disclaimerMatch = (lines[i + 1] || "").match(DISCLAIMER_LINE);
 
     const card = el("div", "data-card");
-    card.appendChild(el("span", "eyebrow", `${type} · ${mask}`));
-
-    const amount = el("div", "amount", balance);
-    amount.setAttribute("aria-label", `Số dư ${spokenAmount(balance)}`);
-    card.appendChild(amount);
-
-    const sub = el("div", "sub");
-    sub.appendChild(document.createTextNode("khả dụng "));
-    sub.appendChild(el("span", "num", available));
-    card.appendChild(sub);
-
+    card.appendChild(el("span", "eyebrow", name));
+    card.appendChild(el("div", "sub", reason));
+    if (disclaimerMatch) {
+      const note = el("div", "sub");
+      note.style.fontSize = "11px";
+      note.style.opacity = "0.7";
+      note.textContent = disclaimerMatch[1];
+      card.appendChild(note);
+    }
     cards.appendChild(card);
   }
 
-  return { intro: parsed.intro, node: cards };
-}
-
-// "- 2024-05-31 · Coffee Union · −4.20"
-const TXN_LINE = /^-\s+(.+?)\s+·\s+(.+?)\s+·\s+([+−-])(.+)$/;
-
-function transactionCard(text) {
-  const parsed = splitFlowText(text, TXN_LINE);
-  if (!parsed) return null;
-
-  const card = el("div", "txn-card");
-  card.appendChild(el("div", "eyebrow", `${parsed.rows.length} giao dịch gần nhất`));
-
-  for (const match of parsed.rows) {
-    const [, date, description, sign, amount] = match;
-    const credit = sign === "+";
-
-    const row = el("div", `txn-row${credit ? " credit" : ""}`);
-    row.appendChild(el("span", "txn-tile", initials(description)));
-
-    const body = el("div", "txn-body");
-    body.appendChild(el("span", "name", description));
-    body.appendChild(el("span", "meta", date));
-    row.appendChild(body);
-
-    const value = el("span", "txn-amount", `${sign}${amount}`);
-    value.setAttribute("aria-label",
-      `${credit ? "Ghi có" : "Ghi nợ"} ${spokenAmount(amount)}`);
-    row.appendChild(value);
-
-    card.appendChild(row);
-  }
-
-  return { intro: parsed.intro, node: card };
+  return { intro, node: cards };
 }
 
 /* ---------- typing indicator ---------- */
@@ -917,29 +875,14 @@ async function refreshDashboard() {
   }
 
   const dbs = data.database || {};
-  const byStatus = dbs.cards_by_status || {};
+  const bySegment = dbs.by_segment || {};
   $("db-box").innerHTML = [
-    ["Khách hàng", dbs.customers], ["Thẻ", dbs.cards],
-    ["Thay đổi trạng thái thẻ", dbs.card_events],
+    ["Khách hàng", dbs.customers],
   ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
-   + Object.entries(byStatus).map(([k, v]) =>
+   + Object.entries(bySegment).map(([k, v]) =>
        `<div class="kv"><span>&nbsp;&nbsp;${escapeHtml(k)}</span><span>${v}</span></div>`).join("")
-   + '<p class="hint" style="margin:10px 0 0">sqlite, được nạp lại bởi Xoá toàn bộ phiên '
+   + '<p class="hint" style="margin:10px 0 0">CSV, được nạp lại bởi Xoá toàn bộ phiên '
    + 'và Nạp dữ liệu demo.</p>';
-
-  const events = data.card_events || [];
-  $("card-events").innerHTML = events.length
-    ? `<table class="events"><thead><tr><th>Card</th><th>Transition</th>
-        <th>Action</th><th>By</th><th>Ref</th><th>When</th></tr></thead><tbody>`
-      + events.map((e) => `<tr>
-          <td><code>${escapeHtml(e.card_id)}</code></td>
-          <td>${escapeHtml(e.from_status || "-")} &rarr; <b>${escapeHtml(e.to_status)}</b></td>
-          <td>${escapeHtml(e.action)}</td>
-          <td>${escapeHtml(e.actor)}</td>
-          <td>${escapeHtml(e.reference || "-")}</td>
-          <td>${escapeHtml((e.at || "").replace("T", " ").replace("+00:00", ""))}</td>
-        </tr>`).join("") + "</tbody></table>"
-    : '<p class="empty">No card actions yet. Block or freeze a card in the customer chat and it appears here.</p>';
 }
 
 /* ---------- queue ---------- */
@@ -1451,9 +1394,9 @@ function startTranscript() {
 
   $("messages").appendChild(el("div", "day-divider", "Hôm nay"));
   addMessage("assistant",
-    "Xin chào! Tôi là trợ lý ảo của **ABC Bank**. Tôi có thể tra cứu số dư và "
-    + "giao dịch, khoá hoặc mở khoá thẻ, kiểm tra hồ sơ vay, và giải đáp về sản "
-    + "phẩm, biểu phí của ngân hàng.\n\nAnh/chị cần hỗ trợ điều gì ạ?");
+    "Xin chào! Tôi là trợ lý ảo của **ABC Bank**. Tôi có thể trả lời câu hỏi về "
+    + "sản phẩm, so sánh sản phẩm, kiểm tra điều kiện, và gợi ý sản phẩm phù hợp "
+    + "với bạn.\n\nAnh/chị cần hỗ trợ điều gì ạ?");
 }
 
 // Whether this session has passed the identity check, so the demo shows

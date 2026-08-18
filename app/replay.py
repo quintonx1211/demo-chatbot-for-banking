@@ -9,10 +9,11 @@ about the outcome is scripted: every routing decision, retrieval, guardrail
 block and escalation is produced by the same code path a live customer hits.
 The conversations are fabricated; the metrics over them are not.
 
-Deliberately mixed: routine questions that deflect, account actions that need
-verification, regulated topics that get blocked, and questions the corpus does
-not cover so escalations appear. A seed of nothing but successes would make the
-dashboard a lie of a different kind.
+Deliberately mixed across the client's 3 target scenarios (automated
+cross-selling, customer service on stated interests, card operations) plus
+FAQ/comparison and regulated topics that get blocked and questions the corpus
+does not cover, so escalations appear. A seed of nothing but successes would
+make the dashboard a lie of a different kind.
 """
 
 from __future__ import annotations
@@ -20,73 +21,65 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import db
+from . import cards, db
 from .router import Router
 
-# Credentials are looked up from the fixture by scenario, never written in.
+# Credentials are looked up from the fixture by given name, never written in.
 # Hard-coded codes went stale the moment the customer set was regenerated, and
 # a replay whose verification silently fails produces a dashboard full of
 # escalations that say nothing about the assistant.
 _FIXTURE = json.loads(
-    (Path(__file__).resolve().parent.parent / "data" / "accounts.json")
+    (Path(__file__).resolve().parent.parent / "data" / "customers_seed.json")
     .read_text(encoding="utf-8"))["customers"]
-_BY_PROFILE = {c["profile"]: c for c in _FIXTURE}
+_BY_NAME = {c["given_name"]: c for c in _FIXTURE}
 
 
-def cred(profile: str) -> str:
-    """The two verification codes for the customer playing `profile`."""
-    customer = _BY_PROFILE[profile]
+def cred(given_name: str) -> str:
+    """The two verification codes for the customer with this given name."""
+    customer = _BY_NAME[given_name]
     return f"{customer['phone_last4']} {customer['national_id_last4']}"
 
 
-TRAVEL = cred("travel_offer")
-DORMANT = cred("dormant_card")
-INACTIVE = cred("inactive_card")
-LOAN = cred("loan_in_review")
-MORTGAGE = cred("mortgage_approved")
-FROZEN = cred("frozen_card")
+AN = cred("An")        # MASS, stated_interests already on file ("mua sắm online")
+BICH = cred("Bich")    # MASS, no stated_interests - triggers the slot-fill question
+CHAU = cred("Chau")    # MASS_AFFLUENT, stated_interests on file
+DUNG = cred("Dung")    # MASS_AFFLUENT, no stated_interests
+HA = cred("Ha")        # AFFLUENT, stated_interests on file ("du lịch")
+HIEU = cred("Hieu")    # AFFLUENT, no stated_interests
+LAN = cred("Lan")      # PRIVATE, stated_interests on file ("golf", "du lịch nước ngoài")
+LONG = cred("Long")    # PRIVATE, no stated_interests
 
 # Each entry is one conversation: a list of customer messages in order.
 CONVERSATIONS: list[list[str]] = [
-    # --- routine knowledge questions (deflect) ---
-    ["Chi nhánh mở cửa mấy giờ?"],
-    ["Tôi quên mật khẩu ngân hàng số thì làm sao?"],
-    ["Phí thấu chi là bao nhiêu?"],
-    ["Mở tài khoản cần giấy tờ gì?"],
-    ["Hồ sơ vay mua nhà xử lý bao lâu?"],
-    ["Trả nợ trước hạn có bị phạt không?"],
-    ["Tôi có bao nhiêu ngày để tra soát giao dịch?"],
-    ["Hạn mức nộp séc qua ứng dụng là bao nhiêu?"],
-    ["Chuyển tiền quốc tế phí bao nhiêu?"],
-    ["Làm sao để không bị thu phí quản lý tài khoản?"],
-    ["Tôi nhận được email lạ tự xưng là ngân hàng"],
-    ["Khi nào thanh toán không tiếp xúc bắt nhập PIN?"],
-    ["Bao lâu thì nhận được thẻ thay thế?"],
-    ["Lãi suất vay mua ô tô là bao nhiêu?"],
-    ["Thời hạn gửi yêu cầu bồi hoàn là bao lâu?"],
-    ["Nộp file chi lương trước bao lâu?"],
+    # --- FAQ: routine card questions (deflect to RAG) ---
+    ["Phí thường niên thẻ Classic là bao nhiêu?"],
+    ["Thẻ Platinum có ưu đãi chào mừng gì?"],
+    ["Điều kiện miễn phí năm thứ 2 của thẻ Signature là gì?"],
+    ["Thẻ Infinite có ưu đãi golf không?"],
 
     # --- multi-turn, still deflected ---
-    ["Xin chào", "Phí chuyển tiền quốc tế thế nào?", "Cảm ơn, vậy thôi ạ"],
-    ["Chào bạn", "Tôi muốn tra soát một giao dịch lạ", "tạm biệt"],
-    ["Nếu tài khoản bị âm thì sao?", "Có giới hạn số lần không?"],
+    ["Xin chào", "Phí thường niên thẻ Platinum là bao nhiêu?", "Cảm ơn, vậy thôi ạ"],
+    ["Chào bạn", "Thẻ Signature có hoàn tiền du lịch không?", "tạm biệt"],
 
-    # --- account actions: verification then a scripted flow ---
-    ["Kiểm tra số dư", TRAVEL],
-    ["Xem giao dịch gần đây", DORMANT],
-    ["Hồ sơ vay của tôi đến đâu rồi?", LOAN],
-    ["Hồ sơ vay mua nhà của tôi thế nào?", MORTGAGE],
-    ["Tôi là ai trong hệ thống?", TRAVEL],
-    ["Tôi làm mất thẻ ghi nợ", DORMANT, "có"],
+    # --- product comparison ---
+    ["So sánh thẻ Classic và thẻ Platinum"],
+    ["Khác nhau giữa thẻ Signature và thẻ Infinite là gì?"],
 
-    # --- freeze, then change their mind: the reversible path ---
-    # Present so the card-event log shows a transition going back, not only
-    # one-way blocks. The reversible case is the one customers actually hit.
-    ["tạm khoá thẻ giúp tôi", TRAVEL, "có"],
-    ["mở khoá thẻ giúp tôi", FROZEN, "có"],
+    # --- Scenario 2: customer states an interest, agent explains card fit ---
+    ["Tôi hay mua sắm online, có ưu đãi gì không?", AN],
+    ["Tôi thích đi du lịch nước ngoài", HA],
+    ["Tôi hay chơi golf, thẻ có ưu đãi gì cho golf không?", LAN],
+    ["Có ưu đãi nào phù hợp với sở thích của tôi không?", BICH],  # no stated_interests -> slot-fill
+    ["Có ưu đãi nào phù hợp với sở thích của tôi không?", DUNG, "ăn uống"],
 
-    # --- customer changes their mind mid-flow (the escape path) ---
-    ["Tôi làm mất thẻ ghi nợ", TRAVEL, "thôi bỏ đi, chi nhánh mở cửa mấy giờ?"],
+    # --- Scenario 3: reward inquiry, card close, limit adjustment ---
+    ["Thẻ của tôi có ưu đãi gì?", HIEU],
+    ["Tôi muốn đóng thẻ", LONG, "có"],
+    ["Tôi muốn tăng hạn mức thẻ", CHAU, "200 triệu"],
+    ["Tôi muốn đóng thẻ", AN, "không"],  # confirmation declined
+
+    # --- customer changes their mind mid-verification (the escape path) ---
+    ["Tôi muốn đóng thẻ", "thôi bỏ đi, phí thường niên thẻ Classic là bao nhiêu?"],
 
     # --- regulated topics: blocked before any model runs ---
     ["Tôi có nên đầu tư tiết kiệm vào cổ phiếu công nghệ không?"],
@@ -100,50 +93,33 @@ CONVERSATIONS: list[list[str]] = [
 
     # --- the same gap, asked several ways ---
     # Real traffic repeats itself, and that repetition is the signal the topic
-    # clustering exists to surface: five people asking about travel insurance
-    # is a document to write, not five escalations to staff.
-    ["Thẻ có kèm bảo hiểm du lịch không?"],
-    ["Thẻ tín dụng của tôi có bảo hiểm du lịch không?"],
-    ["Thẻ của tôi có được bảo hiểm du lịch không?"],
-    ["Bảo hiểm du lịch đi kèm thẻ gồm những gì?"],
-    ["Tôi mua thêm bảo hiểm du lịch cho thẻ được không?"],
+    # clustering exists to surface.
+    ["Ngân hàng có sản phẩm bảo hiểm nhân thọ không?"],
+    ["Có gói bảo hiểm nhân thọ nào không?"],
+    ["Tôi muốn mua bảo hiểm nhân thọ, ngân hàng có bán không?"],
 
-    ["Thẻ của tôi dùng được ở tàu điện Tokyo không?"],
-    ["Thẻ dùng được cho giao thông công cộng ở nước ngoài không?"],
-    ["Thanh toán không tiếp xúc dùng được ở nước ngoài không?"],
-
-    # --- campaign scenarios (the client's three) ---
-    ["Làm sao để kích hoạt thẻ mới?", INACTIVE],
-    ["Thẻ mới về rồi, tôi bắt đầu dùng thế nào?", INACTIVE],
-    ["Có ưu đãi nào cho tôi không?", TRAVEL],
-    ["Tôi có đủ điều kiện nâng hạng thẻ không?", TRAVEL],
-    ["Có khuyến mãi nào cho tôi không?", DORMANT],
-    ["Thẻ lâu rồi tôi không dùng, còn dùng được không?", DORMANT],
+    # --- human handover: explicit requests ---
+    ["Tôi muốn gặp nhân viên"],
+    ["Cho tôi gặp người thật về một vấn đề khác"],
 
     # --- handoff offered, then accepted / declined ---
-    ["Do you offer safe deposit boxes?", "có"],
-    ["Tôi mua tiền điện tử trên app được không?", "không, cảm ơn", "What are your branch hours?"],
+    ["Ngân hàng có dịch vụ tư vấn thuế doanh nghiệp không?", "có"],
+    ["Tôi mua tiền điện tử trên app được không?", "không, cảm ơn", "Phí thường niên thẻ Signature là bao nhiêu?"],
     ["@agent tôi có vấn đề về hoá đơn"],
 
-    # --- explicit handoff requests ---
-    ["Tôi muốn gặp nhân viên"],
-    ["Cho tôi gặp người thật về giao dịch bị trừ hai lần"],
-
     # --- verification failure, then handoff ---
-    ["Kiểm tra số dư", "1111 2222", "3333 4444", "5555 6666"],
+    ["Thẻ của tôi có ưu đãi gì?", "1111 2222", "3333 4444", "5555 6666"],
 ]
 
 
 def seed(router: Router) -> dict:
     """Replay every conversation through `router`. Returns a short summary.
 
-    Resets the database first. These conversations perform real account
-    actions now - one of them reports a card lost, which blocks it and issues a
-    replacement - so without a reset each press of "Seed demo traffic" would
-    leave the demo data further from its starting state than the last. A seed
-    that degrades what it seeds is worse than no seed.
+    Resets the database first, so repeated seeding starts from the same
+    known state.
     """
     db.reset()
+    cards.reset()
     before = len(router.sessions._sessions)
 
     for messages in CONVERSATIONS:

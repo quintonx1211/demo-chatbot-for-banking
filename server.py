@@ -62,7 +62,7 @@ from urllib.parse import parse_qs, urlparse
 
 import base64
 
-from app import (auth, campaigns as campaign_mod, db, llm, memory, metrics,
+from app import (auth, campaigns as campaign_mod, cards, db, llm, memory, metrics,
                  policy, replay, topics)
 from app import tts, stt
 from app.kbstore import KBError, KnowledgeBaseStore
@@ -258,7 +258,6 @@ class Handler(BaseHTTPRequestHandler):
                 "memory": memory.store.stats,
                 "router": metrics.router_comparison(sessions),
                 "database": db.stats(),
-                "card_events": db.card_events(limit=12),
             })
 
         elif path == "/api/auth/me":
@@ -376,6 +375,7 @@ class Handler(BaseHTTPRequestHandler):
             removed = router.sessions.clear()
             forgotten = memory.store.forget()
             db.reset()
+            cards.reset()
             self._send_json({"removed": removed, "forgotten": forgotten,
                              "database": "reset"})
 

@@ -33,135 +33,72 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.retriever import KnowledgeBase
 
-# (question, heading that should answer it). Matched case-insensitively on a
-# prefix so the labels survive small wording edits to the corpus.
-IN_SCOPE: list[tuple[str, str]] = [
-    # the-ghi-no-va-tin-dung.md
-    ("thẻ của tôi bị mất tối qua giờ phải làm sao", "Báo mất thẻ"),
-    ("tôi có phải chịu trách nhiệm giao dịch người khác thực hiện bằng thẻ bị mất không", "Báo mất thẻ"),
-    ("bao lâu thì nhận được thẻ mới", "Thẻ thay thế"),
-    ("làm lại thẻ có mất phí không", "Thẻ thay thế"),
-    ("một ngày rút được tối đa bao nhiêu tiền ở ATM", "Hạn mức thẻ"),
-    ("thanh toán bằng euro thì mất phí gì", "Phí giao dịch ngoại tệ"),
-    ("dùng thẻ ở nước ngoài có bị tính phí không", "Phí giao dịch ngoại tệ"),
-    ("khi nào thanh toán không tiếp xúc bắt nhập mã PIN", "Thanh toán không tiếp xúc"),
+# (question, doc_id, heading that should answer it). doc_id disambiguates -
+# all 4 documents share the same template (Định vị sản phẩm / Ưu đãi chào
+# mừng / Chương trình hoàn tiền và đặc quyền / Phí thường niên), so heading
+# text alone is not a unique label.
+IN_SCOPE: list[tuple[str, str, str]] = [
+    # classic.md - KB-CARD-CLASSIC
+    ("thẻ Classic phù hợp với ai", "KB-CARD-CLASSIC", "Định vị sản phẩm"),
+    ("ưu đãi chào mừng của thẻ Classic là gì", "KB-CARD-CLASSIC", "Ưu đãi chào mừng"),
+    ("thẻ Classic hoàn tiền bao nhiêu phần trăm cho ăn uống", "KB-CARD-CLASSIC", "Chương trình hoàn tiền và đặc quyền"),
+    ("phí thường niên thẻ Classic là bao nhiêu", "KB-CARD-CLASSIC", "Phí thường niên"),
 
-    # vay-va-the-chap.md
-    ("hồ sơ vay mua nhà bao lâu mới có kết quả", "Thời gian xử lý hồ sơ"),
-    ("vay tiêu dùng bao lâu thì được duyệt", "Thời gian xử lý hồ sơ"),
-    ("hồ sơ đang thẩm định nghĩa là gì", "Các trạng thái hồ sơ"),
-    ("bị từ chối rồi có nộp lại được không", "Các trạng thái hồ sơ"),
-    ("vay tiêu dùng cần giấy tờ gì", "Chứng từ cần nộp"),
-    ("tôi tự kinh doanh thì cần nộp chứng từ nào", "Chứng từ cần nộp"),
-    ("lãi suất vay mua ô tô hiện nay bao nhiêu", "Lãi suất"),
-    ("trả nợ trước hạn có bị phạt không", "Trả nợ trước hạn"),
+    # platinum.md - KB-CARD-PLATINUM
+    ("thẻ Platinum dành cho ai", "KB-CARD-PLATINUM", "Định vị sản phẩm"),
+    ("mở thẻ Platinum có ưu đãi chào mừng gì", "KB-CARD-PLATINUM", "Ưu đãi chào mừng"),
+    ("thẻ Platinum hoàn tiền bao nhiêu cho di chuyển", "KB-CARD-PLATINUM", "Chương trình hoàn tiền và đặc quyền"),
+    ("phí thường niên thẻ Platinum là bao nhiêu", "KB-CARD-PLATINUM", "Phí thường niên"),
 
-    # tai-khoan-va-bieu-phi.md
-    ("mở tài khoản cần giấy tờ gì", "Mở tài khoản"),
-    ("cần gửi tối thiểu bao nhiêu để mở tài khoản tiết kiệm", "Mở tài khoản"),
-    ("làm sao để không bị thu phí quản lý tài khoản", "Phí quản lý tài khoản"),
-    ("tài khoản sinh viên có mất phí hàng tháng không", "Phí quản lý tài khoản"),
-    ("phí thấu chi là bao nhiêu", "Thấu chi"),
-    ("chuyển tiền quốc tế mất phí bao nhiêu và bao lâu", "Chuyển tiền"),
-    ("chuyển khoản nội bộ có mất phí không", "Chuyển tiền"),
-    ("sao kê giấy tính phí thế nào", "Sao kê"),
-    ("mấy giờ chi nhánh mở cửa", "Giờ làm việc chi nhánh"),
-    ("nửa đêm có khoá thẻ được không", "Giờ làm việc chi nhánh"),
+    # signature.md - KB-CARD-SIGNATURE
+    ("thẻ Signature dành cho khách hàng như thế nào", "KB-CARD-SIGNATURE", "Định vị sản phẩm"),
+    ("thẻ Signature có tặng gì khi mở thẻ không", "KB-CARD-SIGNATURE", "Ưu đãi chào mừng"),
+    ("thẻ Signature có tự chọn danh mục hoàn tiền không", "KB-CARD-SIGNATURE", "Chương trình hoàn tiền và đặc quyền"),
+    ("phí thường niên thẻ Signature là bao nhiêu", "KB-CARD-SIGNATURE", "Phí thường niên"),
 
-    # ngan-hang-so-va-an-toan.md
-    ("tôi quên mật khẩu ngân hàng số", "Đặt lại mật khẩu"),
-    ("nhập sai mật khẩu mấy lần thì bị khoá", "Đặt lại mật khẩu"),
-    ("ngân hàng có bao giờ hỏi mã OTP không", "Đăng ký thiết bị mới"),
-    ("tôi muốn tra soát một giao dịch lạ", "Tra soát giao dịch"),
-    ("bao lâu thì được ghi có tạm thời khi tra soát", "Tra soát giao dịch"),
-    ("làm sao nhận biết tin nhắn lừa đảo", "Nhận biết lừa đảo"),
-    ("nộp séc qua ứng dụng tối đa bao nhiêu một ngày", "Ứng dụng ngân hàng số"),
-
-    # dieu-khoan-tai-khoan-tien-gui.md
-    ("số dư bình quân ngày được tính như thế nào", "Điều kiện miễn phí"),
-    ("không đủ tiền thì khoản nào bị trừ trước", "Thứ tự thanh toán"),
-    ("âm tài khoản một ít có bị thu phí không", "Thấu chi và ngưỡng miễn phí"),
-    ("lãi tiết kiệm được tính và trả khi nào", "Lãi tiền gửi"),
-    ("đóng tài khoản sớm có mất phí không", "Đóng tài khoản"),
-    ("phí rút tiền ATM ngoài hệ thống", "Biểu phí tài khoản"),
-
-    # thoi-diem-su-dung-tien.md
-    ("séc số tiền lớn bị giữ bao lâu", "Các trường hợp phong toả ngoại lệ"),
-    ("khoản chuyển tiền đến có bị phong toả như séc không", "Các trường hợp phong toả ngoại lệ"),
-    ("tài khoản mới mở thì tiền về khi nào dùng được", "Tài khoản mới mở"),
-    ("mấy giờ là hết giờ nộp tiền trong ngày", "Ngày làm việc và thời điểm chốt"),
-    ("nộp tiền mặt tại quầy khi nào dùng được", "Lịch sử dụng tiền tiêu chuẩn"),
-    ("ngân hàng phong toả tiền thì có báo tôi không", "Thông báo khi phong toả"),
-
-    # tra-soat-va-boi-hoan-the.md
-    ("tôi có bao nhiêu ngày để tra soát giao dịch thẻ", "Tra soát thẻ ghi nợ"),
-    ("báo mất thẻ muộn thì tôi chịu trách nhiệm bao nhiêu", "Trách nhiệm của khách hàng"),
-    ("thời hạn gửi yêu cầu bồi hoàn tới tổ chức thẻ", "Quy tắc bồi hoàn"),
-    ("tôi có phải liên hệ người bán trước khi tra soát không", "Trước khi mở tra soát"),
-    ("nếu tra soát không thành công thì tiền tạm ứng bị thu lại thế nào", "Thu hồi khoản ghi có tạm thời"),
-
-    # thanh-toan-va-chuyen-tien.md
-    ("chuyển nhanh 24/7 có huỷ được không", "Thu hồi lệnh chuyển tiền"),
-    ("phí đề nghị thu hồi lệnh chuyển tiền", "Thu hồi lệnh chuyển tiền"),
-    ("mấy giờ chốt lệnh chuyển tiền quốc tế", "Thời điểm chốt lệnh"),
-    ("biên độ tỷ giá khi chuyển tiền quốc tế là bao nhiêu", "Chuyển tiền quốc tế"),
-    ("huỷ uỷ nhiệm thu có chấm dứt hợp đồng dịch vụ không", "Lệnh thanh toán định kỳ"),
-    ("hạn mức chuyển tiền một ngày của khách hàng phổ thông", "Hạn mức"),
-
-    # gian-lan-va-lua-dao.md
-    ("tôi bị lừa chuyển tiền thì có lấy lại được không", "Phân biệt quyết định mọi thứ"),
-    ("tài khoản an toàn là gì", "Những điều ngân hàng không bao giờ làm"),
-    ("bị lừa rồi thì tôi phải làm gì trước tiên", "Khi khách hàng nghi ngờ đã bị lừa"),
-    ("khi nào tôi được bồi hoàn tiền bị lừa", "Bồi hoàn"),
-
-    # khieu-nai-va-quyen-khach-hang.md
-    ("tôi muốn khiếu nại thì bao lâu có trả lời", "Tiếp nhận khiếu nại"),
-    ("không hài lòng với kết quả khiếu nại thì làm gì tiếp", "Khi khách hàng không đồng ý"),
-    ("tôi có quyền yêu cầu ngân hàng xoá dữ liệu của mình không", "Quyền về dữ liệu cá nhân"),
-
-    # thi-truong-the-*.md
-    ("phí thường niên thẻ Vietcombank Visa Platinum", "Vietcombank Visa Platinum"),
-    ("thời gian miễn lãi 45 ngày tính như thế nào", "Thời gian miễn lãi"),
-    ("thẻ VPBank StepUp có hoàn tiền cho Shopee không", "Phần loại trừ"),
-    ("thẻ VPBank Lady hoàn tiền tối đa bao nhiêu một năm", "VPBank Lady"),
-    ("hạn mức thẻ Techcombank Priority Visa Signature", "Techcombank Priority Visa Signature"),
-    ("thẻ MB Hi Collection không in số thẻ thì bất tiện gì", "Mặt thẻ trống"),
-    ("phí thường niên thẻ MB JCB là bao nhiêu", "Mâu thuẫn về phí thường niên"),
+    # infinite.md - KB-CARD-INFINITE
+    ("thẻ Infinite phù hợp với phân khúc khách hàng nào", "KB-CARD-INFINITE", "Định vị sản phẩm"),
+    ("mở thẻ Infinite có được tặng thẻ kim loại không", "KB-CARD-INFINITE", "Ưu đãi chào mừng"),
+    ("thẻ Infinite có ưu đãi golf không", "KB-CARD-INFINITE", "Chương trình hoàn tiền và đặc quyền"),
+    ("phí thường niên thẻ Infinite là bao nhiêu", "KB-CARD-INFINITE", "Phí thường niên"),
 ]
 
 OUT_OF_SCOPE: list[str] = [
     "ngân hàng có bán bảo hiểm nhân thọ không",
     "hôm nay Hà Nội thời tiết thế nào",
-    "tôi giao dịch ngoại hối qua ngân hàng được không",
+    "ngân hàng có cho vay mua đất nông nghiệp trồng nho ở Bồ Đào Nha không",
     "đội nào vô địch world cup",
     "mã số doanh nghiệp của ngân hàng là gì",
     "tôi mua tiền điện tử trên app được không",
-    "ngân hàng có cho vay mua đất nông nghiệp trồng nho ở Bồ Đào Nha không",
+    "ngân hàng có dịch vụ két sắt an toàn không",
 ]
 
 
-def _matches(heading: str, expected: str) -> bool:
-    return heading.lower().startswith(expected.lower()[:24])
+def _matches(doc_id: str, heading: str, expected_doc: str, expected_heading: str) -> bool:
+    return (doc_id == expected_doc
+            and heading.lower().startswith(expected_heading.lower()[:24]))
 
 
 def evaluate(kb: KnowledgeBase, top_k: int = 3, label: str = "",
-             cases: list[tuple[str, str]] | None = None) -> dict:
+             cases: list[tuple[str, str, str]] | None = None) -> dict:
     cases = cases if cases is not None else IN_SCOPE
     hits_at_1 = hits_at_k = 0
     reciprocal_ranks = 0.0
     misses: list[tuple[str, str, list[str]]] = []
 
-    for question, expected in cases:
-        headings = [r.passage.heading for r in kb.search(question, top_k=top_k)]
-        rank = next((i for i, h in enumerate(headings, start=1)
-                     if _matches(h, expected)), None)
+    for question, expected_doc, expected_heading in cases:
+        results = kb.search(question, top_k=top_k)
+        citations = [f"{r.passage.doc_id} · {r.passage.heading}" for r in results]
+        rank = next((i for i, r in enumerate(results, start=1)
+                     if _matches(r.passage.doc_id, r.passage.heading,
+                                expected_doc, expected_heading)), None)
         if rank == 1:
             hits_at_1 += 1
         if rank is not None:
             hits_at_k += 1
             reciprocal_ranks += 1.0 / rank
         else:
-            misses.append((question, expected, headings))
+            misses.append((question, f"{expected_doc} · {expected_heading}", citations))
 
     rejected = 0
     false_positives: list[tuple[str, str]] = []

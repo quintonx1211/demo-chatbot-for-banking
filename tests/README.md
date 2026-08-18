@@ -16,8 +16,9 @@ model had answered.
 |---|---|---|
 | `smoke_test.py` | End-to-end: all seven routing branches, no key needed. | `python tests/smoke_test.py` |
 | `provider_test.py` | Adapter contract layer (dispatch, refusal handling, fallback, grounding gate) via stub adapters - not a real API call. | `python tests/provider_test.py` |
-| `eval_retrieval.py` | Labelled retrieval quality: P@1, Recall@3, MRR, rejection rate, on 70 labelled questions. | `python tests/eval_retrieval.py [-v] [--rerank]` |
+| `eval_retrieval.py` | Labelled retrieval quality: P@1, Recall@3, MRR, rejection rate, on a hand-labelled question set (`IN_SCOPE`/`OUT_OF_SCOPE`, keep in sync with `data/kb/`). | `python tests/eval_retrieval.py [-v] [--rerank]` |
 | `eval_router.py` | Lexical intent classifier vs. LLM routing, on a hand-labelled set - decides whether `router_mode` should ever leave `"nlu"`. | `python tests/eval_router.py [--llm]` |
+| `eval_chunking.py` | Size-bounded chunker (live default) vs. `app/ingest`'s semantic-boundary chunker, on the same labelled set as `eval_retrieval.py` - plus chunk-shape stats (size distribution, suspect mid-cut count). Reuses `KnowledgeBase(chunk_fn=...)`, never switches the live default itself. | `python tests/eval_chunking.py [-v] [--pdf FILE]` |
 
 ## Diagnostic / scratch (not asserting pass/fail - print evidence for a human to read)
 

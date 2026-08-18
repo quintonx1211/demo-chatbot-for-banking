@@ -1,99 +1,30 @@
 {
   "_comment": [
-    "Overnight batch from the bank's CRM. This is the shape the client asked",
-    "for: no real-time core banking query, a daily push, and a tolerated",
-    "one-day lag. Every campaign decision the assistant makes is read from",
-    "this file, which is why those turns are deterministic and auditable -",
-    "the bot never decides who is eligible, it only reads who was selected.",
-    "",
-    "generated_at is shown to the customer-facing agent so the age of the data",
-    "is visible rather than assumed."
+    "Scenario 1 (Automated Cross-Selling): the CRM's overnight batch, not the",
+    "assistant, decides who gets a proactive outbound pitch. Synthetic - the",
+    "client has not sent a real target list yet - but the mechanism is real:",
+    "app/flows.py::_handle_verification only shows a pitch for a customer_id",
+    "listed under \"eligibility\" here, after they verify. Targets the MASS",
+    "segment, per the client's own framing of Scenario 1. name/offer/cta/terms",
+    "are in Vietnamese because CampaignBook._body() assembles them directly",
+    "into a customer-facing reply."
   ],
-  "generated_at": "2026-08-04T02:00:00Z",
-  "source": "Trích xuất CRM hằng ngày v3",
+  "generated_at": "2026-08-17T02:00:00Z",
+  "source": "Synthetic nightly CRM extract - placeholder pending real client target list",
   "campaigns": {
-    "CARD-ACTIVATION": {
-      "name": "Kích hoạt thẻ mới",
-      "type": "activation",
-      "segment": "MASS",
-      "cta": "Kích hoạt trong ứng dụng",
-      "deeplink": "https://app.example-bank.test/cards/activate",
-      "sms_alternative": "soạn KICHHOAT gửi 2255 từ số điện thoại đã đăng ký"
-    },
-    "DORMANT-REACTIVATION": {
-      "name": "Kích hoạt lại thẻ ngủ đông",
-      "type": "reactivation",
-      "segment": "MASS",
-      "offer": "hoàn tiền 5% cho ba giao dịch đầu tiên trong vòng 30 ngày",
-      "cta": "Chỉ cần dùng thẻ một lần để kích hoạt lại",
-      "deeplink": "https://app.example-bank.test/cards/reactivate"
-    },
-    "XS-TRAVEL-2026Q3": {
-      "name": "Nâng hạng Thẻ Premier Travel",
+    "CLASSIC-OUTREACH-Q3": {
+      "name": "Thẻ Classic - ưu đãi hoàn tiền cho giao dịch đầu tiên",
       "type": "cross_sell",
       "segment": "MASS",
-      "product": "Thẻ Premier Travel",
-      "hook": "miễn phí chuyển đổi ngoại tệ",
-      "detail": "Thẻ hiện tại của anh/chị chịu phí 2,5% cho giao dịch bằng ngoại tệ. Thẻ Premier Travel miễn hoàn toàn phí chuyển đổi ngoại tệ, phí thường niên 2.200.000 VND.",
-      "cta": "Xem anh/chị có đủ điều kiện không",
-      "deeplink": "https://app.example-bank.test/cards/premier-travel"
-    },
-    "XS-CASHBACK-2026Q3": {
-      "name": "Thẻ Hoàn tiền Hằng ngày",
-      "type": "cross_sell",
-      "segment": "MASS",
-      "product": "Thẻ Hoàn tiền Hằng ngày",
-      "hook": "hoàn 2% cho siêu thị và xăng dầu",
-      "detail": "Theo thói quen chi tiêu của anh/chị, Thẻ Hoàn tiền Hằng ngày sẽ hoàn lại khoảng 420.000 VND mỗi tháng. Miễn phí thường niên.",
-      "cta": "Xem anh/chị có đủ điều kiện không",
-      "deeplink": "https://app.example-bank.test/cards/cashback"
-    },
-    "XS-CREDIT-LIMIT-2026Q3": {
-      "name": "Xem xét nâng hạn mức tín dụng",
-      "type": "cross_sell",
-      "segment": "MASS",
-      "product": "Nâng hạn mức tín dụng",
-      "hook": "anh/chị có thể đủ điều kiện nâng hạn mức",
-      "detail": "Tài khoản của anh/chị duy trì tốt trong 18 tháng qua. Việc xem xét hạn mức mất khoảng hai phút và không ảnh hưởng tới điểm tín dụng.",
-      "cta": "Bắt đầu xem xét hạn mức",
-      "deeplink": "https://app.example-bank.test/cards/limit-review"
+      "product": "CARD-CLASSIC",
+      "period": "01/08/2026 - 30/09/2026",
+      "offer": "Hoàn tiền 10% cho 3 giao dịch đầu tiên trong 30 ngày (tối đa 300.000 VND) khi mở Thẻ Classic.",
+      "cta": "Tìm hiểu Thẻ Classic",
+      "terms": "Áp dụng theo điều kiện chương trình ưu đãi chào mừng của Thẻ Classic."
     }
   },
   "eligibility": [
-    {
-      "customer_id": "CUS-100301",
-      "segment": "MASS",
-      "campaigns": [
-        "XS-TRAVEL-2026Q3"
-      ],
-      "context": {
-        "reason": "12 foreign-currency purchases in the last 90 days",
-        "fees_paid_last_90d": 1040000
-      }
-    },
-    {
-      "customer_id": "CUS-100308",
-      "segment": "MASS",
-      "campaigns": [
-        "DORMANT-REACTIVATION",
-        "XS-CASHBACK-2026Q3"
-      ],
-      "context": {
-        "reason": "no card activity for 214 days",
-        "dormant_since": "2026-01-02",
-        "card_mask": "****9414"
-      }
-    },
-    {
-      "customer_id": "CUS-100315",
-      "segment": "MASS",
-      "campaigns": [
-        "CARD-ACTIVATION"
-      ],
-      "context": {
-        "reason": "card issued 2026-07-24, not yet activated",
-        "card_mask": "****6387"
-      }
-    }
+    {"customer_id": "CUS-100301", "campaigns": ["CLASSIC-OUTREACH-Q3"]},
+    {"customer_id": "CUS-100308", "campaigns": ["CLASSIC-OUTREACH-Q3"]}
   ]
 }

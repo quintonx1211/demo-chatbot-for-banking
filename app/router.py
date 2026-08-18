@@ -66,7 +66,9 @@ def split_mention(text: str) -> tuple[str | None, str]:
 
 _FLOW_LABELS = {
     "verify": "xác minh danh tính",
-    "block_card": "khóa thẻ",
+    "cross_sell_interest": "tìm ưu đãi phù hợp",
+    "card_close": "đóng thẻ",
+    "card_limit_adjust": "điều chỉnh hạn mức",
 }
 
 
@@ -295,7 +297,7 @@ class Router:
                                       result.sources[0]["heading"].lower(),
                                       detail=result.sources[0]["citation"])
         elif result.route == "deterministic" and result.intent in (
-                "card_offers", "activate_card"):
+                "cross_sell_interest", "reward_inquiry"):
             memory_mod.store.remember(session.customer_id, "campaign", result.intent)
 
     # -- routing ----------------------------------------------------------
@@ -451,10 +453,12 @@ class Router:
                 return "new-question-during-verify"
             return None
 
-        # Card action flows ("freeze", "unfreeze", "report_lost"): "có"/"không"
-        # và tên thẻ đều là slot answers ngắn, NLU không phân biệt được với
-        # intent thật. Để state machine của card tự xử lý retry qua flow_misses.
-        if session.pending_flow in flows.CARD_ACTIONS:
+        # Scenario 2/3 slot-filling: a stated interest, a yes/no confirmation,
+        # or a limit figure are slot answers, not new intents, and the NLU
+        # classifier cannot tell them apart from a fresh question. Let the
+        # flow handle its own retry via flow_misses instead of the general
+        # intent-detection check below.
+        if session.pending_flow in ("cross_sell_interest", "card_close", "card_limit_adjust"):
             return None
 
         if session.flow_misses >= flows.MAX_FLOW_MISSES:
@@ -501,7 +505,7 @@ class Router:
             + (f"; runner-up {prediction.runner_up} @ "
                f"{prediction.runner_up_confidence:.2f}" if prediction.runner_up else ""))
 
-        if prediction.is_high_confidence and prediction.intent != "knowledge_query":
+        if prediction.is_high_confidence and prediction.intent != "product_faq":
             flow = flows.handle(session, prediction.intent, text)
             if flow.handled:
                 self.trace.decide(
