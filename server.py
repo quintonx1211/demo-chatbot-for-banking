@@ -276,7 +276,7 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         # Allow larger body for audio uploads
-        body_limit = MAX_AUDIO_BYTES if path in ("/api/stt", "/api/voice/stt") else MAX_BODY_BYTES
+        body_limit = MAX_AUDIO_BYTES if path == "/api/stt" else MAX_BODY_BYTES
         try:
             payload = self._read_json(max_bytes=body_limit)
         except ValueError as exc:

@@ -19,3 +19,9 @@ openai>=1.40
 # Required (not optional like the LLM providers above) - server.py loads .env
 # at startup before any app imports so provider keys are picked up.
 python-dotenv>=1.0
+
+# Voice - optional, same pattern as the LLM providers: install what you need.
+#   gtts>=2.5              # TTS, free, no key (LLM_PROVIDER unrelated)
+#   transformers>=4.40     # STT (PhoWhisper) - also needs torch + soundfile
+#   torch>=2.0
+#   soundfile>=0.12

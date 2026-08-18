@@ -588,49 +588,42 @@ suggests a threshold. If the populations overlap it says so - that means no
 single threshold works for that provider and the gate needs a model-based
 faithfulness check instead.
 
-## Voice - Vbee STT/TTS
+## Voice - TTS/STT
 
 A speaker button on every assistant reply, and a mic button on the composer,
-both hidden until configured (`GET /api/voice/status`). Three environment
-variables:
+both hidden until the corresponding capability is available
+(`GET /api/health` reports `tts_available`/`stt_available`). TTS and STT are
+independent - one going dark degrades the assistant to keyboard-only, it
+never takes the turn down with it.
+
+**TTS - two providers, switched at runtime, no restart needed.**
+`app/tts.py` supports gTTS (free, no key) and Vbee AI (Vietnamese voices,
+needs a key). The active provider and voice are read from `POST
+/api/tts/provider` (Settings panel in the console); `GET /api/tts/provider`
+reports current status plus which providers are actually usable. Vbee calls
+its synchronous TTS endpoint directly - one request, audio back in the same
+response, no webhook or tunnel needed:
 
 ```bash
-export VBEE_TOKEN=...              # Bearer token from an app at studio.vbee.vn/apps
-export VBEE_APP_ID=...              # the app id from the same screen
-export VBEE_PUBLIC_BASE_URL=https://xxxx.ngrok-free.app   # see below - TTS only
+export VBEE_TTS_KEY=...     # API key from studio.vbee.vn/apps
+export VBEE_APP_ID=...      # the app id from the same screen
 ```
 
-**TTS runs as a background job, not a single request.** The obvious choice -
-Vbee's Realtime TTS, which returns audio in the same HTTP response - turned
-out to be plan-gated: it failed on the account this was built against with
-`BAD_REQUEST: "This feature is not supported in user package"`, a billing
-limitation no amount of code fixes. Batch TTS is available on the base
-package, but it requires a `webhookUrl` Vbee can reach to deliver the
-result - and `127.0.0.1` isn't reachable from Vbee's servers. `app/voice.py`
-works around this by submitting the job, then polling Vbee's own "Get
-request" endpoint itself rather than waiting on the webhook; the webhook
-field still has to point at something real, which is what
-`VBEE_PUBLIC_BASE_URL` and a tunnel (`ngrok http 8000`, or equivalent) are
-for. Without it, STT still works - only TTS returns
-`voice_no_public_url`, since the tunnel is only needed at the moment
-something is actually spoken.
+Without a Vbee key, gTTS still works if `gtts` is installed
+(`pip install gtts`); with neither, `/api/tts` returns 503 and the speaker
+button stays hidden.
 
-**STT stays synchronous.** A spoken question is a few seconds of audio, well
-inside Vbee's Realtime STT limits (10s / 10MB, WAV only), and that endpoint
-was not affected by the plan restriction above. The browser records via the
-Web Audio API and encodes PCM into a WAV container itself (`encodeWav` in
-`app.js`) rather than pulling in a library for one file format - a
-MediaRecorder blob is WebM/Opus in most browsers, not WAV.
+**STT runs locally - PhoWhisper, not a cloud call.** `app/stt.py` loads
+`vinai/PhoWhisper-medium`, fine-tuned for Vietnamese, via `transformers`. No
+API key, no network dependency at inference time - the trade-off is a
+heavier install (`pip install transformers torch soundfile`) and a model
+download on first use. The browser records via the Web Audio API and encodes
+PCM into a WAV container itself (`encodeWav` in `app.js`), since a
+MediaRecorder blob is WebM/Opus in most browsers, not WAV, and the model
+expects WAV.
 
-Errors from Vbee are classified before they reach the browser
-(`voice_rate_limited`, `voice_auth_error`, ...) rather than passed through
-raw - the same reasoning as `classify_provider_error` for the LLM adapters:
-`/api/voice/tts` and `/api/voice/stt` are public endpoints, so whatever lands
-in their `error` field is customer-visible, and Vbee's error bodies are not
-guaranteed to stay free of account-identifying detail forever. The raw body
-still goes to stderr - `python server.py`'s own terminal - so the operator
-can tell "bad voiceCode" from "expired token" from "plan doesn't support
-this" without it ever reaching a customer.
+Both endpoints are public, same trust zone as `/api/chat` - a spoken
+question isn't more sensitive than a typed one.
 
 ## What this demo is not
 
