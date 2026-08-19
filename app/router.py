@@ -709,9 +709,8 @@ class Router:
         """
         session.pending_escalation = reason
         body = (
-            "Thành thật mà nói - tôi không có thông tin đã được xác minh về vấn đề này, "
-            "và tôi thà nói thẳng còn hơn đoán mò.\n\n"
-            "**Bạn có muốn tôi kết nối với một chuyên viên để hỗ trợ không?** "
+            "Thành thật mà nói, tôi không có thông tin chính xác về vấn đề này.\n\n"
+            "**Bạn có muốn tôi kết nối với một chuyên viên để được tư vấn thêm không?** "
             "Họ sẽ có đầy đủ nội dung cuộc hội thoại này, bạn không cần giải thích lại. "
             "Hoặc bạn có thể hỏi tôi câu khác."
         )

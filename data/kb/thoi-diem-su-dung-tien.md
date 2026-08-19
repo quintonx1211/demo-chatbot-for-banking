@@ -44,11 +44,6 @@ giải toả 4.000.000 VND cho mỗi tờ.
 
 ## Các trường hợp phong toả ngoại lệ
 
-Phong toả ngoại lệ (còn gọi là giữ tiền séc hoặc hold séc) là khi tiền từ séc số
-tiền lớn bị giữ lại chưa dùng được ngay. Thời gian sử dụng tiền có thể kéo dài hơn
-lịch tiêu chuẩn trong các trường hợp dưới đây. Phong toả ngoại lệ không tự động áp
-dụng mà xét theo từng trường hợp và bắt buộc phải có thông báo nêu ở phần sau.
-
 | Trường hợp | Điều kiện phát sinh |
 |---|---|
 | Khoản nộp lớn (séc số tiền lớn bị giữ) | Tổng séc nộp trong một ngày vượt 150.000.000 VND |

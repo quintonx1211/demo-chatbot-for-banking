@@ -45,6 +45,7 @@ import json
 import os
 import sys
 import threading
+import time
 
 # Windows consoles default to cp1252, which cannot print the Vietnamese text
 # this server logs at startup and the banner below - reconfigure before any
@@ -302,6 +303,15 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"staff": None},
                             set_cookie=auth.clear_cookie_header())
 
+        elif path == "/api/vbee-callback":
+            _logging.getLogger(__name__).info("Vbee callback raw: %s", payload)
+            tts.receive_callback(payload)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"OK")
+
         elif path == "/api/tts/provider":
             provider = payload.get("provider", "").strip()
             if provider not in ("gtts", "vbee"):
@@ -346,7 +356,8 @@ class Handler(BaseHTTPRequestHandler):
                 if len(wav_bytes) > MAX_AUDIO_BYTES:
                     self._send_json({"error": "audio quá lớn"}, status=400)
                     return
-                text = stt.transcribe_wav(wav_bytes)
+                mime_type = (payload.get("mime_type") or "audio/wav").strip()
+                text = stt.transcribe(wav_bytes, mime_type)
                 self._send_json({"text": text})
             except Exception as exc:
                 self._send_json({"error": f"STT thất bại: {exc}"}, status=500)
@@ -441,6 +452,56 @@ class Handler(BaseHTTPRequestHandler):
                 "session_id": session.session_id, "raw_mode": session.raw_mode,
             })
 
+        elif path == "/api/chat/stream":
+            message = (payload.get("message") or "").strip()
+            if not message:
+                self._send_json({"error": "message is required"}, status=400)
+                return
+            session = router.sessions.get_or_create(payload.get("session_id"))
+            result = router.handle_turn(session, message)
+            meta = {
+                "session_id": session.session_id,
+                "reply": result.text,
+                "route": result.route,
+                "intent": result.intent,
+                "confidence": result.confidence,
+                "sources": result.sources,
+                "generated": result.generated,
+                "grounding": result.grounding,
+                "escalated": result.escalated,
+                "escalation_reason": result.escalation_reason,
+                "offer_escalation": result.offer_escalation,
+                "trace": result.trace,
+                "with_agent": result.with_agent,
+                "handled_by": session.handled_by,
+                "in_handoff": bool(session.escalated or session.handled_by),
+                "latency_ms": result.latency_ms,
+                "verified": session.verified,
+                "raw_mode": session.raw_mode,
+                "debug": result.debug,
+            }
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+
+            def _sse(data: dict) -> bytes:
+                return f"data: {json.dumps(data, ensure_ascii=False)}\n\n".encode("utf-8")
+
+            try:
+                if result.route != "agent" and result.text:
+                    words = result.text.split(" ")
+                    for i, word in enumerate(words):
+                        token = word if i == 0 else " " + word
+                        self.wfile.write(_sse({"token": token}))
+                        self.wfile.flush()
+                        time.sleep(0.06)
+                self.wfile.write(_sse({"meta": meta}))
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
         elif path == "/api/chat":
             message = (payload.get("message") or "").strip()
             if not message:
@@ -492,6 +553,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": "not found"}, status=404)
 
 
+import logging as _logging
+_logging.basicConfig(level=_logging.INFO, format="%(name)s %(levelname)s %(message)s")
+
+
 def main() -> None:
     info = llm.describe()
     stats = router.kb.stats
@@ -540,6 +605,7 @@ def main() -> None:
         _time.sleep(1)
         tunnel = _ngrok.connect(PORT, "http", pooling_enabled=True)
         public_url = tunnel.public_url
+        tts.set_callback_url(f"{public_url}/api/vbee-callback")
         print(f"  URL công khai     : {public_url}")
     except Exception as exc:
         print(f"  ngrok             : không khả dụng ({exc})")

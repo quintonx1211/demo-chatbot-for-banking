@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import threading
-import time
 import urllib.error
 import urllib.request
 
@@ -24,23 +23,53 @@ _vbee_key: str    = os.environ.get("VBEE_TTS_KEY", "")
 _vbee_app_id: str = os.environ.get("VBEE_APP_ID", "")
 _vbee_voice: str  = "hn_female_ngochuyen_full_48k-fhg"
 
+# --- Vbee callback state ---
+_callback_url: str = ""          # set by server after ngrok is established
+_cb_lock = threading.Lock()
+_pending: dict[str, threading.Event] = {}   # request_id → event
+_results: dict[str, str] = {}              # request_id → audio_link
+
 # cache keyed by (provider, voice, text)
 _cache: dict[tuple, bytes] = {}
 _cache_lock = threading.Lock()
 
 VBEE_VOICES = {
-    "hn_female_ngochuyen_full_48k-fhg": "Ngọc Huyền – nữ HN",
-    "hn_female_hermer_stor_48k-fhg":    "Ngọc Lan – nữ HN",
-    "hn_female_lenka_stor_48k-phg":     "Nguyệt Dương – nữ HN",
-    "hn_male_minhquan_yt-stable":       "Minh Quân – nam HN",
-    "hn_male_manhdung_news_48k-fhg":    "Mạnh Dũng – nam HN",
-    "sg_female_tuongvy_call_44k-fhg":   "Tường Vy – nữ SG",
-    "sg_female_thaotrinh_full_44k-phg": "Thảo Trinh – nữ SG",
-    "sg_male_chidat_ebook_48k-phg":     "Chí Đạt – nam SG",
+    "hn_female_ngochuyen_full_48k-fhg": "Nữ Hà Nội – Tự nhiên",
+    "hn_female_hermer_stor_48k-fhg":    "Nữ Hà Nội – Chuyên nghiệp",
+    "hn_female_lenka_stor_48k-phg":     "Nữ Hà Nội – Trẻ trung",
+    "hn_male_minhquan_yt-stable":       "Nam Hà Nội – Ấm",
+    "hn_male_manhdung_news_48k-fhg":    "Nam Hà Nội – Rõ ràng",
+    "sg_female_tuongvy_call_44k-fhg":   "Nữ Sài Gòn – Năng động",
+    "sg_female_thaotrinh_full_44k-phg": "Nữ Sài Gòn – Mềm mại",
+    "sg_male_chidat_ebook_48k-phg":     "Nam Sài Gòn – Trầm ấm",
 }
 
 
 # ---------- public API ----------
+
+def set_callback_url(url: str) -> None:
+    """Called once by server after ngrok public URL is known."""
+    global _callback_url
+    _callback_url = url
+    logger.info("Vbee callback URL: %s", url)
+
+
+def receive_callback(raw: dict) -> None:
+    """Called by server when Vbee POSTs to /api/vbee-callback."""
+    result = raw.get("result") or raw
+    request_id = result.get("request_id") or raw.get("request_id")
+    audio_link = result.get("audio_link") or raw.get("audio_link")
+    logger.info("Vbee callback: request_id=%s  audio_link=%s  keys=%s",
+                request_id, bool(audio_link), list(raw.keys()))
+    if not request_id:
+        return
+    with _cb_lock:
+        if audio_link:
+            _results[request_id] = audio_link
+        ev = _pending.get(request_id)
+    if ev:
+        ev.set()
+
 
 def configure(provider: str | None = None,
               vbee_voice: str | None = None) -> None:
@@ -127,18 +156,19 @@ def _call_gtts(text: str) -> bytes:
 
 # ---------- Vbee ----------
 
-_VBEE_TTS_URL  = "https://vbee.vn/api/v1/tts"
-_VBEE_POLL_URL = "https://vbee.vn/api/v1/tts/{request_id}"
+_VBEE_TTS_URL = "https://vbee.vn/api/v1/tts"
 
 
 def _call_vbee(text: str, api_key: str, app_id: str, voice: str) -> bytes:
-    # 1. Send the TTS request
+    cb_url = _callback_url or "https://httpbin.org/post"
+
     body = json.dumps({
-        "input_text": text,
+        "input_text":  text,
         "voice_code":  voice,
         "audio_type":  "mp3",
+        "speed_rate":  1,
         "appId":       app_id,
-        "callbackUrl": "https://httpbin.org/post",  # bắt buộc nhưng không dùng
+        "callbackUrl": cb_url,
     }).encode("utf-8")
 
     headers = {
@@ -153,23 +183,42 @@ def _call_vbee(text: str, api_key: str, app_id: str, voice: str) -> bytes:
     except urllib.error.HTTPError as exc:
         raise RuntimeError(f"Vbee HTTP {exc.code}: {exc.reason}")
 
-    request_id = (payload.get("result") or {}).get("request_id")
+    logger.info("Vbee submit response: %s", payload)
+    result = payload.get("result") or {}
+
+    # Some plans return audio immediately
+    audio_link = result.get("audio_link")
+    if audio_link:
+        logger.info("Vbee: audio ready in submit response")
+        with urllib.request.urlopen(audio_link, timeout=15) as ar:
+            return ar.read()
+
+    request_id = result.get("request_id")
     if not request_id:
         raise RuntimeError(f"Vbee không trả về request_id: {payload}")
 
-    # 2. Poll until progress == 100
-    poll_url = _VBEE_POLL_URL.format(request_id=request_id)
-    for _ in range(30):
-        time.sleep(0.6)
-        req2 = urllib.request.Request(poll_url, headers={k: v for k, v in headers.items() if k != "Content-Type"})
-        with urllib.request.urlopen(req2, timeout=10) as r2:
-            status = json.loads(r2.read())
-        result = status.get("result") or {}
-        if result.get("progress", 0) >= 100:
-            audio_link = result.get("audio_link")
-            if not audio_link:
-                raise RuntimeError("Vbee: audio_link trống sau khi hoàn thành")
-            with urllib.request.urlopen(audio_link, timeout=15) as ar:
-                return ar.read()
+    if not _callback_url:
+        raise RuntimeError(
+            "Vbee cần callback URL — ngrok chưa sẵn sàng hoặc không kết nối được"
+        )
 
-    raise RuntimeError("Vbee: timeout chờ audio")
+    # Register event BEFORE Vbee can fire the callback
+    event = threading.Event()
+    with _cb_lock:
+        _pending[request_id] = event
+
+    logger.info("Vbee request_id=%s  chờ callback tại %s", request_id, cb_url)
+    try:
+        if event.wait(timeout=30):
+            with _cb_lock:
+                link = _results.pop(request_id, None)
+            if link:
+                with urllib.request.urlopen(link, timeout=15) as ar:
+                    return ar.read()
+            raise RuntimeError("Vbee: callback nhận được nhưng không có audio_link")
+    finally:
+        with _cb_lock:
+            _pending.pop(request_id, None)
+            _results.pop(request_id, None)
+
+    raise RuntimeError("Vbee: timeout chờ callback (30s)")

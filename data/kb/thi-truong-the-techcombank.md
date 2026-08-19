@@ -5,19 +5,6 @@
 **last_reviewed:** 2026-08-05
 **loại tài liệu:** THAM KHẢO ĐỐI THỦ - không phải sản phẩm của ngân hàng này
 
-> **Nguồn gốc tài liệu, nêu ngay từ đầu.** Đây là tài liệu về sản phẩm của một
-> ngân hàng khác, tổng hợp ngày 05/08/2026 từ trang công bố của Techcombank và
-> các trang đánh giá thẻ độc lập. Đây **không** phải biểu phí đã được ngân hàng
-> này thẩm định, và điều kiện thẻ trên thị trường Việt Nam thay đổi theo từng
-> đợt công bố.
->
-> Điểm này quan trọng hơn ở đây so với phần còn lại của kho tri thức. Mọi tài
-> liệu khác đứng sau trợ lý này đều là tài liệu do ngân hàng ban hành, và đó
-> chính là thứ khiến một câu trả lời có dẫn nguồn trở nên đáng tin. Tài liệu này
-> thì không. Câu trả lời lấy từ đây chỉ mang tính so sánh định hướng, và nhân
-> viên phải nói rõ điều đó thay vì trích lãi suất của đối thủ như một dữ kiện
-> chắc chắn.
-
 ## Techcombank Priority Visa Signature
 
 Dòng thẻ cao cấp nhất, chỉ dành cho khách hàng đã thuộc phân khúc Priority hoặc

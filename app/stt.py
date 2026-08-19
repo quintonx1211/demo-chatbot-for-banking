@@ -36,10 +36,22 @@ def _load():
 
 
 def transcribe_wav(wav_bytes: bytes) -> str:
-    """Transcribe raw WAV bytes using PhoWhisper (tiếng Việt)."""
+    return transcribe(wav_bytes, "audio/wav")
+
+
+def transcribe(audio_bytes: bytes, mime_type: str = "audio/wav") -> str:
+    """Transcribe audio bytes using PhoWhisper. Accepts wav, mp4, webm, ogg…"""
+    if "mp4" in mime_type or "m4a" in mime_type or "aac" in mime_type:
+        ext = ".mp4"
+    elif "ogg" in mime_type or "opus" in mime_type:
+        ext = ".ogg"
+    elif "webm" in mime_type:
+        ext = ".webm"
+    else:
+        ext = ".wav"
     pipe = _load()
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        f.write(wav_bytes)
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+        f.write(audio_bytes)
         tmp = f.name
     try:
         result = pipe(tmp)

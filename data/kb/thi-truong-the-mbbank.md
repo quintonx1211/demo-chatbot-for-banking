@@ -5,17 +5,6 @@
 **last_reviewed:** 2026-08-05
 **loại tài liệu:** THAM KHẢO ĐỐI THỦ - không phải sản phẩm của ngân hàng này
 
-> **Nguồn gốc, và một khoảng bất định rộng bất thường.** Tổng hợp ngày 05/08/2026
-> từ trang sản phẩm thẻ của MB Bank và các trang đánh giá độc lập. Chưa được ngân
-> hàng này thẩm định.
->
-> Tài liệu công bố của MB cho biết phí thường niên trên một số dòng thẻ **hiện
-> đang được miễn**, đồng thời lưu ý chính sách có thể thay đổi; trong khi các
-> trang đánh giá lại không thống nhất với nhau về mức phí niêm yết của dòng JCB.
-> Ở chỗ các nguồn mâu thuẫn, tài liệu này **ghi lại cả hai cách hiểu** thay vì
-> chọn một. Một bảng so sánh trình bày con số đang tranh cãi như con số đã chốt
-> còn tệ hơn một bảng thừa nhận khoảng dao động - khách hàng sẽ phát hiện ra
-> chênh lệch ngay tại quầy, và uy tín mất đi là uy tín của chính ngân hàng mình.
 
 ## MB Hi Collection - dòng JCB và Visa
 

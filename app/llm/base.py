@@ -269,10 +269,12 @@ def _excerpt(text: str, max_chars: int = 520) -> str:
         if line.strip():
             current.append(line)
         elif current:
-            blocks.append("\n".join(current))
+            is_tbl = current[0].lstrip().startswith("|")
+            blocks.append("\n".join(current) if is_tbl else " ".join(current))
             current = []
     if current:
-        blocks.append("\n".join(current))
+        is_tbl = current[0].lstrip().startswith("|")
+        blocks.append("\n".join(current) if is_tbl else " ".join(current))
 
     kept: list[str] = []
     total = 0

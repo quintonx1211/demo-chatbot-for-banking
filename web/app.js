@@ -1,11 +1,30 @@
 const $ = (id) => document.getElementById(id);
 
+// One silent AudioContext buffer play unlocks the browser's autoplay policy.
+// Must be called synchronously inside a user-gesture handler (click/submit).
+let _audioUnlocked = false;
+function _unlockAudio() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+    setTimeout(() => ctx.close(), 500);
+  } catch (e) {}
+}
+
 let sessionId = null;
 let selectedSession = null;
 let selectedDoc = null;
 let staff = null;
 let renderedCount = 0;
 let pollTimer = null;
+let voiceEnabled = localStorage.getItem("voiceEnabled") !== "false";
+let streamController = null;
 
 const KB_TEMPLATE = `# Document title
 
@@ -34,7 +53,8 @@ function render(text) {
   return escapeHtml(text)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/_([^_]+)_/g, "<em>$1</em>");
+    .replace(/_([^_]+)_/g, "<em>$1</em>")
+    .replace(/\n/g, "<br>");
 }
 
 async function api(path, options) {
@@ -71,6 +91,113 @@ function el(tag, className, text) {
   if (text !== undefined) node.textContent = text;
   return node;
 }
+
+/* ---------- chunk buffer + audio queue ---------- */
+
+class ChunkBuffer {
+  constructor(onFlush) {
+    this.tokens = [];
+    this.onFlush = onFlush;
+  }
+
+  push(token) {
+    this.tokens.push(token);
+    const text = this.tokens.join("");
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    const hardStop = /[.!?…。！？]\s*$/.test(text.trim());
+    if (hardStop || words >= 40) this.flush();
+  }
+
+  flush() {
+    const text = this.tokens.join("").trim();
+    this.tokens = [];
+    if (text) this.onFlush(text);
+  }
+}
+
+class SyncedPlayer {
+  constructor() {
+    this.pipeline = [];
+    this.active = false;
+    this.streamEnded = false;
+    this.currentAudio = null;
+    this.wordTimers = [];
+    this.onAllDone = null;
+  }
+
+  init() {
+    this.pipeline = [];
+    this.active = false;
+    this.streamEnded = false;
+    this.currentAudio = null;
+    this.wordTimers = [];
+    this.onAllDone = null;
+  }
+
+  addChunk(chunkText, urlPromise, onPlay) {
+    this.pipeline.push({ chunkText, urlPromise, onPlay });
+    if (!this.active) this._advance();
+  }
+
+  notifyStreamEnd() {
+    this.streamEnded = true;
+    if (!this.active && !this.pipeline.length && this.onAllDone) {
+      const cb = this.onAllDone; this.onAllDone = null; cb();
+    }
+  }
+
+  _clearTimers() { this.wordTimers.forEach(clearTimeout); this.wordTimers = []; }
+
+  async _advance() {
+    if (!this.pipeline.length) {
+      this.active = false;
+      if (this.streamEnded && this.onAllDone) {
+        const cb = this.onAllDone; this.onAllDone = null; cb();
+      }
+      return;
+    }
+    this.active = true;
+    const { urlPromise, onPlay } = this.pipeline.shift();
+    const url = await urlPromise;
+    if (!this.active) { if (url) URL.revokeObjectURL(url); return; }
+    if (!url) { if (onPlay) onPlay(); this._advance(); return; }
+
+    if (ttsPlayingBtn) { ttsPlayer.pause(); resetSpeakBtn(ttsPlayingBtn); ttsPlayingBtn = null; }
+    const audio = new Audio();
+    this.currentAudio = audio;
+
+    // Set handlers BEFORE src to avoid loadedmetadata race condition
+    const ready = new Promise((res) => {
+      audio.onloadedmetadata = res;
+      audio.onerror = res;
+      audio.src = url;
+    });
+    await ready;
+    if (!this.active) { URL.revokeObjectURL(url); this.currentAudio = null; return; }
+
+    if (onPlay) onPlay();
+    audio.play().catch((e) => console.warn("audio.play() blocked:", e.message));
+    audio.onended = () => {
+      URL.revokeObjectURL(url); this.currentAudio = null; this._advance();
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(url); this.currentAudio = null; this._advance();
+    };
+  }
+
+  stop() {
+    this.active = false;
+    this._clearTimers();
+    this.pipeline = [];
+    this.onAllDone = null;
+    if (this.currentAudio) { this.currentAudio.pause(); this.currentAudio.src = ""; this.currentAudio = null; }
+  }
+
+  get isPlaying() { return this.active; }
+}
+
+let syncedPlayer = new SyncedPlayer();
+let streamingAudio = null; // current auto-play TTS audio (full response)
 
 /* ---------- screens ---------- */
 
@@ -144,6 +271,13 @@ function updateVoiceUI() {
   // ones - a button that plays nothing on click is worse than one visibly
   // disabled.
   document.querySelectorAll(".speak-btn").forEach((b) => { b.disabled = !ttsAvailable; });
+  const vt = $("voice-toggle");
+  if (vt) {
+    vt.textContent = voiceEnabled ? "🔊" : "🔇";
+    vt.title = voiceEnabled ? "Tắt đọc tự động" : "Bật đọc tự động";
+    vt.classList.toggle("active", voiceEnabled);
+    vt.disabled = !ttsAvailable;
+  }
 }
 
 // Played through a single <audio> element rather than one per bubble, so
@@ -157,6 +291,9 @@ function resetSpeakBtn(btn) {
 }
 
 async function playTts(text, btn) {
+  _unlockAudio();  // synchronous, inside click gesture
+  if (streamingAudio) { streamingAudio.pause(); streamingAudio.src = ""; streamingAudio = null; }
+  syncedPlayer.stop();
   if (ttsPlayingBtn === btn) {
     ttsPlayer.pause();
     resetSpeakBtn(btn);
@@ -241,9 +378,102 @@ function blobToBase64(blob) {
 let mediaRecorder = null;
 let recordedChunks = [];
 let recordingTimer = null;
-const RECORDING_MAX_MS = 9500; // /api/stt is a realtime cap, not a batch job
+const RECORDING_MAX_MS = 9500;
+
+// Web Speech API tiếng Việt đôi khi transcribe dấu câu thành từ ("phấy" = dấu phẩy)
+function cleanStt(t) {
+  return t
+    .replace(/\b(phấy|phẩy|chấm|dấu phẩy|dấu chấm)\b\.?/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+let recognition = null;
+let recognitionFinalText = '';
+let audioCtxForMic = null;
+let waveformAnimId = null;
+let silenceStart = null;
+const SILENCE_THRESHOLD = 8;      // RMS amplitude 0-100; below = silence
+const SILENCE_DURATION_MS = 3000; // stop after 3s of silence
+
+function _startWaveform(stream) {
+  try {
+    audioCtxForMic = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtxForMic.createMediaStreamSource(stream);
+    const analyser = audioCtxForMic.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.85;
+    source.connect(analyser);
+
+    const canvas = $("waveform-canvas");
+    canvas.width = (canvas.parentElement.clientWidth || 300) - 60;
+    const ctx2d = canvas.getContext("2d");
+    const bufLen = analyser.frequencyBinCount;
+    const data = new Uint8Array(bufLen);
+    silenceStart = null;
+
+    const draw = () => {
+      analyser.getByteTimeDomainData(data);
+
+      // RMS for silence detection
+      let sum = 0;
+      for (let i = 0; i < bufLen; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
+      const rms = Math.sqrt(sum / bufLen) * 100;
+
+      const dot = $("silence-dot");
+      const statusEl = $("stt-status");
+      if (rms < SILENCE_THRESHOLD) {
+        if (!silenceStart) silenceStart = Date.now();
+        const elapsed = Date.now() - silenceStart;
+        if (statusEl) statusEl.textContent = "Đang nghe…";
+        if (dot) dot.style.background = `hsl(${Math.round(40 * (1 - elapsed / SILENCE_DURATION_MS))}, 80%, 50%)`;
+        if (elapsed >= SILENCE_DURATION_MS) {
+          if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+          return;
+        }
+      } else {
+        silenceStart = null;
+        if (dot) dot.style.background = "#ef4444";
+        if (statusEl) statusEl.textContent = "Đang nghe…";
+      }
+
+      // Draw waveform
+      ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+      ctx2d.strokeStyle = "#3b82f6";
+      ctx2d.lineWidth = 2;
+      ctx2d.beginPath();
+      const sw = canvas.width / bufLen;
+      let x = 0;
+      for (let i = 0; i < bufLen; i++) {
+        const y = (data[i] / 256) * canvas.height;
+        i === 0 ? ctx2d.moveTo(x, y) : ctx2d.lineTo(x, y);
+        x += sw;
+      }
+      ctx2d.stroke();
+
+      waveformAnimId = requestAnimationFrame(draw);
+    };
+    draw();
+  } catch (e) { /* AudioContext unavailable */ }
+}
+
+function _stopWaveform() {
+  if (waveformAnimId) { cancelAnimationFrame(waveformAnimId); waveformAnimId = null; }
+  if (audioCtxForMic) { audioCtxForMic.close().catch(() => {}); audioCtxForMic = null; }
+  silenceStart = null;
+  $("waveform-bar").classList.add("hidden");
+}
 
 async function toggleRecording() {
+  // Barge-in: stop bot speech/stream when user presses mic
+  if (syncedPlayer.isPlaying || streamController) {
+    syncedPlayer.stop();
+    if (streamController) { streamController.abort(); streamController = null; }
+    await hideTyping();
+    isSending = false;
+    refreshChatStatus();
+    updateSendState();
+  }
   if (mediaRecorder && mediaRecorder.state === "recording") {
     mediaRecorder.stop();
     return;
@@ -255,6 +485,33 @@ async function toggleRecording() {
     addMessage("system", `Không truy cập được micro: ${error.message}`);
     return;
   }
+
+  // Real-time interim display via Web Speech API (Chrome/Edge)
+  recognitionFinalText = "";
+  $("input").value = "";
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    recognition = new SR();
+    recognition.lang = "vi-VN";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.onresult = (event) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) recognitionFinalText += cleanStt(event.results[i][0].transcript);
+        else interim = event.results[i][0].transcript;
+      }
+      $("input").value = recognitionFinalText + interim;
+      updateSendState();
+    };
+    recognition.onerror = () => {};
+    try { recognition.start(); } catch (e) {}
+  }
+
+  // Waveform visualizer + silence detection
+  _startWaveform(stream);
+  $("waveform-bar").classList.remove("hidden");
+
   recordedChunks = [];
   mediaRecorder = new MediaRecorder(stream);
   mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
@@ -262,6 +519,8 @@ async function toggleRecording() {
     stream.getTracks().forEach((track) => track.stop());
     $("mic-btn").classList.remove("recording");
     clearTimeout(recordingTimer);
+    _stopWaveform();
+    if (recognition) { try { recognition.stop(); } catch (e) {} recognition = null; }
     handleRecording(new Blob(recordedChunks, { type: mediaRecorder.mimeType }));
   };
   mediaRecorder.start();
@@ -277,21 +536,34 @@ async function handleRecording(blob) {
   const original = mic.textContent;
   mic.textContent = "⏳";
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const audioCtx = new AudioCtx();
-    const audioBuffer = await audioCtx.decodeAudioData(await blob.arrayBuffer());
-    const wav = encodeWav(audioBuffer);
-    audioCtx.close();
-    const data = await postJson("/api/stt", { audio_b64: await blobToBase64(wav) });
-    if (!data.text) {
-      addMessage("system", "Không nhận dạng được giọng nói, anh/chị vui lòng gõ câu hỏi giúp.");
-      return;
+    let audio_b64, mime_type;
+    try {
+      // Try WAV conversion (Chrome/Edge/Firefox)
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioCtx();
+      await audioCtx.resume();
+      const audioBuffer = await audioCtx.decodeAudioData(await blob.arrayBuffer());
+      const wav = encodeWav(audioBuffer);
+      audioCtx.close();
+      audio_b64 = await blobToBase64(wav);
+      mime_type = "audio/wav";
+    } catch {
+      // Fallback for Safari: send raw audio (mp4/aac) directly
+      audio_b64 = await blobToBase64(blob);
+      mime_type = blob.type || "audio/mp4";
     }
-    $("input").value = data.text;
-    $("input").focus();
-    updateSendState();
+    const data = await postJson("/api/stt", { audio_b64, mime_type });
+    if (data.text) {
+      $("input").value = data.text;
+      $("input").focus();
+      updateSendState();
+    } else if (!$("input").value) {
+      addMessage("system", "Không nhận dạng được giọng nói, anh/chị vui lòng gõ câu hỏi giúp.");
+    }
   } catch (error) {
-    addMessage("system", `Xử lý giọng nói thất bại: ${error.message}`);
+    if (!$("input").value) {
+      addMessage("system", `Xử lý giọng nói thất bại: ${error.message}`);
+    }
   } finally {
     mic.disabled = false;
     mic.textContent = original;
@@ -390,6 +662,44 @@ function addMessage(role, text, meta, author) {
 
   $("messages").appendChild(wrap);
   scrollTranscript();
+}
+
+/* ---------- streaming message helpers ---------- */
+
+function addStreamingMessage() {
+  const wrap = el("div", "msg assistant");
+  wrap.setAttribute("aria-label", "Trợ lý đang trả lời");
+  wrap.appendChild(avatarFor("assistant"));
+  const body = el("div", "msg-body");
+  wrap.appendChild(body);
+  const bubbleEl = el("div", "bubble");
+  body.appendChild(bubbleEl);
+  body.appendChild(el("div", "msg-time", clockNow()));
+  $("messages").appendChild(wrap);
+  scrollTranscript();
+  return { wrap, body, bubbleEl };
+}
+
+function finalizeStreamingMessage(wrap, body, fullText, meta) {
+  const note = meta && meta.debug ? meta.debug.note : null;
+  const cards = accountCards(fullText, note);
+  const bubbleEl = body.querySelector(".bubble");
+
+  if (cards) {
+    wrap.classList.add("has-cards");
+    if (bubbleEl) bubbleEl.innerHTML = render(cards.intro);
+    const timeEl = body.querySelector(".msg-time");
+    body.insertBefore(cards.node, timeEl);
+  } else if (bubbleEl) {
+    bubbleEl.innerHTML = render(fullText);
+  }
+
+  const speak = el("button", "icon-btn ghost-ic speak-btn", "🔊");
+  speak.type = "button";
+  speak.title = "Đọc câu trả lời";
+  speak.disabled = !ttsAvailable;
+  speak.onclick = () => playTts(fullText, speak);
+  body.appendChild(speak);
 }
 
 /* ---------- figures as cards ---------- */
@@ -654,37 +964,166 @@ async function toggleRawMode(enabled) {
 
 async function send(message) {
   if (!message.trim()) return;
+  if (voiceEnabled && ttsAvailable) _unlockAudio();
   addMessage("customer", message);
   $("input").value = "";
   $("send").disabled = true;
   showTyping();
   isSending = true;
   refreshChatStatus();
+
+  streamController = new AbortController();
+  let streamMsg = null;
+  let fullText = "";
+  let metaReceived = false;
+
   try {
-    const data = await postJson("/api/chat", { session_id: sessionId, message });
-    await hideTyping();
-    sessionId = data.session_id;
-    applyRawMode(Boolean(data.raw_mode));
-    if (data.route === "agent") {
-      addMessage("system", data.handled_by
-        ? `Đã gửi đến ${data.handled_by}.`
-        : "Đã gửi vào hàng chờ chuyên viên - sẽ có người tiếp nhận sớm.");
-    } else {
-      addMessage("assistant", data.reply, data);
+    const resp = await fetch("/api/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId, message }),
+      signal: streamController.signal,
+    });
+    if (!resp.ok) {
+      const d = await resp.json().catch(() => ({}));
+      throw new Error(d.error || `${resp.status}`);
     }
-    updateInspector(data);
-    setRailUser(data.verified);
-    renderChatActions(data);
-    // Driven by session state: an "@bot" aside is answered by the assistant
-    // but does not take the customer out of the queue, so the banner stays.
-    renderHandoff(data.in_handoff ? { handled_by: data.handled_by || null } : null);
-    if (data.in_handoff) startPolling();
-  } catch (error) {
-    // Cleared here as well as on the success path: a failed request that
-    // leaves the dots animating tells the customer a reply is still coming.
+
     await hideTyping();
+    streamMsg = addStreamingMessage();
+    const useVoice = voiceEnabled && ttsAvailable;
+    if (useVoice) streamMsg.bubbleEl.innerHTML = '<div class="typing-bubble"><i></i><i></i><i></i></div>';
+
+    // Word-by-word text reveal at 250ms/word
+    let displayedText = "";
+    let pendingWords = [];
+    let wordRevealTimer = null;
+    let pendingFinalMeta = null;
+
+    function doFinalizeMsg(m) {
+      if (m.route === "agent") {
+        streamMsg.wrap.remove();
+        addMessage("system", m.handled_by
+          ? `Đã gửi đến ${m.handled_by}.`
+          : "Đã gửi vào hàng chờ chuyên viên - sẽ có người tiếp nhận sớm.");
+      } else {
+        finalizeStreamingMessage(streamMsg.wrap, streamMsg.body, fullText, m);
+      }
+    }
+
+    function revealNext() {
+      if (!pendingWords.length) {
+        wordRevealTimer = null;
+        if (pendingFinalMeta) { const m = pendingFinalMeta; pendingFinalMeta = null; doFinalizeMsg(m); }
+        return;
+      }
+      displayedText += (displayedText ? " " : "") + pendingWords.shift();
+      if (streamMsg && streamMsg.bubbleEl) {
+        streamMsg.bubbleEl.innerHTML = render(displayedText);
+        scrollTranscript();
+      }
+      wordRevealTimer = setTimeout(revealNext, 250);
+    }
+    function queueText(text) {
+      const words = text.split(/\s+/).filter(Boolean);
+      if (!words.length) return;
+      pendingWords.push(...words);
+      if (!wordRevealTimer) revealNext();
+    }
+
+    function finalizeMeta(m) {
+      updateInspector(m);
+      setRailUser(m.verified);
+      renderChatActions(m);
+      renderHandoff(m.in_handoff ? { handled_by: m.handled_by || null } : null);
+      if (m.in_handoff) startPolling();
+
+      if (m.route === "agent") {
+        clearTimeout(wordRevealTimer); wordRevealTimer = null; pendingWords = [];
+        doFinalizeMsg(m);
+      } else if (useVoice) {
+        // Voice on: text deferred — revealNext calls doFinalizeMsg when words drain
+        pendingFinalMeta = m;
+      } else if (pendingWords.length || wordRevealTimer) {
+        pendingFinalMeta = m;
+        setTimeout(() => {
+          if (pendingFinalMeta === m) {
+            clearTimeout(wordRevealTimer); wordRevealTimer = null; pendingWords = [];
+            pendingFinalMeta = null; doFinalizeMsg(m);
+          }
+        }, 30000);
+      } else {
+        doFinalizeMsg(m);
+      }
+    }
+
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let sseBuf = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      sseBuf += dec.decode(value, { stream: true });
+      const parts = sseBuf.split("\n\n");
+      sseBuf = parts.pop();
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith("data: ")) continue;
+        let ev;
+        try { ev = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (ev.token !== undefined) {
+          fullText += ev.token;
+          if (!useVoice) queueText(ev.token);
+        } else if (ev.meta) {
+          metaReceived = true;
+          const m = ev.meta;
+          sessionId = m.session_id;
+          applyRawMode(Boolean(m.raw_mode));
+          finalizeMeta(m);
+
+          if (useVoice && fullText.trim() && m.route !== "agent") {
+            if (streamingAudio) { streamingAudio.pause(); streamingAudio.src = ""; streamingAudio = null; }
+            if (ttsPlayingBtn) { ttsPlayer.pause(); resetSpeakBtn(ttsPlayingBtn); ttsPlayingBtn = null; }
+            fetch("/api/tts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: fullText.trim() }),
+            })
+              .then((r) => (r.ok ? r.blob() : null))
+              .then((b) => (b ? URL.createObjectURL(b) : null))
+              .then((url) => {
+                if (!url) { queueText(fullText); return; }
+                const audio = new Audio();
+                streamingAudio = audio;
+                audio.onloadedmetadata = () => {
+                  audio.play().catch((e) => console.warn("audio.play() blocked:", e.message));
+                  queueText(fullText);
+                };
+                audio.onended = () => { URL.revokeObjectURL(url); if (streamingAudio === audio) streamingAudio = null; };
+                audio.onerror = () => {
+                  URL.revokeObjectURL(url);
+                  if (streamingAudio === audio) streamingAudio = null;
+                  if (!displayedText) queueText(fullText);
+                };
+                audio.src = url;
+              })
+              .catch(() => { if (!displayedText) queueText(fullText); });
+          }
+        } else if (ev.error) {
+          throw new Error(ev.error);
+        }
+      }
+    }
+  } catch (error) {
+    if (streamingAudio) { streamingAudio.pause(); streamingAudio.src = ""; streamingAudio = null; }
+    if (error.name === "AbortError") return;
+    await hideTyping();
+    if (streamMsg && !fullText) streamMsg.wrap.remove();
     addMessage("system", `Không gửi được: ${error.message}`);
   } finally {
+    streamController = null;
     isSending = false;
     refreshChatStatus();
     updateSendState();
@@ -1202,8 +1641,8 @@ async function refreshTtsStatus() {
   if (data.vbee_voice) $("tts-bar-voice").value = data.vbee_voice;
 
   const parts = [];
-  parts.push(data.vbee_available ? "Vbee: đã cấu hình key" : "Vbee: chưa có key");
-  parts.push(data.gtts_available ? "gTTS: đã cài" : "gTTS: chưa cài (pip install gtts)");
+  parts.push(data.vbee_available ? "Voice 2: đã cấu hình key" : "Voice 2: chưa có key");
+  parts.push(data.gtts_available ? "Voice 1: đã cài" : "Voice 1: chưa cài (pip install gtts)");
   $("tts-status").textContent = parts.join(" · ");
 }
 
@@ -1327,14 +1766,13 @@ $("raw-toggle").onchange = (e) => toggleRawMode(e.target.checked);
 
 $("composer").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
 $("input").oninput = updateSendState;
-$("suggestions").querySelectorAll("button").forEach((b) => {
-  b.onclick = () => send(b.textContent);
-});
 
 // Starting over drops the server-side session too. Clearing only the visible
 // transcript would leave the customer talking to a conversation they cannot
 // see - including any pending verification or handoff.
 function newConversation() {
+  syncedPlayer.stop();
+  if (streamController) { streamController.abort(); streamController = null; }
   sessionId = null;
   renderedCount = 0;
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
@@ -1434,6 +1872,13 @@ $("tts-bar-provider").onchange = () => {
 };
 $("tts-bar-voice").onchange = saveTtsFromChatBar;
 $("mic-btn").onclick = toggleRecording;
+$("voice-toggle").onclick = () => {
+  voiceEnabled = !voiceEnabled;
+  localStorage.setItem("voiceEnabled", voiceEnabled);
+  if (voiceEnabled) _unlockAudio();
+  else syncedPlayer.stop();
+  updateVoiceUI();
+};
 
 /** Open a transcript: the standing notice, the day divider the design asks for,
     then the greeting. One function so "new conversation" and first load cannot

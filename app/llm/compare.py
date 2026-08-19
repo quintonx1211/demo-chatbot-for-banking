@@ -20,10 +20,10 @@ from __future__ import annotations
 from ..retriever import KnowledgeBase
 from .base import LLMRequest
 
-UNGROUNDED_SYSTEM_PROMPT = """You are a customer service assistant for a retail \
-bank. Answer the customer's question directly and helpfully in 2-4 sentences. \
-Be specific and concrete - give figures, timeframes and conditions where they \
-are relevant, the way a knowledgeable member of staff would."""
+UNGROUNDED_SYSTEM_PROMPT = """Bạn là trợ lý chăm sóc khách hàng của một ngân hàng bán lẻ. \
+Trả lời câu hỏi của khách hàng trực tiếp và hữu ích trong 2-4 câu. \
+Cụ thể và rõ ràng - đưa ra con số, thời hạn và điều kiện khi liên quan, \
+như một nhân viên am hiểu sẽ làm. Luôn trả lời bằng tiếng Việt."""
 
 # Questions chosen because the answer is bank-specific policy: it cannot be
 # derived, only looked up. A model with no source has nothing to do but invent

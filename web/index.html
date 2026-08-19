@@ -12,6 +12,22 @@
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap"
         rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .waveform-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 14px; background: #eff6ff;
+      border-top: 1px solid #dbeafe;
+    }
+    .waveform-bar.hidden { display: none; }
+    #waveform-canvas { flex: 1; height: 36px; border-radius: 4px; }
+    .rec-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #ef4444; flex-shrink: 0;
+      animation: recpulse 1s ease infinite;
+    }
+    @keyframes recpulse { 0%,100%{opacity:1} 50%{opacity:.2} }
+    .stt-status { font-size: 12px; color: #6b7280; white-space: nowrap; min-width: 70px; text-align: right; }
+  </style>
 </head>
 <body>
 
@@ -133,31 +149,12 @@
       <div id="handoff-banner" class="handoff-banner hidden"></div>
       <div id="chat-actions" class="chat-actions hidden"></div>
 
-      <div class="tts-bar" id="tts-bar-chat">
-        <span class="tts-bar-label">Giọng:</span>
-        <select id="tts-bar-provider">
-          <option value="vbee">Vbee</option>
-          <option value="gtts">gTTS</option>
-        </select>
-        <select id="tts-bar-voice">
-          <option value="hn_female_ngochuyen_full_48k-fhg">Ngọc Huyền – nữ HN</option>
-          <option value="hn_female_hermer_stor_48k-fhg">Ngọc Lan – nữ HN</option>
-          <option value="hn_female_lenka_stor_48k-phg">Nguyệt Dương – nữ HN</option>
-          <option value="hn_male_minhquan_yt-stable">Minh Quân – nam HN</option>
-          <option value="hn_male_manhdung_news_48k-fhg">Mạnh Dũng – nam HN</option>
-          <option value="sg_female_tuongvy_call_44k-fhg">Tường Vy – nữ SG</option>
-          <option value="sg_female_thaotrinh_full_44k-phg">Thảo Trinh – nữ SG</option>
-          <option value="sg_male_chidat_ebook_48k-phg">Chí Đạt – nam SG</option>
-        </select>
-      </div>
+      <div class="suggestions hidden" id="suggestions"></div>
 
-      <div class="suggestions" id="suggestions" role="group" aria-label="Câu hỏi gợi ý">
-        <button type="button">Phí chuyển tiền quốc tế là bao nhiêu?</button>
-        <button type="button">Tôi làm mất thẻ ghi nợ</button>
-        <button type="button">Kiểm tra số dư của tôi</button>
-        <button type="button">Tôi có bao nhiêu ngày để khiếu nại một giao dịch?</button>
-        <button type="button">Tôi có nên đầu tư tiền tiết kiệm vào cổ phiếu công nghệ không?</button>
-        <button type="button">Ngân hàng có bảo hiểm cây trồng cho vườn nho không?</button>
+      <div id="waveform-bar" class="waveform-bar hidden">
+        <span id="silence-dot" class="rec-dot"></span>
+        <canvas id="waveform-canvas" height="36"></canvas>
+        <span id="stt-status" class="stt-status">Đang nghe…</span>
       </div>
 
       <form id="composer" class="composer" autocomplete="off">
@@ -171,6 +168,7 @@
         <input id="input" type="text" placeholder="Nhập câu hỏi về tài chính của anh/chị…" />
         <button type="button" class="icon-btn ghost-ic ic-emoji" title="Biểu tượng cảm xúc" data-demo>😊</button>
         <button type="button" id="mic-btn" class="icon-btn ghost-ic ic-voice hidden" title="Nhập bằng giọng nói">🎙️</button>
+        <button type="button" id="voice-toggle" class="icon-btn ghost-ic" title="Bật đọc tự động">🔇</button>
         <button type="submit" id="send" class="send-btn" aria-label="Gửi">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -197,6 +195,25 @@
         <p class="hint">Các chốt kiểm soát lượt hỏi này đã đi qua, và quy tắc
           áp dụng tại mỗi chốt.</p>
         <div id="trace"><p class="empty">-</p></div>
+      </div>
+      <div class="rail-block">
+        <span class="rail-eyebrow">Giọng đọc</span>
+        <div class="rail-voice-settings">
+          <select id="tts-bar-provider">
+            <option value="vbee">Voice 1</option>
+            <option value="gtts">Voice 2</option>
+          </select>
+          <select id="tts-bar-voice">
+            <option value="hn_female_ngochuyen_full_48k-fhg">Nữ Hà Nội – Tự nhiên</option>
+            <option value="hn_female_hermer_stor_48k-fhg">Nữ Hà Nội – Chuyên nghiệp</option>
+            <option value="hn_female_lenka_stor_48k-phg">Nữ Hà Nội – Trẻ trung</option>
+            <option value="hn_male_minhquan_yt-stable">Nam Hà Nội – Ấm</option>
+            <option value="hn_male_manhdung_news_48k-fhg">Nam Hà Nội – Rõ ràng</option>
+            <option value="sg_female_tuongvy_call_44k-fhg">Nữ Sài Gòn – Năng động</option>
+            <option value="sg_female_thaotrinh_full_44k-phg">Nữ Sài Gòn – Mềm mại</option>
+            <option value="sg_male_chidat_ebook_48k-phg">Nam Sài Gòn – Trầm ấm</option>
+          </select>
+        </div>
       </div>
       <p class="rail-note">Trợ lý đọc được thông tin tài khoản nhưng không bao giờ
         thấy số thẻ đầy đủ. Mọi thao tác liên quan đến tiền hoặc trạng thái thẻ
@@ -530,21 +547,21 @@
               <label class="field">
                 <span>Nhà cung cấp</span>
                 <select id="tts-provider">
-                  <option value="vbee">Vbee AI – tiếng Việt tự nhiên</option>
-                  <option value="gtts">gTTS – Google (miễn phí)</option>
+                  <option value="vbee">Voice 1</option>
+                  <option value="gtts">Voice 2</option>
                 </select>
               </label>
               <label class="field" id="tts-voice-field">
-                <span>Giọng Vbee</span>
+                <span>Giọng Voice 2</span>
                 <select id="tts-voice">
-                  <option value="hn_female_ngochuyen_full_48k-fhg">Ngọc Huyền – nữ HN</option>
-                  <option value="hn_female_hermer_stor_48k-fhg">Ngọc Lan – nữ HN</option>
-                  <option value="hn_female_lenka_stor_48k-phg">Nguyệt Dương – nữ HN</option>
-                  <option value="hn_male_minhquan_yt-stable">Minh Quân – nam HN</option>
-                  <option value="hn_male_manhdung_news_48k-fhg">Mạnh Dũng – nam HN</option>
-                  <option value="sg_female_tuongvy_call_44k-fhg">Tường Vy – nữ SG</option>
-                  <option value="sg_female_thaotrinh_full_44k-phg">Thảo Trinh – nữ SG</option>
-                  <option value="sg_male_chidat_ebook_48k-phg">Chí Đạt – nam SG</option>
+                  <option value="hn_female_ngochuyen_full_48k-fhg">Nữ Hà Nội – Tự nhiên</option>
+                  <option value="hn_female_hermer_stor_48k-fhg">Nữ Hà Nội – Chuyên nghiệp</option>
+                  <option value="hn_female_lenka_stor_48k-phg">Nữ Hà Nội – Trẻ trung</option>
+                  <option value="hn_male_minhquan_yt-stable">Nam Hà Nội – Ấm</option>
+                  <option value="hn_male_manhdung_news_48k-fhg">Nam Hà Nội – Rõ ràng</option>
+                  <option value="sg_female_tuongvy_call_44k-fhg">Nữ Sài Gòn – Năng động</option>
+                  <option value="sg_female_thaotrinh_full_44k-phg">Nữ Sài Gòn – Mềm mại</option>
+                  <option value="sg_male_chidat_ebook_48k-phg">Nam Sài Gòn – Trầm ấm</option>
                 </select>
               </label>
             </div>

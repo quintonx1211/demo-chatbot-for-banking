@@ -5,12 +5,6 @@
 **last_reviewed:** 2026-08-05
 **loại tài liệu:** THAM KHẢO ĐỐI THỦ - không phải sản phẩm của ngân hàng này
 
-> **Nguồn gốc.** Tổng hợp ngày 05/08/2026 từ biểu phí và thể lệ chương trình do
-> VPBank công bố, cùng các trang đánh giá thẻ độc lập. Chưa được ngân hàng này
-> thẩm định. Riêng các chương trình hoàn tiền của VPBank mang tính khuyến mại và
-> được điều chỉnh theo lịch riêng, nên một mức đúng hôm nay có thể không còn đúng
-> ở quý sau. Đối chiếu thể lệ hiện hành trước khi trích dẫn.
-
 ## VPBank StepUp Mastercard
 
 Định vị là thẻ hoàn tiền cho chi tiêu trực tuyến.

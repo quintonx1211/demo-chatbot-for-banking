@@ -5,12 +5,6 @@
 **last_reviewed:** 2026-08-05
 **loại tài liệu:** THAM KHẢO ĐỐI THỦ - không phải sản phẩm của ngân hàng này
 
-> **Nguồn gốc.** Tổng hợp ngày 05/08/2026 từ tài liệu công bố của Vietcombank và
-> các trang đánh giá thẻ độc lập. Chưa được ngân hàng này thẩm định. Lãi suất và
-> biểu phí trên thị trường thay đổi theo từng đợt công bố; coi mọi con số ở đây
-> là định hướng và đối chiếu biểu phí hiện hành của ngân hàng phát hành trước khi
-> nói với khách hàng như một dữ kiện chắc chắn.
-
 ## Vietcombank Visa Platinum
 
 | Hạng mục | Thông tin |
