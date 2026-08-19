@@ -1,0 +1,94 @@
+{
+  "_comment": [
+    "Real client data (received via email, kept verbatim in figures/",
+    "conditions - only translated to Vietnamese, nothing added or inferred).",
+    "Each card maps 1-1 to exactly one segment - there is no eligibility",
+    "threshold to evaluate, unlike the earlier synthetic catalogue. Every",
+    "welcome_offers/reward_scheme item is written as its own bullet because",
+    "app/rules_engine.py::explain_fit matches a customer's stated interest",
+    "against these lines individually - a merged paragraph would defeat that."
+  ],
+  "products": [
+    {
+      "id": "CARD-CLASSIC",
+      "segment": "MASS",
+      "name": "Thẻ Classic",
+      "value_proposition": "Tích điểm cho chi tiêu online và thiết yếu hàng ngày - dành cho người mua sắm số và chi tiêu thường nhật.",
+      "welcome_offers": [
+        "Hoàn tiền 10% cho 3 giao dịch đầu tiên trong 30 ngày, tối đa 300.000 VND",
+        "Chi tiêu tối thiểu 3.000.000 VND trong tháng đầu tiên"
+      ],
+      "reward_scheme": [
+        "Hoàn tiền 3% cho ăn uống & cà phê, gọi xe công nghệ, rạp chiếu phim",
+        "Hoàn tiền 5% cho các sàn thương mại điện tử được chọn vào ngày đôi (double dates)",
+        "Tổng hoàn tiền tối đa 300.000 VND/tháng, áp dụng khi chi tiêu tối thiểu 3.000.000 VND"
+      ],
+      "annual_fee": {
+        "amount": "199.000 VND",
+        "waiver_condition": "Miễn phí năm thứ 2 nếu tổng chi tiêu năm đầu vượt 30.000.000 VND"
+      },
+      "doc_id": "KB-CARD-CLASSIC"
+    },
+    {
+      "id": "CARD-PLATINUM",
+      "segment": "MASS_AFFLUENT",
+      "name": "Thẻ Platinum",
+      "value_proposition": "Giải pháp một thẻ cho người có phong cách sống năng động - ăn uống, giải trí và nhu cầu hàng ngày.",
+      "welcome_offers": [
+        "Hoàn tiền 10% cho 5 giao dịch đầu tiên trong 30 ngày, tối đa 500.000 VND",
+        "Chi tiêu tối thiểu 5.000.000 VND trong tháng đầu tiên"
+      ],
+      "reward_scheme": [
+        "Hoàn tiền 5% cho ăn uống, cà phê, di chuyển, rạp chiếu phim",
+        "Hoàn tiền 10% cho các sàn thương mại điện tử được chọn vào ngày đôi (double dates)",
+        "Tổng hoàn tiền tối đa 400.000 VND/tháng, áp dụng khi chi tiêu tối thiểu 5.000.000 VND"
+      ],
+      "annual_fee": {
+        "amount": "399.000 VND",
+        "waiver_condition": "Miễn phí năm thứ 2 nếu tổng chi tiêu năm đầu vượt 60.000.000 VND"
+      },
+      "doc_id": "KB-CARD-PLATINUM"
+    },
+    {
+      "id": "CARD-SIGNATURE",
+      "segment": "AFFLUENT",
+      "name": "Thẻ Signature",
+      "value_proposition": "Hoàn tiền linh hoạt tự thiết kế theo nhu cầu, cùng đặc quyền cao cấp dành cho khách hàng có điều kiện tài chính tốt.",
+      "welcome_offers": [
+        "Tặng bộ hộp da và tên khắc trên thẻ (leather boxset & cardholder)",
+        "Hoàn tiền 3.000.000 VND khi chi tiêu trên 60.000.000 VND trong 2 tháng đầu"
+      ],
+      "reward_scheme": [
+        "Tự chọn danh mục hoàn tiền linh hoạt (Build Your Own Rewards - BYOR)",
+        "Hoàn tiền 8% cho các hạng mục Du lịch & Phong cách sống được chọn, tối đa 400.000 VND",
+        "Hoàn tiền 3% cho các hạng mục thiết yếu được chọn, tối đa 200.000 VND",
+        "Hoàn tiền 0,2% cho mọi chi tiêu khác, tối đa 200.000 VND"
+      ],
+      "annual_fee": {
+        "amount": "1.299.000 VND",
+        "waiver_condition": "Miễn phí năm thứ 2 nếu tổng chi tiêu năm đầu đạt 120.000.000 VND"
+      },
+      "doc_id": "KB-CARD-SIGNATURE"
+    },
+    {
+      "id": "CARD-INFINITE",
+      "segment": "PRIVATE",
+      "name": "Thẻ Infinite",
+      "value_proposition": "Du lịch cao cấp, đặc quyền xa xỉ và phần thưởng theo cột mốc chi tiêu, tất cả trong một thẻ.",
+      "welcome_offers": [
+        "Thẻ kim loại (metal card) khắc laser tên chủ thẻ theo kiểu thư pháp tuỳ chỉnh"
+      ],
+      "reward_scheme": [
+        "Tích luỹ cơ bản: 2-3 dặm VNA Lotusmiles cho mỗi 20.000 VND chi tiêu quốc tế (cross border)",
+        "Thưởng theo mốc chi tiêu: tối đa 3 lần đổi thưởng/tháng tại các mốc 50 triệu - 100 triệu - 250 triệu VND (giới hạn 3 triệu/tháng)",
+        "Ưu đãi Golf: hỗ trợ 1.000.000 VND phí sân golf khi đặt qua chương trình Visa Golf",
+        "Thưởng chi tiêu nhanh hàng tháng: 3 người đầu tiên đạt 300.000.000 VND được chọn 1 trong 2 phần thưởng - nâng hạng vé Business 5 lần (đường bay nội địa VNA) trong 12 tháng tiếp theo, HOẶC 1 đêm nghỉ miễn phí tại resort siêu sang"
+      ],
+      "annual_fee": {
+        "amount": "5.999.000 VND",
+        "waiver_condition": "Miễn phí năm thứ 2 nếu tổng chi tiêu năm đầu đạt 400.000.000 VND"
+      },
+      "doc_id": "KB-CARD-INFINITE"
+    }
+  ]
+}

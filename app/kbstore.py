@@ -18,13 +18,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import loaders
+from .ingest import extract as ingest_extract
 from .retriever import KnowledgeBase, _parse_document, parse_text
 
 # Filenames are restricted to a conservative character set and must be a bare
 # name - no directory component at all. Checking for ".." is not enough on its
 # own (absolute paths, alternate separators, and NTFS streams all bypass it),
 # so this is an allowlist rather than a denylist.
-_EXTENSIONS = "|".join(ext.lstrip(".") for ext in loaders.SUPPORTED)
+_EXTENSIONS = "|".join(ext.lstrip(".") for ext in ingest_extract.SUPPORTED)
 FILENAME_RE = re.compile(
     rf"^[A-Za-z0-9][A-Za-z0-9._-]{{0,63}}\.({_EXTENSIONS})$", re.IGNORECASE
 )
@@ -86,7 +87,7 @@ class KnowledgeBaseStore:
         if not FILENAME_RE.match(name):
             raise KBError(
                 "Filename must be 1-64 characters of letters, digits, dot, "
-                f"dash or underscore, and end in {' / '.join(loaders.SUPPORTED)}"
+                f"dash or underscore, and end in {' / '.join(ingest_extract.SUPPORTED)}"
             )
         if name.rsplit(".", 1)[0].split(".")[0].lower() in _RESERVED_STEMS:
             raise KBError(f"{name} is a reserved device name on Windows")
@@ -208,7 +209,7 @@ class KnowledgeBaseStore:
         self._check_size(len(data))
 
         try:
-            text = loaders.decode_upload(path.name, data)
+            text = ingest_extract.extract_text(path.name, data)
         except loaders.UnsupportedDocument as exc:
             raise KBError(str(exc)) from exc
 

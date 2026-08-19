@@ -67,6 +67,13 @@ def split_mention(text: str) -> tuple[str | None, str]:
 _FLOW_LABELS = {
     "verify": "xác minh danh tính",
     "block_card": "khóa thẻ",
+    "freeze_card": "tạm khóa thẻ",
+    "unfreeze_card": "mở khóa thẻ",
+    "cross_sell_interest": "tìm ưu đãi phù hợp",
+    "card_close": "đóng thẻ",
+    "card_limit_adjust": "điều chỉnh hạn mức",
+    "reward_inquiry": "xem quyền lợi thẻ",
+    "product_comparison": "so sánh sản phẩm",
 }
 
 
@@ -295,7 +302,7 @@ class Router:
                                       result.sources[0]["heading"].lower(),
                                       detail=result.sources[0]["citation"])
         elif result.route == "deterministic" and result.intent in (
-                "card_offers", "activate_card"):
+                "card_offers", "activate_card", "cross_sell_interest", "reward_inquiry"):
             memory_mod.store.remember(session.customer_id, "campaign", result.intent)
 
     # -- routing ----------------------------------------------------------
@@ -501,7 +508,7 @@ class Router:
             + (f"; runner-up {prediction.runner_up} @ "
                f"{prediction.runner_up_confidence:.2f}" if prediction.runner_up else ""))
 
-        if prediction.is_high_confidence and prediction.intent != "knowledge_query":
+        if prediction.is_high_confidence and prediction.intent not in ("knowledge_query", "product_faq"):
             flow = flows.handle(session, prediction.intent, text)
             if flow.handled:
                 self.trace.decide(

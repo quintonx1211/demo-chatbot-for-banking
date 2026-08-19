@@ -12,18 +12,17 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from . import memory
+from . import cards, memory
 from .campaigns import CampaignBook
 from . import db
+from .nlu import PERSONAL_INTENTS
+from .rules_engine import ENGINE
 from .session import Session
 
 CAMPAIGNS = CampaignBook()
 
 # Flows that must not run for an unverified caller.
-PROTECTED_FLOWS = {"balance_inquiry", "block_card", "loan_status",
-                   "transaction_history", "account_summary",
-                   "activate_card", "card_offers",
-                   "freeze_card", "unfreeze_card"}
+PROTECTED_FLOWS = PERSONAL_INTENTS
 
 
 @dataclass
@@ -484,6 +483,145 @@ def _match_card(cards: list[dict], text: str) -> dict | None:
     return None
 
 
+# -- new flows (product comparison, cross-sell, card close, limit adjust) --
+
+_AMOUNT_RE = re.compile(r"(\d[\d.,]*)\s*(triệu|tr\b|million)?", re.IGNORECASE)
+
+
+def _parse_amount(text: str) -> float | None:
+    match = _AMOUNT_RE.search(text or "")
+    if not match:
+        return None
+    digits = match.group(1).replace(".", "").replace(",", "")
+    if not digits.isdigit():
+        return None
+    value = float(digits)
+    if match.group(2):
+        value *= 1_000_000
+    return value
+
+
+def _render_match(card: dict, match) -> FlowResult:
+    lines = [f"{card['name']} phù hợp với điều bạn vừa nói:", ""]
+    for line in match.matched_lines:
+        lines.append(f"- {line.text}")
+    lines.append("")
+    lines.append(f"_{match.disclaimer}_")
+    return FlowResult(text="\n".join(lines), note="cross_sell_matched:" + card["id"])
+
+
+def _product_comparison(text: str) -> FlowResult:
+    mentioned = ENGINE.mentions(text)
+    if len(mentioned) < 2:
+        return FlowResult(text="", handled=False)
+    mentioned = mentioned[:3]
+    lines = [f"So sánh {' và '.join(p['name'] for p in mentioned)}:", ""]
+    for product in mentioned:
+        fee = product.get("annual_fee", {})
+        lines.append(f"**{product['name']}**")
+        lines.append(f"- {product['value_proposition']}")
+        lines.append(f"- Phí thường niên: {fee.get('amount', '')} ({fee.get('waiver_condition', '')})")
+        lines.append("")
+    return FlowResult(text="\n".join(lines).strip(), note="product_comparison")
+
+
+def _cross_sell_interest(session: Session, text: str) -> FlowResult:
+    profile = session.customer
+    card = ENGINE.card_for_segment(profile.get("segment"))
+    if not card:
+        return FlowResult(
+            text=f"Tôi chưa xác định được thẻ phù hợp với hồ sơ của {_first_name(profile)}.",
+            note="cross_sell_no_card",
+        )
+    already_asked = session.slots.get("cross_sell_asked") == "1"
+    interest_text = text.strip() or " ".join(profile.get("stated_interests") or [])
+    if interest_text:
+        match = ENGINE.explain_fit(card, interest_text)
+        specific = any(line.source != "value_proposition" for line in match.matched_lines)
+        if specific or already_asked or profile.get("stated_interests"):
+            session.reset_flow()
+            return _render_match(card, match)
+    session.pending_flow = "cross_sell_interest"
+    session.slots["cross_sell_asked"] = "1"
+    return FlowResult(
+        text=(f"{_first_name(profile)} quan tâm nhất điều gì: mua sắm online, "
+              "ăn uống, du lịch, hay chơi golf?"),
+        note="cross_sell_ask_interest",
+    )
+
+
+def _reward_inquiry(session: Session) -> FlowResult:
+    profile = session.customer
+    card = ENGINE.card_for_segment(profile.get("segment"))
+    if not card:
+        return FlowResult(
+            text=f"Tôi chưa xác định được thẻ phù hợp với hồ sơ của {_first_name(profile)}.",
+            note="reward_inquiry_no_card",
+        )
+    lines = [f"Quyền lợi hiện có trên {card['name']}:", ""]
+    for line in card.get("reward_scheme", []):
+        lines.append(f"- {line}")
+    lines.append("")
+    lines.append(f"_{ENGINE._disclaimer_for(card)}_")
+    return FlowResult(text="\n".join(lines), note="reward_inquiry:" + card["id"])
+
+
+def _card_close(session: Session, text: str) -> FlowResult:
+    stage = session.slots.get("card_close_stage")
+    if stage == "await_confirm":
+        session.reset_flow()
+        if _NO_RE.search(text):
+            return FlowResult(text="Đã huỷ yêu cầu - thẻ của bạn vẫn hoạt động bình thường.",
+                              note="card_close_cancelled")
+        if not _YES_RE.search(text):
+            return FlowResult(text="Bạn xác nhận đóng thẻ không? Vui lòng trả lời có hoặc không.",
+                              note="card_close_unclear")
+        try:
+            result = cards.close_card(session.customer_id, session.session_id)
+        except cards.TransitionError as exc:
+            return FlowResult(text=str(exc), note="card_close_error")
+        return FlowResult(text=f"Đã đóng thẻ của bạn (mã tham chiếu {result['reference']}).",
+                          note="card_close_done")
+    card = cards.get_card(session.customer_id)
+    if not card or card["status"] != "active":
+        return FlowResult(text="Tôi không tìm thấy thẻ đang hoạt động nào trên hồ sơ của bạn.",
+                          note="card_close_none")
+    session.pending_flow = "card_close"
+    session.slots["card_close_stage"] = "await_confirm"
+    return FlowResult(text="Bạn có chắc muốn đóng thẻ này không? Vui lòng xác nhận có/không.",
+                      note="card_close_confirm")
+
+
+def _submit_limit_request(session: Session, amount: float | None) -> FlowResult:
+    if amount is None:
+        return FlowResult(text="Tôi chưa nhận được số hạn mức hợp lệ, bạn vui lòng thử lại.",
+                          note="card_limit_invalid")
+    try:
+        result = cards.request_limit_adjustment(session.customer_id, amount, session.session_id)
+    except cards.TransitionError as exc:
+        return FlowResult(text=str(exc), note="card_limit_error")
+    return FlowResult(
+        text=(f"Đã ghi nhận yêu cầu điều chỉnh hạn mức lên {_money(amount)} "
+              f"(mã tham chiếu {result['reference']}). Đây là yêu cầu chờ duyệt - "
+              "hạn mức hiện tại chưa thay đổi cho tới khi có kết quả xét duyệt."),
+        note="card_limit_requested",
+    )
+
+
+def _card_limit_adjust(session: Session, text: str) -> FlowResult:
+    stage = session.slots.get("limit_stage")
+    if stage == "await_amount":
+        amount = _parse_amount(text)
+        session.reset_flow()
+        return _submit_limit_request(session, amount)
+    amount = _parse_amount(text)
+    if amount is not None:
+        return _submit_limit_request(session, amount)
+    session.pending_flow = "card_limit_adjust"
+    session.slots["limit_stage"] = "await_amount"
+    return FlowResult(text="Bạn muốn hạn mức mới là bao nhiêu?", note="card_limit_ask_amount")
+
+
 # -- dispatch -------------------------------------------------------------
 
 def handle(session: Session, intent: str, text: str) -> FlowResult:
@@ -505,11 +643,22 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
         return _card_action(session, "freeze", text)
     if intent == "unfreeze_card":
         return _card_action(session, "unfreeze", text)
+    if intent == "product_comparison":
+        return _product_comparison(text)
+    if intent == "cross_sell_interest":
+        return _cross_sell_interest(session, text)
+    if intent == "reward_inquiry":
+        return _reward_inquiry(session)
+    if intent == "card_close":
+        return _card_close(session, text)
+    if intent == "card_limit_adjust":
+        return _card_limit_adjust(session, text)
     if intent == "greeting":
         return FlowResult(
             text=("Xin chào! Tôi là trợ lý ảo của Ngân hàng ABC. Tôi có thể "
                   "kiểm tra số dư và giao dịch, khóa thẻ mất cắp, tra cứu hồ sơ vay, "
-                  "hoặc trả lời câu hỏi về sản phẩm và phí dịch vụ. Bạn cần hỗ trợ gì?"),
+                  "so sánh sản phẩm, xem ưu đãi thẻ, hoặc hỗ trợ đóng thẻ và điều chỉnh hạn mức. "
+                  "Bạn cần hỗ trợ gì?"),
             note="greeting",
         )
     if intent == "activate_card":

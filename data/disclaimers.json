@@ -1,0 +1,44 @@
+{
+  "_comment": [
+    "Placeholder disclaimer wording - the client has not provided \"Approved",
+    "wording for product recommendations\" (checklist item 9). Every entry is",
+    "marked PLACEHOLDER and must be replaced with legal/compliance-approved",
+    "text before this demo is treated as anything more than a demo.",
+    "Written in Vietnamese because `text` is appended directly to a",
+    "customer-facing reply - same convention as the KB documents."
+  ],
+  "disclaimers": {
+    "credit": {
+      "status": "PLACEHOLDER - chờ khách xác nhận wording chính thức",
+      "text": "Đây là thông tin tham khảo dựa trên hồ sơ hiện có của bạn. Lãi suất, hạn mức và kết quả phê duyệt cuối cùng tuân theo chính sách tín dụng và thẩm định thực tế của ngân hàng tại thời điểm đăng ký."
+    },
+    "loan": {
+      "status": "PLACEHOLDER - chờ khách xác nhận wording chính thức",
+      "text": "Đây là thông tin tham khảo dựa trên hồ sơ hiện có của bạn. Lãi suất và kết quả phê duyệt cuối cùng tuân theo chính sách tín dụng và thẩm định thực tế của ngân hàng tại thời điểm đăng ký."
+    },
+    "mortgage": {
+      "status": "PLACEHOLDER - chờ khách xác nhận wording chính thức",
+      "text": "Đây là thông tin tham khảo dựa trên hồ sơ hiện có của bạn. Điều kiện cuối cùng phụ thuộc vào kết quả thẩm định tài sản và thẩm định tín dụng của ngân hàng."
+    },
+    "insurance": {
+      "status": "PLACEHOLDER - chờ khách xác nhận wording chính thức",
+      "text": "Sản phẩm bảo hiểm này được phân phối qua đối tác bảo hiểm liên kết. Vui lòng tham khảo hợp đồng bảo hiểm chính thức và trao đổi với tư vấn viên được cấp phép trước khi quyết định tham gia."
+    },
+    "investment": {
+      "status": "PLACEHOLDER - chờ khách xác nhận wording chính thức",
+      "text": "Sản phẩm đầu tư tiềm ẩn rủi ro, giá trị có thể tăng hoặc giảm. Đây không phải khuyến nghị đầu tư cá nhân hoá - vui lòng hoàn thành đánh giá mức độ phù hợp với chuyên viên tư vấn được cấp phép trước khi đầu tư."
+    },
+    "savings": {
+      "status": "PLACEHOLDER - chờ khách xác nhận wording chính thức",
+      "text": "Lãi suất hiển thị là mức hiện tại và có thể thay đổi. Vui lòng kiểm tra biểu lãi suất mới nhất trên ứng dụng."
+    },
+    "account": {
+      "status": "PLACEHOLDER - chờ khách xác nhận wording chính thức",
+      "text": "Điều kiện hiển thị là thông tin hiện tại và có thể thay đổi mà không cần báo trước."
+    },
+    "generic": {
+      "status": "PLACEHOLDER - chờ khách xác nhận wording chính thức",
+      "text": "Đây là gợi ý tham khảo, không phải lời chào bán chính thức. Điều kiện và điều khoản cuối cùng được xác nhận khi đăng ký."
+    }
+  }
+}

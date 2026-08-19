@@ -144,8 +144,16 @@ class RetrievedPassage:
     rerank: float | None = None   # LLM relevance score, when reranking is on
 
 
-def parse_text(raw: str, source: str, stem: str) -> list[Passage]:
-    """Turn a document's text into retrievable passages."""
+def parse_text(raw: str, source: str, stem: str, chunk_fn=None) -> list[Passage]:
+    """Turn a document's text into retrievable passages.
+
+    `chunk_fn` defaults to `chunker.chunk_document` - the strategy every
+    passage in this app has always been scored and cited against. It exists
+    as a parameter so `tests/eval_chunking.py` can build a second index with
+    `app.ingest.semantic_chunk.semantic_chunk_document` on the same source
+    files and compare, without duplicating anything else in this module.
+    """
+    chunk_fn = chunk_fn or chunker.chunk_document
     title = chunker.extract_title(raw) or stem
     doc_id = chunker.extract_doc_id(raw) or stem.upper()
 
@@ -160,12 +168,22 @@ def parse_text(raw: str, source: str, stem: str) -> list[Passage]:
             heading_path=chunk.heading_path,
             chunk_index=chunk.index,
         )
-        for chunk in chunker.chunk_document(chunker.strip_metadata(raw))
+        for chunk in chunk_fn(chunker.strip_metadata(raw))
     ]
 
 
-def _parse_document(path: Path) -> list[Passage]:
-    return parse_text(loaders.read_document(path), source=path.name, stem=path.stem)
+def _parse_document(path: Path, chunk_fn=None) -> list[Passage]:
+    if path.suffix.lower() == ".pdf":
+        # Lazy import: a repo without pdfplumber installed must still be able
+        # to import this module - the ImportError only happens if a .pdf is
+        # actually sitting in the KB directory, and surfaces as the same
+        # UnsupportedDocument `reload()` already skips over.
+        from .ingest import clean as _ingest_clean
+        from .ingest import extract as _ingest_extract
+        raw = _ingest_clean.clean_text(_ingest_extract.extract_pdf(path.read_bytes()))
+    else:
+        raw = loaders.read_document(path)
+    return parse_text(raw, source=path.name, stem=path.stem, chunk_fn=chunk_fn)
 
 
 class KnowledgeBase:
@@ -176,9 +194,13 @@ class KnowledgeBase:
     constructed once at import.
     """
 
-    def __init__(self, kb_dir: Path | None = None) -> None:
+    def __init__(self, kb_dir: Path | None = None, chunk_fn=None) -> None:
         self.kb_dir = kb_dir or KB_DIR
         self.kb_dir.mkdir(parents=True, exist_ok=True)
+        # None means "use chunker.chunk_document", same default `parse_text`
+        # falls back to - kept as None rather than resolved here so a
+        # `KnowledgeBase` always reports the same default its callers see.
+        self.chunk_fn = chunk_fn
         self._lock = RLock()
         self.passages: list[Passage] = []
         self._index: TfidfIndex | None = None
@@ -196,7 +218,7 @@ class KnowledgeBase:
             passages: list[Passage] = []
             for path in self.document_paths():
                 try:
-                    passages.extend(_parse_document(path))
+                    passages.extend(_parse_document(path, chunk_fn=self.chunk_fn))
                 except loaders.UnsupportedDocument:
                     # A file that cannot be read must not take the whole corpus
                     # down on reload - skip it and keep serving the rest.
@@ -299,7 +321,7 @@ class KnowledgeBase:
         """Every readable document in the knowledge-base directory, sorted."""
         return sorted(
             p for p in self.kb_dir.iterdir()
-            if p.is_file() and p.suffix.lower() in loaders.SUPPORTED
+            if p.is_file() and p.suffix.lower() in (*loaders.SUPPORTED, ".pdf")
         )
 
     @property

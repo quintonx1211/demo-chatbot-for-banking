@@ -333,6 +333,107 @@ INTENTS: dict[str, dict] = {
         ],
         "anchors": [],
     },
+    "product_faq": {
+        "utterances": [
+            "phí thường niên thẻ tín dụng là bao nhiêu",
+            "lãi suất vay mua nhà hiện nay bao nhiêu",
+            "mở tài khoản lương cần giấy tờ gì",
+            "hạn mức thẻ premier là bao nhiêu",
+            "tôi cần giấy tờ gì để vay tiêu dùng",
+            "phí quản lý quỹ đầu tư là bao nhiêu",
+            "what is the annual fee on the premier credit card",
+            "how do I apply for a personal loan",
+            "what documents do I need for a mortgage",
+            "what is the interest rate on savings",
+            "how does the travel insurance bundle work",
+            "what are the requirements for the mutual fund",
+        ],
+        "anchors": [],
+    },
+    "product_comparison": {
+        "utterances": [
+            "so sánh thẻ classic và thẻ premier",
+            "nên chọn vay tiêu dùng hay vay thế chấp",
+            "khác nhau giữa tiết kiệm thường và tiết kiệm cao cấp",
+            "compare the classic card and the premier card",
+            "which is better, personal loan or mortgage",
+            "what's the difference between basic and high-yield savings",
+        ],
+        "anchors": [
+            r"(so sánh|khác nhau|khác gì)[^?.]{0,40}(và|với)",
+            r"\b(compare|difference between|vs\.?|versus)\b",
+            r"nên chọn[^?.]{0,20}(hay|hoặc)",
+        ],
+    },
+    "cross_sell_interest": {
+        "utterances": [
+            "tôi hay mua sắm online, có ưu đãi gì không",
+            "tôi thích đi du lịch nước ngoài",
+            "tôi hay chơi golf, thẻ có ưu đãi gì cho golf không",
+            "tôi hay ăn uống nhà hàng, có hoàn tiền không",
+            "thẻ của tôi có ưu đãi gì phù hợp với tôi không",
+            "có ưu đãi nào phù hợp với sở thích của tôi không",
+            "I shop online a lot, any offers for that",
+            "I travel abroad frequently, what does my card offer",
+            "I play golf, are there any golf perks",
+            "I eat out a lot, is there cashback for that",
+            "what offers on my card fit my interests",
+        ],
+        "anchors": [
+            r"(tôi (hay|thích|thường))[^?.]{0,30}(mua sắm|du lịch|golf|ăn uống|giải trí)",
+            r"(ưu đãi|hoàn tiền)[^?.]{0,20}(phù hợp|cho (tôi|việc))",
+            r"\bi (shop|travel|play golf|eat out)\b",
+            r"\b(offers?|cashback|perks?)[^?.]{0,20}(fit|for) my\b",
+        ],
+    },
+    "card_close": {
+        "utterances": [
+            "tôi muốn đóng thẻ",
+            "hủy thẻ tín dụng của tôi",
+            "cho tôi ngừng sử dụng thẻ này",
+            "tôi không muốn dùng thẻ nữa, đóng giúp tôi",
+            "I want to close my card",
+            "cancel my credit card",
+            "please close this card for me",
+            "I don't want to use this card anymore, close it",
+        ],
+        "anchors": [
+            r"(đóng|hủy|huỷ)[^?.]{0,10}thẻ",
+            r"\b(close|cancel)\b[^?.]{0,12}\b(my |this )?card\b",
+        ],
+    },
+    "card_limit_adjust": {
+        "utterances": [
+            "tôi muốn tăng hạn mức thẻ",
+            "xin điều chỉnh hạn mức tín dụng",
+            "tôi muốn xin nâng hạn mức lên",
+            "giảm hạn mức thẻ của tôi xuống",
+            "I want to increase my credit limit",
+            "please adjust my card's credit limit",
+            "can I request a higher limit",
+            "lower my credit limit please",
+        ],
+        "anchors": [
+            r"(tăng|giảm|điều chỉnh|nâng)[^?.]{0,12}hạn mức",
+            r"\b(increase|adjust|raise|lower|request a (higher|lower))\b[^?.]{0,16}\b(limit)\b",
+        ],
+    },
+    "reward_inquiry": {
+        "utterances": [
+            "thẻ của tôi có ưu đãi gì",
+            "tôi được hoàn tiền bao nhiêu",
+            "đặc quyền của thẻ tôi là gì",
+            "quyền lợi thẻ của tôi gồm những gì",
+            "what rewards does my card have",
+            "how much cashback do I get",
+            "what perks come with my card",
+            "what benefits does my card include",
+        ],
+        "anchors": [
+            r"(ưu đãi|đặc quyền|quyền lợi|hoàn tiền)[^?.]{0,16}(của tôi|thẻ tôi)",
+            r"\b(rewards?|perks?|benefits?|cashback)\b[^?.]{0,16}\b(my card|do i get|include)\b",
+        ],
+    },
 }
 
 
@@ -342,6 +443,7 @@ INTENTS: dict[str, dict] = {
 PERSONAL_INTENTS = frozenset({
     "balance_inquiry", "transaction_history", "loan_status",
     "account_summary", "block_card", "freeze_card", "unfreeze_card",
+    "cross_sell_interest", "card_close", "card_limit_adjust", "reward_inquiry",
 })
 
 # Questions about how something *works*, as opposed to requests for a
