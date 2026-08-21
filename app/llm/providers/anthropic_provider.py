@@ -35,6 +35,14 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
     client = anthropic.Anthropic()
     model = model_name()
 
+    if request.messages:
+        api_messages = [
+            {"role": m["role"], "content": m["content"]}
+            for m in request.messages
+        ]
+    else:
+        api_messages = [{"role": "user", "content": request.user}]
+
     try:
         response = client.messages.create(
             model=model,
@@ -47,7 +55,7 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
                 "cache_control": {"type": "ephemeral"},
             }],
             output_config={"effort": _EFFORT.get(effort, "low")},
-            messages=[{"role": "user", "content": request.user}],
+            messages=api_messages,
             # Omitted entirely when unset, so the provider default stands.
             **({"temperature": request.temperature}
                if request.temperature is not None else {}),

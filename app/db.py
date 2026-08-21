@@ -371,7 +371,7 @@ def _refusal(current: str, action: str) -> str:
 def _reference(action: str, card_id: str) -> str:
     prefix = {"report_lost": "BLK", "freeze": "FRZ", "unfreeze": "UNF",
               "activate": "ACT", "reactivate": "RAC"}[action]
-    return f"{prefix}-{card_id[-4:]}-{datetime.now(timezone.utc):%m%d%H%M}"
+    return f"{prefix}-{card_id[-4:]}-{datetime.now(timezone.utc):%m%d%H%M%S}"
 
 
 def _build_replacement(cards: list[dict], card: dict, now: str) -> dict:

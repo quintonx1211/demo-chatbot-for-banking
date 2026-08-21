@@ -60,15 +60,20 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
     client = OpenAI(base_url=base_url()) if base_url() else OpenAI()
     model = model_name()
 
+    if request.messages:
+        msgs = [{"role": "system", "content": request.system}] + request.messages
+    else:
+        msgs = [
+            {"role": "system", "content": request.system},
+            {"role": "user", "content": request.user},
+        ]
+
     kwargs: dict = {
         "model": model,
         # Newer models reject `max_tokens` in favour of this; it also counts
         # reasoning tokens, which is why the budget in base.py is generous.
         "max_completion_tokens": request.max_tokens,
-        "messages": [
-            {"role": "system", "content": request.system},
-            {"role": "user", "content": request.user},
-        ],
+        "messages": msgs,
     }
     if os.environ.get("LLM_REASONING_EFFORT"):
         kwargs["reasoning_effort"] = _EFFORT.get(effort, "low")

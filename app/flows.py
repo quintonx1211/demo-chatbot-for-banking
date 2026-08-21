@@ -132,13 +132,23 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
     greeting = f"Cảm ơn, {_first_name(match)} - bạn đã được xác minh. "
     if recalled:
         greeting += recalled + " "
+
+    # Scenario 2 – Automated Cross-Selling: raise campaign offer immediately
+    # after identity is established so the customer doesn't have to ask.
+    # handle() runs first so that flows like _card_offers can set campaign_offered
+    # before proactive_offer checks it — preventing the same offer from appearing twice.
     if target:
         follow_up = handle(session, target, "")
-        return FlowResult(text=greeting + follow_up.text,
+        proactive = proactive_offer(session)
+        proactive_text = proactive.text if proactive else ""
+        return FlowResult(text=greeting + follow_up.text + proactive_text,
                           escalate=follow_up.escalate,
                           escalation_reason=follow_up.escalation_reason,
                           note="verified_then_" + target)
-    return FlowResult(text=greeting + "Tôi có thể giúp gì cho bạn?", note="verified")
+    proactive = proactive_offer(session)
+    proactive_text = proactive.text if proactive else ""
+    return FlowResult(text=greeting + "Tôi có thể giúp gì cho bạn?" + proactive_text,
+                      note="verified")
 
 
 # -- account flows --------------------------------------------------------
@@ -248,9 +258,11 @@ def _card_offers(session: Session) -> FlowResult:
             note="offers_none",
         )
 
+    # Mark as shown so proactive_offer won't repeat the same offers below.
+    session.slots["campaign_offered"] = "1"
+
     lines = ["Đây là các ưu đãi hiện có trên tài khoản của bạn hôm nay:", ""]
     for offer in offers:
-        lines.append(f"**{offer.name}**")
         lines.append(offer.body)
         if offer.deeplink:
             lines.append(f"→ {offer.cta}: {offer.deeplink}")
@@ -269,23 +281,23 @@ def _card_offers(session: Session) -> FlowResult:
 def proactive_offer(session: Session) -> FlowResult | None:
     """An offer worth raising unprompted, once identity is established.
 
-    Only service-blocking situations qualify - a card that will not work
-    because it was never activated, or one that has gone dormant. Cross-sell is
-    never volunteered: a customer who came to ask about a fee has not asked to
-    be sold to, and interrupting them with an upgrade is how these systems get
-    switched off.
+    Activation and reactivation are raised because they are service-blocking.
+    Cross-sell offers are also raised for customers in the bank's target list
+    (Scenario 2 – Automated Cross-Selling): the bot proactively mentions the
+    recommended card and then hands off to _cross_sell_interest to ask about
+    spending interests before explaining the fit.
     """
     if session.slots.get("campaign_offered"):
         return None
     offers = [o for o in CAMPAIGNS.offers_for(session.customer_id)
-              if o.type in ("activation", "reactivation")]
+              if o.type in ("activation", "reactivation", "cross_sell")]
     if not offers:
         return None
 
     session.slots["campaign_offered"] = "1"
     offer = offers[0]
     return FlowResult(
-        text=(f"\n\n---\n**Nhân tiện:** {offer.body}\n\n"
+        text=(f"\n\n**Nhân tiện:** **{offer.name}** – {offer.hook}\n\n"
               f"→ {offer.cta}: {offer.deeplink}"),
         note=f"proactive:{offer.campaign_id}",
     )
@@ -502,11 +514,9 @@ def _parse_amount(text: str) -> float | None:
 
 
 def _render_match(card: dict, match) -> FlowResult:
-    lines = [f"{card['name']} phù hợp với điều bạn vừa nói:", ""]
+    lines = [f"{card['name']} phù hợp với bạn:", ""]
     for line in match.matched_lines:
         lines.append(f"- {line.text}")
-    lines.append("")
-    lines.append(f"_{match.disclaimer}_")
     return FlowResult(text="\n".join(lines), note="cross_sell_matched:" + card["id"])
 
 
@@ -526,27 +536,61 @@ def _product_comparison(text: str) -> FlowResult:
 
 
 def _cross_sell_interest(session: Session, text: str) -> FlowResult:
-    profile = session.customer
-    card = ENGINE.card_for_segment(profile.get("segment"))
-    if not card:
-        return FlowResult(
-            text=f"Tôi chưa xác định được thẻ phù hợp với hồ sơ của {_first_name(profile)}.",
-            note="cross_sell_no_card",
-        )
+    # Two modes depending on whether identity has been verified:
+    #
+    # Verified  → segment-locked: the bank already assigned a card tier to this
+    #             customer; explain why that specific card fits what they said.
+    # Unverified → catalogue search: no segment known, so score the stated
+    #             interest against all four products and recommend the best fit.
+    #             (Scenario 1 – Customer Service: customer explores without login.)
     already_asked = session.slots.get("cross_sell_asked") == "1"
-    interest_text = text.strip() or " ".join(profile.get("stated_interests") or [])
-    if interest_text:
-        match = ENGINE.explain_fit(card, interest_text)
-        specific = any(line.source != "value_proposition" for line in match.matched_lines)
-        if specific or already_asked or profile.get("stated_interests"):
+
+    if session.verified and session.customer:
+        profile = session.customer
+        card = ENGINE.card_for_segment(profile.get("segment"))
+        if not card:
+            return FlowResult(
+                text="Tôi chưa xác định được thẻ phù hợp với hồ sơ của bạn.",
+                note="cross_sell_no_card",
+            )
+        interest_text = text.strip() or " ".join(profile.get("stated_interests") or [])
+        if interest_text:
+            match = ENGINE.explain_fit(card, interest_text)
+            specific = any(line.source != "value_proposition" for line in match.matched_lines)
+            if specific or already_asked or profile.get("stated_interests") or interest_text:
+                session.reset_flow()
+                return _render_match(card, match)
+        session.pending_flow = "cross_sell_interest"
+        session.slots["cross_sell_asked"] = "1"
+        return FlowResult(
+            text=(f"{_first_name(profile)} hay mua hàng trên nền tảng nào, "
+                  "hay thường chi tiêu nhiều ở đâu nhất?"),
+            note="cross_sell_ask_interest_verified",
+        )
+
+    # Unverified path — ask first then recommend, UNLESS the message is already
+    # a direct recommendation request ("thẻ nào / thẻ gì / nên dùng thẻ...").
+    _DIRECT_Q = re.compile(r"thẻ nào|thẻ gì|nên dùng thẻ|gợi ý thẻ", re.IGNORECASE)
+    interest_text = text.strip()
+
+    if interest_text and (_DIRECT_Q.search(interest_text) or already_asked):
+        best = ENGINE.recommend_all(interest_text)
+        if best is not None:
             session.reset_flow()
-            return _render_match(card, match)
+            return _render_match(best["card"], best["match"])
+        if already_asked:
+            session.reset_flow()
+            return FlowResult(
+                text="Tôi chưa tìm được sản phẩm thẻ phù hợp nhất với thông tin bạn cung cấp. "
+                     "Bạn có thể mô tả thêm về thói quen chi tiêu không?",
+                note="cross_sell_no_match",
+            )
+
     session.pending_flow = "cross_sell_interest"
     session.slots["cross_sell_asked"] = "1"
     return FlowResult(
-        text=(f"{_first_name(profile)} quan tâm nhất điều gì: mua sắm online, "
-              "ăn uống, du lịch, hay chơi golf?"),
-        note="cross_sell_ask_interest",
+        text="Bạn hay mua hàng trên nền tảng nào, hay thường chi tiêu nhiều ở đâu nhất?",
+        note="cross_sell_ask_interest_unverified",
     )
 
 
@@ -561,8 +605,6 @@ def _reward_inquiry(session: Session) -> FlowResult:
     lines = [f"Quyền lợi hiện có trên {card['name']}:", ""]
     for line in card.get("reward_scheme", []):
         lines.append(f"- {line}")
-    lines.append("")
-    lines.append(f"_{ENGINE._disclaimer_for(card)}_")
     return FlowResult(text="\n".join(lines), note="reward_inquiry:" + card["id"])
 
 
@@ -583,7 +625,13 @@ def _card_close(session: Session, text: str) -> FlowResult:
         return FlowResult(text=f"Đã đóng thẻ của bạn (mã tham chiếu {result['reference']}).",
                           note="card_close_done")
     card = cards.get_card(session.customer_id)
-    if not card or card["status"] != "active":
+    if not card:
+        return FlowResult(text="Tôi không tìm thấy thẻ nào trên hồ sơ của bạn.",
+                          note="card_close_none")
+    if card["status"] == "closed":
+        return FlowResult(text="Thẻ này đã được đóng trước đó rồi.",
+                          note="card_close_already_closed")
+    if card["status"] != "active":
         return FlowResult(text="Tôi không tìm thấy thẻ đang hoạt động nào trên hồ sơ của bạn.",
                           note="card_close_none")
     session.pending_flow = "card_close"
@@ -715,4 +763,15 @@ def continue_pending(session: Session, text: str) -> FlowResult | None:
     # whichever one happened to be hard-coded here.
     if session.pending_flow in CARD_ACTIONS:
         return _card_action(session, session.pending_flow, text)
+    # Card close and limit adjust each have their own confirmation step.
+    # Without these, a "có" reply after the confirmation prompt falls through
+    # to NLU which cannot classify it correctly.
+    if session.pending_flow == "card_close":
+        return _card_close(session, text)
+    if session.pending_flow == "card_limit_adjust":
+        return _card_limit_adjust(session, text)
+    # Cross-sell interest: the bot asked about spending preference and needs the
+    # customer's reply even when NLU cannot classify a bare "mua sắm online".
+    if session.pending_flow == "cross_sell_interest":
+        return _cross_sell_interest(session, text)
     return None

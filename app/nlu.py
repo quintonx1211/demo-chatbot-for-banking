@@ -32,6 +32,11 @@ INTENTS: dict[str, dict] = {
             "xem số dư tài khoản",
             "tôi còn bao nhiêu tiền trong tài khoản",
             "số dư khả dụng của tôi",
+            "kiểm tra tài khoản của tôi",
+            "xem tài khoản của tôi",
+            "tài khoản của tôi",
+            "tôi muốn kiểm tra tài khoản",
+            "xem thông tin tài khoản",
             "what is my account balance",
             "how much money do I have",
             "check my balance",
@@ -39,6 +44,8 @@ INTENTS: dict[str, dict] = {
             "show me my available funds",
             "balance on my checking account",
             "how much is in my savings",
+            "check my account",
+            "view my account",
         ],
         # Anchored on possession, not on the word "balance". A bare \bbalance\b
         # also fires on "what counts as an average daily balance?", which is a
@@ -46,10 +53,14 @@ INTENTS: dict[str, dict] = {
         # see one - and routing it here sends the customer into an identity
         # check for information that needs no identity at all.
         "anchors": [
-            r"số dư",r"\b(my|our)\b[^?.]{0,24}\bbalance",
-                    r"\bbalance\b[^?.]{0,20}\b(my|our)\b",
-                    r"^\s*(check|show|what.s)\b[^?.]{0,16}\bbalance",
-                    r"how much (money|funds) do i have"],
+            r"số dư",
+            r"kiểm tra tài khoản",
+            r"xem tài khoản",
+            r"tài khoản của (tôi|mình|anh|chị)",
+            r"\b(my|our)\b[^?.]{0,24}\bbalance",
+            r"\bbalance\b[^?.]{0,20}\b(my|our)\b",
+            r"^\s*(check|show|what.s)\b[^?.]{0,16}\bbalance",
+            r"how much (money|funds) do i have"],
     },
     "block_card": {
         "utterances": [
@@ -231,13 +242,14 @@ INTENTS: dict[str, dict] = {
             "am I eligible for an upgrade",
             "any promotions for me",
         ],
-        # "offer" as a noun the customer wants to receive, never as the verb
-        # in "do you offer travel insurance?" - that asks what the bank sells
-        # and belongs in the knowledge base. Same mistake as matching
-        # "someone" for a handoff: the word is not the intent, the grammar
-        # around it is.
+        # "offer" as a noun the customer wants to receive, not a product FAQ.
+        # "thẻ Platinum có ưu đãi gì khi mở thẻ lần đầu?" is a product FAQ
+        # and must NOT match here – the Vietnamese anchor now requires a
+        # personal possessive ("của tôi", "cho tôi") near "ưu đãi" so that
+        # generic product questions fall through to the RAG layer.
         "anchors": [
-            r"(ưu đãi|khuyến mãi|khuyến mại)",
+            r"(tôi có|của tôi|dành cho tôi)[^?.]{0,20}(ưu đãi|khuyến mãi|khuyến mại)",
+            r"(ưu đãi|khuyến mãi|khuyến mại)[^?.]{0,20}(của tôi|cho tôi|nào không|có không)",
             r"nâng hạng",
             r"(offers?|deals?|promotions?|rewards?)[^?.]{0,20}"
             r"(for me|available|on my|i can get)",
@@ -355,12 +367,16 @@ INTENTS: dict[str, dict] = {
             "so sánh thẻ classic và thẻ premier",
             "nên chọn vay tiêu dùng hay vay thế chấp",
             "khác nhau giữa tiết kiệm thường và tiết kiệm cao cấp",
+            "Classic và Platinum khác nhau chỗ nào",
+            "thẻ Classic và thẻ Platinum khác nhau gì",
             "compare the classic card and the premier card",
             "which is better, personal loan or mortgage",
             "what's the difference between basic and high-yield savings",
+            "what is the difference between Classic and Platinum",
         ],
         "anchors": [
             r"(so sánh|khác nhau|khác gì)[^?.]{0,40}(và|với)",
+            r"(và|với)[^?.]{0,40}(khác nhau|khác gì|chỗ nào)",
             r"\b(compare|difference between|vs\.?|versus)\b",
             r"nên chọn[^?.]{0,20}(hay|hoặc)",
         ],
@@ -373,16 +389,32 @@ INTENTS: dict[str, dict] = {
             "tôi hay ăn uống nhà hàng, có hoàn tiền không",
             "thẻ của tôi có ưu đãi gì phù hợp với tôi không",
             "có ưu đãi nào phù hợp với sở thích của tôi không",
+            "tôi muốn tìm thẻ phù hợp với chi tiêu của mình",
+            "thẻ nào phù hợp với tôi",
+            "tôi muốn chọn thẻ phù hợp với nhu cầu",
+            "tôi muốn tìm thẻ tín dụng phù hợp",
+            "giúp tôi chọn thẻ phù hợp",
+            "tôi muốn biết thêm về thẻ này",
+            "tôi muốn tìm hiểu thêm về thẻ",
+            "cho tôi biết thêm về thẻ đó",
+            "I want to know more about this card",
+            "tell me more about that card",
             "I shop online a lot, any offers for that",
             "I travel abroad frequently, what does my card offer",
             "I play golf, are there any golf perks",
             "I eat out a lot, is there cashback for that",
             "what offers on my card fit my interests",
+            "which card suits my spending",
+            "help me find the right card",
         ],
         "anchors": [
             r"(tôi (hay|thích|thường))[^?.]{0,30}(mua sắm|du lịch|golf|ăn uống|giải trí)",
+            r"(tìm|chọn|tư vấn)[^?.]{0,20}thẻ[^?.]{0,20}(phù hợp|nào|tốt|đúng)",
+            r"thẻ nào[^?.]{0,20}(phù hợp|tốt|nên chọn)",
+            r"(biết thêm|tìm hiểu thêm)[^?.]{0,20}thẻ",
             r"(ưu đãi|hoàn tiền)[^?.]{0,20}(phù hợp|cho (tôi|việc))",
             r"\bi (shop|travel|play golf|eat out)\b",
+            r"\b(which|what) card[^?.]{0,20}(suit|fit|match|right for)\b",
             r"\b(offers?|cashback|perks?)[^?.]{0,20}(fit|for) my\b",
         ],
     },
@@ -443,7 +475,11 @@ INTENTS: dict[str, dict] = {
 PERSONAL_INTENTS = frozenset({
     "balance_inquiry", "transaction_history", "loan_status",
     "account_summary", "block_card", "freeze_card", "unfreeze_card",
-    "cross_sell_interest", "card_close", "card_limit_adjust", "reward_inquiry",
+    # cross_sell_interest is intentionally NOT here: Scenario 1 (Customer
+    # Service) lets an unverified customer ask "which card fits my spending?"
+    # without an identity check.  Verified customers get a personalised answer
+    # (segment-locked); unverified customers get a catalogue recommendation.
+    "card_close", "card_limit_adjust", "reward_inquiry", "card_offers",
 })
 
 # Questions about how something *works*, as opposed to requests for a

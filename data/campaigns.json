@@ -6,10 +6,16 @@
     "this file, which is why those turns are deterministic and auditable -",
     "the bot never decides who is eligible, it only reads who was selected.",
     "",
+    "Products reference the real catalogue (data/products.json):",
+    "  CARD-CLASSIC   → Mass segment",
+    "  CARD-PLATINUM  → Mass Affluent segment",
+    "  CARD-SIGNATURE → Affluent segment",
+    "  CARD-INFINITE  → Private segment",
+    "",
     "generated_at is shown to the customer-facing agent so the age of the data",
     "is visible rather than assumed."
   ],
-  "generated_at": "2026-08-04T02:00:00Z",
+  "generated_at": "2026-08-19T02:00:00Z",
   "source": "Trích xuất CRM hằng ngày v3",
   "campaigns": {
     "CARD-ACTIVATION": {
@@ -28,35 +34,27 @@
       "cta": "Chỉ cần dùng thẻ một lần để kích hoạt lại",
       "deeplink": "https://app.example-bank.test/cards/reactivate"
     },
-    "XS-TRAVEL-2026Q3": {
-      "name": "Nâng hạng Thẻ Premier Travel",
+    "XS-CLASSIC-2026Q3": {
+      "name": "Mở thẻ Classic – Hoàn tiền mua sắm & ăn uống",
       "type": "cross_sell",
       "segment": "MASS",
-      "product": "Thẻ Premier Travel",
-      "hook": "miễn phí chuyển đổi ngoại tệ",
-      "detail": "Thẻ hiện tại của anh/chị chịu phí 2,5% cho giao dịch bằng ngoại tệ. Thẻ Premier Travel miễn hoàn toàn phí chuyển đổi ngoại tệ, phí thường niên 2.200.000 VND.",
-      "cta": "Xem anh/chị có đủ điều kiện không",
-      "deeplink": "https://app.example-bank.test/cards/premier-travel"
+      "product": "Thẻ Classic",
+      "product_id": "CARD-CLASSIC",
+      "hook": "hoàn tiền 5% sàn thương mại điện tử & 3% ăn uống hàng ngày",
+      "detail": "Ngân hàng đang mời bạn mở **Thẻ Classic** – thẻ hoàn tiền dành cho chi tiêu online và thiết yếu hàng ngày. Hoàn tiền 10% cho 3 giao dịch đầu tiên trong 30 ngày (tối đa 300.000 VND). Phí thường niên 199.000 VND, miễn phí năm 2 nếu chi tiêu trên 30 triệu/năm.",
+      "cta": "Xem thông tin và điều kiện mở thẻ",
+      "deeplink": "https://app.example-bank.test/cards/classic/apply"
     },
-    "XS-CASHBACK-2026Q3": {
-      "name": "Thẻ Hoàn tiền Hằng ngày",
+    "XS-PLATINUM-2026Q3": {
+      "name": "Nâng hạng lên Thẻ Platinum – Lifestyle toàn diện",
       "type": "cross_sell",
-      "segment": "MASS",
-      "product": "Thẻ Hoàn tiền Hằng ngày",
-      "hook": "hoàn 2% cho siêu thị và xăng dầu",
-      "detail": "Theo thói quen chi tiêu của anh/chị, Thẻ Hoàn tiền Hằng ngày sẽ hoàn lại khoảng 420.000 VND mỗi tháng. Miễn phí thường niên.",
-      "cta": "Xem anh/chị có đủ điều kiện không",
-      "deeplink": "https://app.example-bank.test/cards/cashback"
-    },
-    "XS-CREDIT-LIMIT-2026Q3": {
-      "name": "Xem xét nâng hạn mức tín dụng",
-      "type": "cross_sell",
-      "segment": "MASS",
-      "product": "Nâng hạn mức tín dụng",
-      "hook": "anh/chị có thể đủ điều kiện nâng hạn mức",
-      "detail": "Tài khoản của anh/chị duy trì tốt trong 18 tháng qua. Việc xem xét hạn mức mất khoảng hai phút và không ảnh hưởng tới điểm tín dụng.",
-      "cta": "Bắt đầu xem xét hạn mức",
-      "deeplink": "https://app.example-bank.test/cards/limit-review"
+      "segment": "MASS_AFFLUENT",
+      "product": "Thẻ Platinum",
+      "product_id": "CARD-PLATINUM",
+      "hook": "hoàn tiền 5% ăn uống, di chuyển & rạp chiếu phim",
+      "detail": "Ngân hàng đang mời bạn mở **Thẻ Platinum** – giải pháp một thẻ cho người có phong cách sống năng động. Hoàn tiền 10% cho 5 giao dịch đầu tiên trong 30 ngày (tối đa 500.000 VND). Phí thường niên 399.000 VND, miễn phí năm 2 nếu chi tiêu trên 60 triệu/năm.",
+      "cta": "Xem thông tin và điều kiện mở thẻ",
+      "deeplink": "https://app.example-bank.test/cards/platinum/apply"
     }
   },
   "eligibility": [
@@ -64,11 +62,11 @@
       "customer_id": "CUS-100301",
       "segment": "MASS",
       "campaigns": [
-        "XS-TRAVEL-2026Q3"
+        "XS-CLASSIC-2026Q3"
       ],
       "context": {
-        "reason": "12 foreign-currency purchases in the last 90 days",
-        "fees_paid_last_90d": 1040000
+        "reason": "Mass segment target list – online shopping profile",
+        "stated_interests": ["mua sắm online"]
       }
     },
     {
@@ -76,7 +74,7 @@
       "segment": "MASS",
       "campaigns": [
         "DORMANT-REACTIVATION",
-        "XS-CASHBACK-2026Q3"
+        "XS-CLASSIC-2026Q3"
       ],
       "context": {
         "reason": "no card activity for 214 days",
@@ -86,7 +84,7 @@
     },
     {
       "customer_id": "CUS-100315",
-      "segment": "MASS",
+      "segment": "MASS_AFFLUENT",
       "campaigns": [
         "CARD-ACTIVATION"
       ],

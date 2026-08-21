@@ -202,10 +202,23 @@ def _call_vbee(text: str, api_key: str, app_id: str, voice: str) -> bytes:
             "Vbee cần callback URL — ngrok chưa sẵn sàng hoặc không kết nối được"
         )
 
-    # Register event BEFORE Vbee can fire the callback
+    # Atomically register the event AND check if the callback already arrived.
+    # Vbee can fire the callback in the tiny window between when the HTTP submit
+    # returns and here. If it does, receive_callback() stores audio_link in
+    # _results but finds no entry in _pending, so ev.set() is never called.
+    # By holding _cb_lock across both operations we close that race window.
     event = threading.Event()
+    early_link = None
     with _cb_lock:
-        _pending[request_id] = event
+        if request_id in _results:
+            early_link = _results.pop(request_id)
+        else:
+            _pending[request_id] = event
+
+    if early_link:
+        logger.info("Vbee: callback nhận trước khi chờ, request_id=%s", request_id)
+        with urllib.request.urlopen(early_link, timeout=15) as ar:
+            return ar.read()
 
     logger.info("Vbee request_id=%s  chờ callback tại %s", request_id, cb_url)
     try:

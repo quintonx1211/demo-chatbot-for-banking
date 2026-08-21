@@ -178,9 +178,11 @@ def answer_from_kb(
     question: str,
     passages: list[RetrievedPassage],
     history: str = "",
+    history_messages: list | None = None,
 ) -> LLMResult:
     return _run(
         build_answer_request(question, passages, history=history,
+                             history_messages=history_messages,
                              tone=current_tone(), temperature=current_temperature()),
         fallback=extractive_answer(passages),
     )

@@ -150,5 +150,39 @@ class RulesEngine:
         found = self.mentions(text)
         return found[0] if found else None
 
+    def recommend_all(self, interest_text: str) -> dict | None:
+        """Best-matching card across the entire catalogue for a stated interest.
+
+        Used for unverified customers (Scenario 1 – Customer Service) where no
+        segment is known.  Returns {"card": product_dict, "match": CardMatch}
+        or None when no product scores above MATCH_FLOOR.
+        """
+        result = self._recommend_for(interest_text)
+        if result is not None:
+            return result
+        # Long sentences dilute TF-IDF (extra words like "thẻ nào phù hợp với tôi"
+        # lower cosine similarity below the floor). Fall back to individual content
+        # words so "tôi thích chơi golf, thẻ nào phù hợp?" still matches Infinite.
+        for token in tokenize(interest_text):
+            result = self._recommend_for(token)
+            if result is not None:
+                return result
+        return None
+
+    def _recommend_for(self, interest_text: str) -> dict | None:
+        best_card = None
+        best_match = None
+        best_score = -1.0
+        for product in self.products:
+            match = self.explain_fit(product, interest_text)
+            score = max((m.score for m in match.matched_lines), default=0.0)
+            if score > best_score:
+                best_score = score
+                best_card = product
+                best_match = match
+        if best_card is None or best_score < MATCH_FLOOR:
+            return None
+        return {"card": best_card, "match": best_match}
+
 
 ENGINE = RulesEngine()

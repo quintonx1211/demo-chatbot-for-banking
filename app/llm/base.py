@@ -127,6 +127,10 @@ class LLMRequest:
     # and very different setting. Adapters must omit the parameter entirely
     # when this is None, not substitute a number of their own.
     temperature: float | None = None
+    # When set, providers use these structured turns instead of the `user` field.
+    # Each entry is {"role": "user"|"assistant", "content": str}.
+    # The `user` field is kept for fallback / extractive paths that don't need history.
+    messages: list | None = None
 
 
 @dataclass
@@ -185,20 +189,36 @@ def build_answer_request(
     question: str,
     passages: list[RetrievedPassage],
     history: str = "",
+    history_messages: list | None = None,
     tone: str | None = None,
     temperature: float | None = None,
 ) -> LLMRequest:
+    context_block = (
+        f"Các đoạn văn trong cơ sở tri thức:\n\n{format_context(passages)}\n\n"
+        f"---\nCâu hỏi của khách hàng: {question}\n\n"
+        "Trả lời chỉ dựa trên các đoạn văn trên. Viết bằng tiếng Việt."
+    )
+
+    if history_messages:
+        # Structured multi-turn: conversation history as proper role/content pairs.
+        # KB passages go into the final user turn so the model has grounding
+        # immediately before it writes the answer.
+        messages = list(history_messages) + [{"role": "user", "content": context_block}]
+        return LLMRequest(
+            system=f"{ANSWER_SYSTEM_PROMPT}\n\n{tone_instruction(tone)}",
+            user=question,        # kept for extractive fallback path
+            max_tokens=ANSWER_MAX_TOKENS,
+            temperature=temperature,
+            messages=messages,
+        )
+
+    # Single-turn fallback: embed history as prefixed text in the user message.
     history_block = (
         f"Cuộc hội thoại trước đó:\n{history}\n\n" if history.strip() else ""
     )
     return LLMRequest(
         system=f"{ANSWER_SYSTEM_PROMPT}\n\n{tone_instruction(tone)}",
-        user=(
-            f"{history_block}"
-            f"Các đoạn văn trong cơ sở tri thức:\n\n{format_context(passages)}\n\n"
-            f"---\nCâu hỏi của khách hàng: {question}\n\n"
-            "Trả lời chỉ dựa trên các đoạn văn trên. Viết bằng tiếng Việt."
-        ),
+        user=f"{history_block}{context_block}",
         max_tokens=ANSWER_MAX_TOKENS,
         temperature=temperature,
     )

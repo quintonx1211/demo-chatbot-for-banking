@@ -65,9 +65,21 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
            if request.temperature is not None else {}),
     )
 
+    if request.messages:
+        # Gemini uses "model" for the assistant role, and its own Content/Part types.
+        contents = [
+            types.Content(
+                role="user" if m["role"] == "user" else "model",
+                parts=[types.Part(text=m["content"])],
+            )
+            for m in request.messages
+        ]
+    else:
+        contents = request.user
+
     try:
         response = client.models.generate_content(
-            model=model, contents=request.user, config=config
+            model=model, contents=contents, config=config
         )
     except Exception as exc:
         return LLMResult(text="", generated=False, provider=NAME, model=model,

@@ -13,14 +13,14 @@
       "id": "CARD-CLASSIC",
       "segment": "MASS",
       "name": "Thẻ Classic",
-      "value_proposition": "Tích điểm cho chi tiêu online và thiết yếu hàng ngày - dành cho người mua sắm số và chi tiêu thường nhật.",
+      "value_proposition": "Tích điểm và hoàn tiền cho chi tiêu mua sắm online và thiết yếu hàng ngày - dành cho người mua sắm số và chi tiêu thường nhật.",
       "welcome_offers": [
         "Hoàn tiền 10% cho 3 giao dịch đầu tiên trong 30 ngày, tối đa 300.000 VND",
         "Chi tiêu tối thiểu 3.000.000 VND trong tháng đầu tiên"
       ],
       "reward_scheme": [
-        "Hoàn tiền 3% cho ăn uống & cà phê, gọi xe công nghệ, rạp chiếu phim",
-        "Hoàn tiền 5% cho các sàn thương mại điện tử được chọn vào ngày đôi (double dates)",
+        "Hoàn tiền 3% cho ăn uống & cà phê, gọi xe công nghệ (Grab, Be, Xanh SM), rạp chiếu phim",
+        "Hoàn tiền 5% khi mua sắm online tại các sàn thương mại điện tử vào ngày đôi (Shopee, Lazada, Tiki...)",
         "Tổng hoàn tiền tối đa 300.000 VND/tháng, áp dụng khi chi tiêu tối thiểu 3.000.000 VND"
       ],
       "annual_fee": {
@@ -79,9 +79,9 @@
         "Thẻ kim loại (metal card) khắc laser tên chủ thẻ theo kiểu thư pháp tuỳ chỉnh"
       ],
       "reward_scheme": [
-        "Tích luỹ cơ bản: 2-3 dặm VNA Lotusmiles cho mỗi 20.000 VND chi tiêu quốc tế (cross border)",
+        "Tích luỹ cơ bản: 2-3 dặm VNA Lotusmiles cho mỗi 20.000 VND chi tiêu quốc tế, du lịch nước ngoài (cross border)",
         "Thưởng theo mốc chi tiêu: tối đa 3 lần đổi thưởng/tháng tại các mốc 50 triệu - 100 triệu - 250 triệu VND (giới hạn 3 triệu/tháng)",
-        "Ưu đãi Golf: hỗ trợ 1.000.000 VND phí sân golf khi đặt qua chương trình Visa Golf",
+        "Ưu đãi Golf: hoàn 1.000.000 VND phí sân golf, phí green fee khi đặt sân qua chương trình Visa Golf",
         "Thưởng chi tiêu nhanh hàng tháng: 3 người đầu tiên đạt 300.000.000 VND được chọn 1 trong 2 phần thưởng - nâng hạng vé Business 5 lần (đường bay nội địa VNA) trong 12 tháng tiếp theo, HOẶC 1 đêm nghỉ miễn phí tại resort siêu sang"
       ],
       "annual_fee": {

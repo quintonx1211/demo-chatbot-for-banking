@@ -65,6 +65,14 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
         base_url=BASE_URL,
     )
 
+    if request.messages:
+        msgs = [{"role": "system", "content": request.system}] + request.messages
+    else:
+        msgs = [
+            {"role": "system", "content": request.system},
+            {"role": "user", "content": request.user},
+        ]
+
     try:
         response = client.chat.completions.create(
             model=model,
@@ -73,10 +81,7 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
             # Counts reasoning tokens too on models that reason, which is why
             # the budget in base.py is generous.
             max_completion_tokens=request.max_tokens,
-            messages=[
-                {"role": "system", "content": request.system},
-                {"role": "user", "content": request.user},
-            ],
+            messages=msgs,
         )
     except Exception as exc:  # network, auth, rate limit - degrade, don't crash
         return LLMResult(text="", generated=False, provider=NAME, model=model,

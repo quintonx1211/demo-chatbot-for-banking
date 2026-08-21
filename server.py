@@ -571,27 +571,7 @@ def main() -> None:
     print(f"  Cơ sở tri thức    : {stats['passages']} đoạn văn "
           f"trong {stats['documents']} tài liệu")
 
-    # Pre-warm TTS and STT in parallel background threads
-    def _warmup_tts():
-        if tts.available():
-            ok = tts.warmup()
-            print(f"  TTS               : {'sẵn sàng' if ok else 'cảnh báo - warmup thất bại'}")
-        else:
-            print("  TTS               : không khả dụng (chạy setup_voice.py + pip install piper-tts)")
-
-    def _warmup_stt():
-        if stt.available():
-            ok = stt.warmup()
-            print(f"  STT               : {'sẵn sàng' if ok else 'cảnh báo - warmup thất bại'}")
-        else:
-            print("  STT               : không khả dụng (pip install transformers torch soundfile)")
-
-    t_tts = threading.Thread(target=_warmup_tts, daemon=True)
-    t_stt = threading.Thread(target=_warmup_stt, daemon=True)
-    t_tts.start()
-    t_stt.start()
-
-    # Start ngrok tunnel
+    # Start ngrok tunnel first so the callback URL is ready before TTS warmup
     try:
         import time as _time
         import pyngrok.ngrok as _ngrok
@@ -610,9 +590,37 @@ def main() -> None:
     except Exception as exc:
         print(f"  ngrok             : không khả dụng ({exc})")
 
+    # Pre-warm TTS and STT after ngrok is up (Vbee warmup needs the callback URL)
+    def _warmup_tts():
+        if tts.available():
+            ok = tts.warmup()
+            print(f"  TTS               : {'sẵn sàng' if ok else 'cảnh báo - warmup thất bại'}")
+        else:
+            print("  TTS               : không khả dụng (chạy setup_voice.py + pip install piper-tts)")
+
+    def _warmup_stt():
+        if stt.available():
+            ok = stt.warmup()
+            print(f"  STT               : {'sẵn sàng' if ok else 'cảnh báo - warmup thất bại'}")
+        else:
+            print("  STT               : không khả dụng (pip install transformers torch soundfile)")
+
+    # Bind the port BEFORE starting warmup threads. Vbee fires its callback to
+    # the ngrok URL which forwards to localhost:PORT. If serve_forever() hasn't
+    # been called yet the socket isn't listening, ngrok gets "connection refused",
+    # and the callback is lost - causing the 30s warmup timeout.
+    # HTTPServer.__init__ calls socket.bind() + socket.listen(), so after this
+    # line the port is open even before serve_forever() enters its event loop.
+    httpd = ThreadingHTTPServer((HOST, PORT), Handler)
+
     print(f"  Local             : http://{HOST}:{PORT}\n")
 
-    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+    t_tts = threading.Thread(target=_warmup_tts, daemon=True)
+    t_stt = threading.Thread(target=_warmup_stt, daemon=True)
+    t_tts.start()
+    t_stt.start()
+
+    httpd.serve_forever()
 
 
 if __name__ == "__main__":

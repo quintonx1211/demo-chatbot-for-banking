@@ -1,0 +1,18 @@
+1. product catalogue: Find in product_sample file
+2. FAQ/Knowledge Base: you can refer to the value_proposition, welcome_offers and reward_scheme in the attached file for reference
+3. product terms & condition: Find in product_sample file
+4 Cross-selling / Recommendations Rules: The rules are listed in the target_segment and value_proposition. the agent should be able to match customers's profile with those free-text information.
+5. Customers Segments/Personas: 4 Segments
+ - Mass
+ - Mass Affluent
+ - Affluent
+ - Private
+
+6. 5-8 target demo scenarios:
+ 6.1 Scenario 1: Customers Service (2nd priority)
+  - A customer expresses interest in a card product and would like assistance identifying the most suitable option based on their spending preferences,such as online shopping, golf-related benefits, and other lifestyle needs.
+ 6.2 Scenario 2: Automated Cross-Selling (1st priority)
+  - A bank has a target list of customers to contact regarding credit card offerings. The bot proactively engages these customers ( primarily within the Mass segment) and recommends appropriate credit card prooducts. the bot shoould also be able to inquire about  relevant customer information to better understand customer profiles and provide tailored Recommendations
+ 6.3 Scenario 3: Card Operations Management ( 3rd priority)
+  - Customers who already hold cards with the bank can use a chat interface to manage card-related services, such as closing a card, adjusting card limits, receiving recommendations on reward programs, and performing other account management activities.
+

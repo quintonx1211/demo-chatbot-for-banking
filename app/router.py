@@ -534,6 +534,37 @@ class Router:
         if not rerank.enabled():
             return self.kb.search(text, top_k=3), ""
 
+    # Vietnamese patterns that signal a follow-up question with no standalone
+    # retrieval signal: "còn", "thế còn", "cái đó", etc.
+    _FOLLOWUP_RE = re.compile(
+        r"^(còn\b|thế còn\b|vậy còn\b|còn về\b|còn thẻ\b|còn loại\b|còn cái\b|"
+        r"thì sao\b|thế thì\b|vậy thì\b|sao ạ\b|"
+        r"cái đó|thẻ đó|loại đó|nó |của nó|"
+        r"phí bao nhiêu|bao nhiêu|như thế nào|what about\b|how about\b)",
+        re.IGNORECASE,
+    )
+
+    def _expand_followup(self, text: str, session: Session) -> str:
+        """Prepend the last customer question when the current one is a follow-up.
+
+        Short pronouny follow-ups ("còn Classic?", "phí bao nhiêu?") have almost
+        no retrieval signal on their own. Prepending the previous exchange gives
+        the TF-IDF index the topic words it needs without altering what the model
+        eventually answers.
+        """
+        if not self._FOLLOWUP_RE.match(text):
+            return text
+
+        # Find the most recent substantive customer message (not the current one)
+        prev = [
+            m.text for m in session.messages[-8:-1]
+            if m.role == "customer" and len(m.text.split()) >= 3
+        ]
+        if not prev:
+            return text
+
+        return f"{guardrails.redact(prev[-1])} {text}"
+
     def agent_reply(self, session: Session, text: str, staff) -> None:
         """Record a human agent's reply to the customer.
 
@@ -573,7 +604,16 @@ class Router:
         if safe_text != text:
             self.trace.add("privacy", "sensitive data masked",
                            "redacted before retrieval and before the model")
-        passages, rerank_note = self._retrieve(safe_text)
+
+        # Expand short follow-up questions before retrieval so the TF-IDF index
+        # gets enough signal. "còn Classic?" retrieves nothing without context;
+        # "phí thường niên thẻ Classic" retrieves correctly.
+        retrieval_text = self._expand_followup(safe_text, session)
+        if retrieval_text != safe_text:
+            self.trace.add("query_expansion", f"'{safe_text}' → '{retrieval_text}'",
+                           "short follow-up expanded with recent context")
+
+        passages, rerank_note = self._retrieve(retrieval_text)
         self.trace.add(
             "retrieval",
             f"{len(passages)} passage(s) above the floor" if passages
@@ -605,8 +645,24 @@ class Router:
                 session, reason, confidence=prediction.confidence,
             )
 
-        history = guardrails.redact(session.transcript(limit=6))
-        result = llm.answer_from_kb(safe_text, passages, history=history)
+        # Build structured conversation history (10 messages = 5 exchanges).
+        # Exclude the current customer question — it becomes the final user turn
+        # inside build_answer_request, paired with the retrieved KB passages.
+        history_msgs = [
+            {"role": "user" if m.role == "customer" else "assistant",
+             "content": guardrails.redact(m.text)}
+            for m in session.messages
+            if m.role in ("customer", "assistant")
+        ]
+        # Drop the last entry: that is the current question already in safe_text.
+        if history_msgs and history_msgs[-1]["role"] == "user":
+            history_msgs = history_msgs[:-1]
+        history_msgs = history_msgs[-10:]     # keep last 5 exchanges
+
+        result = llm.answer_from_kb(
+            safe_text, passages,
+            history_messages=history_msgs or None,
+        )
 
         if not result.text.strip():
             return self._escalate(

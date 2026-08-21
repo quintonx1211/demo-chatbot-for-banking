@@ -59,8 +59,8 @@
       "segment": "MASS",
       "profile": "dormant_card",
       "dob": "1988-01-01",
-      "phone_last4": "8502",
-      "national_id_last4": "1346",
+      "phone_last4": "3728",
+      "national_id_last4": "9926",
       "accounts": [
         {
           "account_id": "ACC-8502-8201",
@@ -113,11 +113,11 @@
       "customer_id": "CUS-100315",
       "name": "Le Minh Chau",
       "given_name": "Chau",
-      "segment": "MASS",
+      "segment": "MASS_AFFLUENT",
       "profile": "inactive_card",
       "dob": "1983-04-08",
-      "phone_last4": "7454",
-      "national_id_last4": "9005",
+      "phone_last4": "8386",
+      "national_id_last4": "5738",
       "accounts": [
         {
           "account_id": "ACC-7454-4801",
@@ -170,11 +170,11 @@
       "customer_id": "CUS-100322",
       "name": "Pham Quoc Dung",
       "given_name": "Dung",
-      "segment": "PRIORITY",
+      "segment": "MASS_AFFLUENT",
       "profile": "high_balance",
       "dob": "2001-08-18",
-      "phone_last4": "3142",
-      "national_id_last4": "2902",
+      "phone_last4": "3826",
+      "national_id_last4": "2134",
       "accounts": [
         {
           "account_id": "ACC-3142-9001",
@@ -257,11 +257,11 @@
       "customer_id": "CUS-100329",
       "name": "Hoang Thi Ha",
       "given_name": "Ha",
-      "segment": "MASS",
+      "segment": "AFFLUENT",
       "profile": "frozen_card",
       "dob": "1982-03-19",
-      "phone_last4": "7091",
-      "national_id_last4": "9527",
+      "phone_last4": "8318",
+      "national_id_last4": "7062",
       "accounts": [
         {
           "account_id": "ACC-7091-3001",
@@ -316,11 +316,11 @@
       "customer_id": "CUS-100336",
       "name": "Vu Duc Hieu",
       "given_name": "Hieu",
-      "segment": "MASS",
+      "segment": "AFFLUENT",
       "profile": "loan_in_review",
       "dob": "1977-05-22",
-      "phone_last4": "9170",
-      "national_id_last4": "3723",
+      "phone_last4": "7539",
+      "national_id_last4": "1860",
       "accounts": [
         {
           "account_id": "ACC-9170-2601",
@@ -392,11 +392,11 @@
       "customer_id": "CUS-100343",
       "name": "Dang Thi Lan",
       "given_name": "Lan",
-      "segment": "MASS",
+      "segment": "PRIVATE",
       "profile": "overdrawn",
       "dob": "1990-12-14",
-      "phone_last4": "8780",
-      "national_id_last4": "5058",
+      "phone_last4": "1434",
+      "national_id_last4": "6488",
       "accounts": [
         {
           "account_id": "ACC-8780-1701",
@@ -454,11 +454,11 @@
       "customer_id": "CUS-100350",
       "name": "Bui Van Long",
       "given_name": "Long",
-      "segment": "MASS",
+      "segment": "PRIVATE",
       "profile": "blocked_and_replaced",
       "dob": "1983-03-09",
-      "phone_last4": "6850",
-      "national_id_last4": "7777",
+      "phone_last4": "6167",
+      "national_id_last4": "3423",
       "accounts": [
         {
           "account_id": "ACC-6850-6401",

@@ -1,0 +1,199 @@
+================================================================================
+KỊCH BẢN DEMO – THEO YÊU CẦU KHÁCH HÀNG
+================================================================================
+
+Ba kịch bản chính khách hàng yêu cầu (email ngày 2026-08-19):
+
+  Scenario 1 – Customer Service          (ưu tiên 2)
+  Scenario 2 – Automated Cross-Selling   (ưu tiên 1)
+  Scenario 3 – Card Operations           (ưu tiên 3)
+
+Mã xác thực 8 khách hàng demo:
+  Nguyen Van An      9411 3147   MASS          có ưu đãi Classic (cross-sell)
+  Tran Thi Bich      3728 9926   MASS          có ưu đãi Classic + thẻ ngủ đông
+  Le Minh Chau       8386 5738   MASS_AFFLUENT thẻ chưa kích hoạt
+  Pham Quoc Dung     3826 2134   MASS_AFFLUENT
+  Hoang Thi Ha       8318 7062   AFFLUENT      thẻ tạm khoá
+  Vu Duc Hieu        7539 1860   AFFLUENT
+  Dang Thi Lan       1434 6488   PRIVATE       có sở thích golf + du lịch nước ngoài
+  Bui Van Long       6167 3423   PRIVATE
+
+Trước mỗi buổi demo: Tổng quan → Xoá toàn bộ phiên → Nạp dữ liệu demo.
+
+================================================================================
+SCENARIO 1 – CUSTOMER SERVICE
+================================================================================
+
+Khách tự tìm thẻ phù hợp dựa trên thói quen chi tiêu.
+KHÔNG cần đăng nhập – đây là luồng tư vấn, không truy cập dữ liệu cá nhân.
+
+--- 1A. Khách quan tâm mua sắm online -----------------------------------------
+
+  Gõ:       tôi muốn tìm thẻ phù hợp với mua sắm online
+  KỲ VỌNG   bot hỏi sở thích cụ thể hơn (không hỏi xác minh danh tính):
+             "Bạn hay mua hàng trên nền tảng nào, hay thường chi tiêu nhiều ở đâu nhất?"
+  Gõ:       tôi hay mua hàng Shopee, Lazada
+  KỲ VỌNG   bot giới thiệu Thẻ Classic với lý do cụ thể:
+             "Hoàn tiền 5% khi mua sắm online tại các sàn thương mại điện tử"
+  LỖI NẾU   bot hỏi xác minh danh tính trước khi trả lời tư vấn.
+  LỖI NẾU   bot giới thiệu sai thẻ (Classic là đúng cho mua sắm online).
+
+--- 1B. Khách quan tâm golf ---------------------------------------------------
+
+  Gõ:       tôi thích chơi golf, thẻ nào phù hợp với tôi?
+  KỲ VỌNG   bot trả lời NGAY (vì có "thẻ nào" – ý định rõ) → giới thiệu Thẻ Infinite
+             với lý do: "Ưu đãi Golf: hoàn 1.000.000 VND phí sân golf"
+             hoặc tích luỹ dặm bay VNA Lotusmiles.
+             Bot KHÔNG hỏi lại sở thích vì intent đã rõ từ đầu.
+  LỖI NẾU   bot hỏi lại "Bạn hay mua hàng trên nền tảng nào..." (không cần thiết).
+  LỖI NẾU   giới thiệu thẻ khác (Classic, Platinum, Signature).
+
+--- 1C. Khách muốn so sánh hai thẻ -------------------------------------------
+
+  Gõ:       Classic và Platinum khác nhau chỗ nào?
+  KỲ VỌNG   so sánh giá trị cốt lõi, phí thường niên của cả hai.
+  KỲ VỌNG   route = deterministic, không gọi LLM.
+
+--- 1D. Khách hỏi ưu đãi chào mừng cụ thể ------------------------------------
+
+  Gõ:       thẻ Platinum có ưu đãi gì khi mở thẻ lần đầu?
+  KỲ VỌNG   bot trả lời từ KB (KB-CARD-PRODUCTS hoặc rules_engine):
+             "Hoàn tiền 10% cho 5 giao dịch đầu tiên, tối đa 500.000 VND"
+             "Chi tiêu tối thiểu 5.000.000 VND trong tháng đầu"
+  KỲ VỌNG   có dẫn nguồn tài liệu ở panel phải.
+
+================================================================================
+SCENARIO 2 – AUTOMATED CROSS-SELLING (ƯU TIÊN 1)
+================================================================================
+
+Bot chủ động tiếp cận khách hàng thuộc danh sách mục tiêu Mass segment.
+Luồng: khách xác minh → bot nhận ra có ưu đãi → chủ động đề xuất → hỏi sở
+thích → giải thích tại sao thẻ Classic phù hợp.
+
+--- 2A. Luồng chính – Nguyen Van An (MASS, có ưu đãi Classic) -----------------
+
+  Gõ:       xin chào
+  Gõ:       tôi muốn kiểm tra tài khoản   (hoặc bất kỳ yêu cầu cá nhân nào)
+  Gõ:       9411 3147
+  KỲ VỌNG   xác minh thành công: "Cảm ơn, An - bạn đã được xác minh."
+  KỲ VỌNG   NGAY SAU XÁC MINH, bot chủ động đề xuất ưu đãi (proactive):
+             "**Nhân tiện:** **Thẻ Classic** – {hook ngắn gọn}"
+             kèm CTA và link deeplink trên dòng tiếp theo.
+  VÌ SAO    đây là Scenario 2 – bot không chờ khách hỏi, mà chủ động đề xuất
+            sau khi biết đây là khách trong danh sách mục tiêu.
+
+  Gõ:       tôi muốn biết thêm về thẻ này
+  KỲ VỌNG   bot hỏi sở thích: "An hay mua hàng trên nền tảng nào,
+             hay thường chi tiêu nhiều ở đâu nhất?"
+
+  Gõ:       tôi hay mua sắm online
+  KỲ VỌNG   bot giải thích tại sao Classic phù hợp với mua sắm online:
+             "Hoàn tiền 5% khi mua sắm online tại các sàn thương mại điện tử"
+
+--- 2B. Khách hỏi có ưu đãi gì -------------------------------------------
+
+  Sau khi xác minh An (9411 3147):
+  Gõ:       tôi có ưu đãi gì không?
+  KỲ VỌNG   bot hiển thị campaign XS-CLASSIC-2026Q3 với chi tiết Thẻ Classic.
+  LỖI NẾU   bot nói "bạn không có ưu đãi nào".
+  LỖI NẾU   bot nhắc sản phẩm không tồn tại ("Premier Travel", "Cashback Hàng ngày").
+
+--- 2C. Khách trong danh sách nhưng hỏi chủ đề khác trước --------------------
+
+  Xác minh Nguyen Van An (9411 3147).
+  Gõ:       số dư tài khoản của tôi
+  KỲ VỌNG   bot trả lời số dư VÀ kèm thông báo ưu đãi proactive.
+
+--- 2D. Khách không trong danh sách cross-sell --------------------------------
+
+  Xác minh Hoang Thi Ha (8318 7062) – AFFLUENT, không có cross-sell campaign.
+  Gõ:       tôi có ưu đãi gì không?
+  KỲ VỌNG   "Bạn hiện không có ưu đãi nào." – không bịa ưu đãi.
+
+================================================================================
+SCENARIO 3 – CARD OPERATIONS MANAGEMENT (ƯU TIÊN 3)
+================================================================================
+
+Khách đã có thẻ, dùng chat để quản lý: đóng thẻ, điều chỉnh hạn mức,
+xem quyền lợi, và các thao tác tài khoản khác.
+
+--- 3A. Xem quyền lợi thẻ hiện tại -------------------------------------------
+
+  Xác minh Nguyen Van An (9411 3147) – MASS, có Thẻ Classic.
+  Gõ:       thẻ của tôi có quyền lợi gì?
+  KỲ VỌNG   bot hiển thị toàn bộ reward_scheme của Thẻ Classic:
+             - Hoàn tiền 3% ăn uống & cà phê, gọi xe, rạp chiếu phim
+             - Hoàn tiền 5% mua sắm online ngày đôi
+             - Tổng tối đa 300.000 VND/tháng
+  KỲ VỌNG   có disclaimer ở cuối.
+
+--- 3B. Điều chỉnh hạn mức thẻ -----------------------------------------------
+
+  Xác minh bất kỳ khách nào.
+  Gõ:       tôi muốn tăng hạn mức thẻ
+  KỲ VỌNG   bot hỏi: "Bạn muốn hạn mức mới là bao nhiêu?"
+  Gõ:       50 triệu
+  KỲ VỌNG   bot xác nhận: "Đã ghi nhận yêu cầu điều chỉnh hạn mức lên
+             50.000.000 VND (mã tham chiếu LMT-...)"
+  KỲ VỌNG   nhấn mạnh đây là yêu cầu CHỜ DUYỆT, hạn mức hiện tại chưa đổi.
+  LỖI NẾU   bot nói đã tăng hạn mức ngay lập tức (đó là bịa đặt).
+
+  QUAN TRỌNG – thử tiếp:
+  Gõ:       tôi muốn giảm hạn mức xuống 30 triệu
+  KỲ VỌNG   bot hỏi: "Bạn muốn hạn mức mới là bao nhiêu?"
+  Gõ:       30 triệu
+  KỲ VỌNG   bot ghi nhận yêu cầu với mã tham chiếu LMT- mới.
+
+--- 3C. Đóng thẻ --------------------------------------------------------------
+
+  Xác minh bất kỳ khách nào có thẻ active.
+  Gõ:       tôi muốn đóng thẻ
+  KỲ VỌNG   bot hỏi xác nhận: "Bạn có chắc muốn đóng thẻ này không?"
+  Gõ:       có
+  KỲ VỌNG   bot xác nhận: "Đã đóng thẻ (mã tham chiếu CLS-...)"
+  LỖI NẾU   bot không nhận ra "có" và yêu cầu xác nhận lại mãi (đây là bug
+             continue_pending đã được fix – xác minh fix hoạt động).
+
+  Thử lại: gõ "tôi muốn đóng thẻ" lần nữa trên cùng khách hàng.
+  KỲ VỌNG   bot báo: "Thẻ này đã được đóng trước đó rồi."
+
+--- 3D. Thoát khỏi luồng đang dở ---------------------------------------------
+
+  Gõ:       tôi muốn đóng thẻ
+  Gõ:       thôi không cần, hỏi về số dư thôi
+  KỲ VỌNG   bot bỏ luồng card_close và trả lời về số dư.
+
+--- 3E. Tạm khoá và mở khoá thẻ ---------------------------------------------
+
+  Xác minh Hoang Thi Ha (8318 7062) – có một thẻ tạm khoá.
+  Gõ:       tôi muốn mở khoá thẻ
+  KỲ VỌNG   bot xác nhận thẻ đang tạm khoá và hỏi xác nhận mở khoá.
+  Gõ:       có
+  KỲ VỌNG   thẻ hoạt động trở lại, mã tham chiếu UNF-.
+
+================================================================================
+KIỂM TRA CHÉO – SẢN PHẨM VÀ KB
+================================================================================
+
+Các câu hỏi này test xem KB document mới (san-pham-the-tin-dung.md) có được
+đánh index và truy xuất đúng không.
+
+  Gõ:       thẻ Signature có chương trình BYOR là gì?
+  KỲ VỌNG   giải thích Build Your Own Rewards, có dẫn nguồn KB-CARD-PRODUCTS.
+
+  Gõ:       phí thường niên thẻ Infinite bao nhiêu?
+  KỲ VỌNG   5.999.000 VND, miễn phí năm 2 nếu chi tiêu 400 triệu.
+
+  Gõ:       thẻ tín dụng miễn lãi bao nhiêu ngày?
+  KỲ VỌNG   45 ngày, có dẫn nguồn từ KB-CARD-PRODUCTS.
+
+  Gõ:       hoàn tiền được ghi có sau bao lâu?
+  KỲ VỌNG   3-5 ngày làm việc, có dẫn nguồn.
+
+================================================================================
+NHỮNG GÌ KHÔNG KIỂM TRA Ở ĐÂY
+================================================================================
+
+File này CHỈ bao gồm 3 scenario theo yêu cầu khách hàng email 2026-08-19.
+Các test về NLU routing, RAG grounding, escalation, LLM summary xem trong
+tests/TEST-SCENARIOS.txt (file gốc, không thay đổi).

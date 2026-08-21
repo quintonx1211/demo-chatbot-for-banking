@@ -63,11 +63,13 @@ def _now() -> str:
 
 
 def _card_path() -> Path:
-    return DB_DIR / "cards.csv"
+    # Separate file from db.py's "cards.csv" (debit/physical cards from accounts.json)
+    # to avoid column-schema conflicts between the two card systems.
+    return DB_DIR / "credit_cards.csv"
 
 
 def _events_path() -> Path:
-    return DB_DIR / "card_events.csv"
+    return DB_DIR / "credit_card_events.csv"
 
 
 def _read_csv(path: Path, columns: list[str], numeric: set[str] = frozenset()) -> list[dict]:
@@ -124,7 +126,7 @@ def reset() -> None:
         by_segment = {p["segment"]: p for p in products}
 
         rows = []
-        for customer in db._read():
+        for customer in db._read("customers"):
             product = by_segment.get(customer["segment"])
             if not product:
                 continue
@@ -165,7 +167,7 @@ def close_card(customer_id: str, session_id: str | None = None) -> dict:
 
         card["status"] = "closed"
         now = _now()
-        reference = f"CLS-{card['card_id'][-4:]}-{datetime.now(timezone.utc):%m%d%H%M}"
+        reference = f"CLS-{card['card_id'][-4:]}-{datetime.now(timezone.utc):%m%d%H%M%S}"
         _write_csv(_card_path(), CARD_COLUMNS, rows)
         _append_event({
             "customer_id": customer_id, "card_id": card["card_id"],
@@ -192,7 +194,7 @@ def request_limit_adjustment(customer_id: str, requested_limit: float,
             raise TransitionError("Thẻ này hiện không ở trạng thái hoạt động nên chưa thể đổi hạn mức.")
 
         now = _now()
-        reference = f"LMT-{card['card_id'][-4:]}-{datetime.now(timezone.utc):%m%d%H%M}"
+        reference = f"LMT-{card['card_id'][-4:]}-{datetime.now(timezone.utc):%m%d%H%M%S}"
         _append_event({
             "customer_id": customer_id, "card_id": card["card_id"],
             "action": "limit_adjust_requested",

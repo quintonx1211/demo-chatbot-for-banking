@@ -33,7 +33,8 @@ class Offer:
     campaign_id: str
     name: str
     type: str            # activation | reactivation | cross_sell
-    body: str            # the message shown to the customer
+    body: str            # full message for explicit offer listing
+    hook: str            # short tagline for proactive callout
     cta: str
     deeplink: str
     context: dict
@@ -89,6 +90,7 @@ class CampaignBook:
                 name=spec["name"],
                 type=spec.get("type", "cross_sell"),
                 body=self._body(spec, row.get("context", {})),
+                hook=spec.get("hook") or spec.get("offer") or spec["name"],
                 cta=spec.get("cta", ""),
                 deeplink=spec.get("deeplink", ""),
                 context=row.get("context", {}),
@@ -98,8 +100,9 @@ class CampaignBook:
     @staticmethod
     def _body(spec: dict, context: dict) -> str:
         parts = [f"**{spec['name']}**"]
-        if spec.get("offer"):
-            parts.append(spec["offer"])
+        body_text = spec.get("offer") or spec.get("detail") or spec.get("hook") or ""
+        if body_text:
+            parts.append(body_text)
         if spec.get("terms"):
             parts.append(f"_{spec['terms']}_")
         return "\n\n".join(parts)

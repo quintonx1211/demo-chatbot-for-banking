@@ -278,6 +278,9 @@ function updateVoiceUI() {
     vt.classList.toggle("active", voiceEnabled);
     vt.disabled = !ttsAvailable;
   }
+  // Call button: visible only when mic recording AND STT are both available
+  const cb = $("call-btn");
+  if (cb) cb.classList.toggle("hidden", !(canRecord && sttAvailable));
 }
 
 // Played through a single <audio> element rather than one per bubble, so
@@ -308,7 +311,7 @@ async function playTts(text, btn) {
     const response = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text: stripMarkdownForTts(text) }),
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
@@ -385,6 +388,49 @@ function cleanStt(t) {
   return t
     .replace(/\b(phấy|phẩy|chấm|dấu phẩy|dấu chấm)\b\.?/gi, "")
     .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+// Strip Markdown formatting before sending to TTS so the voice engine
+// never reads raw symbols like **bold** or # Heading aloud.
+function stripMarkdownForTts(text) {
+  return text
+    // Fenced code blocks - remove entirely
+    .replace(/```[\s\S]*?```/g, "")
+    // Markdown links → keep label only
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    // Bold + italic combined (***)
+    .replace(/\*{3}([^*]+)\*{3}/g, "$1")
+    // Bold (**)
+    .replace(/\*{2}([^*]+)\*{2}/g, "$1")
+    // Italic (*) - avoid matching stray asterisks inside numbers
+    .replace(/\*([^*\n]+)\*/g, "$1")
+    // Underline bold (__) and italic (_)
+    .replace(/_{2}([^_]+)_{2}/g, "$1")
+    .replace(/_([^_\n]+)_/g, "$1")
+    // Inline code
+    .replace(/`([^`]+)`/g, "$1")
+    // ATX headings (# ## ###…)
+    .replace(/^#{1,6}\s+(.+)$/gm, "$1")
+    // Horizontal rules → natural pause
+    .replace(/^[-*_]{3,}\s*$/gm, ".")
+    // Blockquotes
+    .replace(/^>\s*/gm, "")
+    // Unordered list bullets (-, *, +, •)
+    .replace(/^[ \t]*[-*+•]\s+/gm, "")
+    // Ordered list numbers
+    .replace(/^[ \t]*\d+[.)]\s+/gm, "")
+    // Paragraph breaks → spoken pause
+    .replace(/\n{2,}/g, ". ")
+    // Remaining newlines → space
+    .replace(/\n/g, " ")
+    // Collapse extra spaces
+    .replace(/ {2,}/g, " ")
+    // Expand Vietnamese banking abbreviations so TTS reads them naturally
+    .replace(/CMND\s*\/\s*CCCD/gi, "chứng minh nhân dân hoặc căn cước công dân")
+    .replace(/CCCD\s*\/\s*CMND/gi, "căn cước công dân hoặc chứng minh nhân dân")
+    .replace(/\bCMND\b/g, "chứng minh nhân dân")
+    .replace(/\bCCCD\b/g, "căn cước công dân")
     .trim();
 }
 
@@ -628,6 +674,7 @@ function addMessage(role, text, meta, author) {
     wrap.classList.add("has-cards");
     body.appendChild(bubble(cards.intro));
     body.appendChild(cards.node);
+    if (cards.tail) body.appendChild(bubble(cards.tail));
   } else {
     body.appendChild(bubble(text));
   }
@@ -690,6 +737,11 @@ function finalizeStreamingMessage(wrap, body, fullText, meta) {
     if (bubbleEl) bubbleEl.innerHTML = render(cards.intro);
     const timeEl = body.querySelector(".msg-time");
     body.insertBefore(cards.node, timeEl);
+    if (cards.tail) {
+      const tailEl = el("div", "bubble");
+      tailEl.innerHTML = render(cards.tail);
+      body.insertBefore(tailEl, timeEl);
+    }
   } else if (bubbleEl) {
     bubbleEl.innerHTML = render(fullText);
   }
@@ -733,9 +785,14 @@ function splitFlowText(text, pattern) {
   const lines = text.split("\n");
   const first = lines.findIndex((line) => pattern.test(line));
   if (first === -1) return null;
+  let lastMatch = first;
+  for (let i = first; i < lines.length; i++) {
+    if (pattern.test(lines[i])) lastMatch = i;
+  }
   return {
     intro: lines.slice(0, first).join("\n").trim(),
-    rows: lines.slice(first).map((line) => line.match(pattern)).filter(Boolean),
+    rows: lines.slice(first, lastMatch + 1).map((line) => line.match(pattern)).filter(Boolean),
+    tail: lines.slice(lastMatch + 1).join("\n").trim(),
   };
 }
 
@@ -771,7 +828,7 @@ function balanceCards(text) {
     cards.appendChild(card);
   }
 
-  return { intro: parsed.intro, node: cards };
+  return { intro: parsed.intro, node: cards, tail: parsed.tail };
 }
 
 // "- 2024-05-31 · Coffee Union · −4.20"
@@ -804,7 +861,7 @@ function transactionCard(text) {
     card.appendChild(row);
   }
 
-  return { intro: parsed.intro, node: card };
+  return { intro: parsed.intro, node: card, tail: parsed.tail };
 }
 
 /* ---------- typing indicator ---------- */
@@ -995,8 +1052,11 @@ async function send(message) {
     if (useVoice) streamMsg.bubbleEl.innerHTML = '<div class="typing-bubble"><i></i><i></i><i></i></div>';
 
     // Word-by-word text reveal at 250ms/word
-    let displayedText = "";
-    let pendingWords = [];
+    // Track position in fullText (not a rebuilt string) so newlines and markdown
+    // markers are preserved — the bubble shows a prefix of fullText, which matches
+    // exactly what finalizeStreamingMessage renders for the final state.
+    let revealedChars = 0;
+    let pendingWordCount = 0;
     let wordRevealTimer = null;
     let pendingFinalMeta = null;
 
@@ -1011,23 +1071,29 @@ async function send(message) {
       }
     }
 
+    function _advanceWord(text, pos) {
+      while (pos < text.length && /\s/.test(text[pos])) pos++;
+      while (pos < text.length && !/\s/.test(text[pos])) pos++;
+      return pos;
+    }
     function revealNext() {
-      if (!pendingWords.length) {
+      if (!pendingWordCount) {
         wordRevealTimer = null;
         if (pendingFinalMeta) { const m = pendingFinalMeta; pendingFinalMeta = null; doFinalizeMsg(m); }
         return;
       }
-      displayedText += (displayedText ? " " : "") + pendingWords.shift();
+      pendingWordCount--;
+      revealedChars = _advanceWord(fullText, revealedChars);
       if (streamMsg && streamMsg.bubbleEl) {
-        streamMsg.bubbleEl.innerHTML = render(displayedText);
+        streamMsg.bubbleEl.innerHTML = render(fullText.slice(0, revealedChars));
         scrollTranscript();
       }
       wordRevealTimer = setTimeout(revealNext, 250);
     }
     function queueText(text) {
-      const words = text.split(/\s+/).filter(Boolean);
+      const words = text.trim().split(/\s+/).filter(Boolean);
       if (!words.length) return;
-      pendingWords.push(...words);
+      pendingWordCount += words.length;
       if (!wordRevealTimer) revealNext();
     }
 
@@ -1039,16 +1105,16 @@ async function send(message) {
       if (m.in_handoff) startPolling();
 
       if (m.route === "agent") {
-        clearTimeout(wordRevealTimer); wordRevealTimer = null; pendingWords = [];
+        clearTimeout(wordRevealTimer); wordRevealTimer = null; pendingWordCount = 0;
         doFinalizeMsg(m);
       } else if (useVoice) {
         // Voice on: text deferred — revealNext calls doFinalizeMsg when words drain
         pendingFinalMeta = m;
-      } else if (pendingWords.length || wordRevealTimer) {
+      } else if (pendingWordCount || wordRevealTimer) {
         pendingFinalMeta = m;
         setTimeout(() => {
           if (pendingFinalMeta === m) {
-            clearTimeout(wordRevealTimer); wordRevealTimer = null; pendingWords = [];
+            clearTimeout(wordRevealTimer); wordRevealTimer = null; pendingWordCount = 0;
             pendingFinalMeta = null; doFinalizeMsg(m);
           }
         }, 30000);
@@ -1089,7 +1155,7 @@ async function send(message) {
             fetch("/api/tts", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text: fullText.trim() }),
+              body: JSON.stringify({ text: stripMarkdownForTts(fullText.trim()) }),
             })
               .then((r) => (r.ok ? r.blob() : null))
               .then((b) => (b ? URL.createObjectURL(b) : null))
@@ -1105,11 +1171,11 @@ async function send(message) {
                 audio.onerror = () => {
                   URL.revokeObjectURL(url);
                   if (streamingAudio === audio) streamingAudio = null;
-                  if (!displayedText) queueText(fullText);
+                  if (!revealedChars) queueText(fullText);
                 };
                 audio.src = url;
               })
-              .catch(() => { if (!displayedText) queueText(fullText); });
+              .catch(() => { if (!revealedChars) queueText(fullText); });
           }
         } else if (ev.error) {
           throw new Error(ev.error);
@@ -1917,6 +1983,339 @@ function setRailUser(verified) {
   $("rail-user-sub").textContent = verified ? "Đã xác thực" : "Chưa xác thực";
   $("rail-avatar").textContent = verified ? "✓" : "K";
 }
+
+/* ================================================================
+   CALL MODE — liên tục nói chuyện bằng giọng nói với chatbot.
+   Vòng lặp: Nghe → STT → gửi chat → TTS → Nghe lại.
+   Text vẫn cập nhật đầy đủ trong khung chat bình thường.
+   ================================================================ */
+
+let callModeActive = false;
+let callState      = "idle";
+let callTimer      = null;
+let callSeconds    = 0;
+let callRecorder   = null;
+let callChunks     = [];
+let callSilenceAnimId = null;
+let callAudioCtx   = null;
+let callMuted      = false;
+
+const CALL_SILENCE_MS = 1500;   // dừng thu âm sau 1.5s im lặng (ngắn hơn chế độ thủ công 3s)
+const CALL_MAX_MS     = 10000;  // giới hạn an toàn tối đa mỗi lượt ghi
+
+function _setCallState(state) {
+  callState = state;
+  const wrap  = $("call-avatar-wrap");
+  const label = $("call-state-label");
+  if (!wrap || !label) return;
+  wrap.dataset.state = state;
+  label.textContent = {
+    connecting: "Đang kết nối…",
+    listening:  "Đang nghe…",
+    processing: "Đang xử lý…",
+    speaking:   "Đang trả lời…",
+  }[state] || "";
+}
+
+function _callTimerStart() {
+  callSeconds = 0;
+  $("call-timer").textContent = "00:00";
+  callTimer = setInterval(() => {
+    callSeconds++;
+    const m = String(Math.floor(callSeconds / 60)).padStart(2, "0");
+    const s = String(callSeconds % 60).padStart(2, "0");
+    $("call-timer").textContent = `${m}:${s}`;
+  }, 1000);
+}
+function _callTimerStop() { clearInterval(callTimer); callTimer = null; }
+
+// ---- public: start / stop ----
+
+async function startCall() {
+  if (!sttAvailable || !canRecord || callModeActive) return;
+  _unlockAudio();
+  callModeActive = true;
+  callMuted      = false;
+
+  // Ensure TTS auto-plays during call
+  if (!voiceEnabled) {
+    voiceEnabled = true;
+    localStorage.setItem("voiceEnabled", "true");
+    updateVoiceUI();
+  }
+
+  $("call-mute-btn").querySelector(".vs-icon-active").classList.remove("hidden");
+  $("call-mute-btn").querySelector(".vs-icon-muted").classList.add("hidden");
+  $("call-mute-btn").classList.remove("muted");
+  $("call-overlay").classList.remove("hidden");
+  const lmEl = $("call-last-msg");
+  if (lmEl) { lmEl.textContent = ""; lmEl.classList.add("hidden"); }
+  _setCallState("connecting");
+  _callTimerStart();
+
+  await new Promise(r => setTimeout(r, 350)); // let overlay render
+  if (callModeActive) _callStartListening();
+}
+
+function stopCall() {
+  callModeActive = false;
+  callMuted      = false;
+
+  if (callRecorder && callRecorder.state === "recording") callRecorder.stop();
+  callRecorder = null; callChunks = [];
+
+  if (callSilenceAnimId) { cancelAnimationFrame(callSilenceAnimId); callSilenceAnimId = null; }
+  if (callAudioCtx)      { callAudioCtx.close().catch(() => {}); callAudioCtx = null; }
+
+  // Stop any TTS that was playing for the call
+  if (streamingAudio) { streamingAudio.pause(); streamingAudio.src = ""; streamingAudio = null; }
+
+  _callTimerStop();
+  $("call-overlay").classList.add("hidden");
+  _setCallState("idle");
+}
+
+// ---- recording loop ----
+
+async function _callStartListening() {
+  if (!callModeActive || callMuted) return;
+  _setCallState("listening");
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    stopCall();
+    addMessage("system", "Không truy cập được micro — cuộc gọi kết thúc.");
+    return;
+  }
+
+  // Voice-activity detection (silence → auto-stop)
+  try {
+    callAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source   = callAudioCtx.createMediaStreamSource(stream);
+    const analyser = callAudioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.85;
+    source.connect(analyser);
+    const bufLen = analyser.frequencyBinCount;
+    const data   = new Uint8Array(bufLen);
+    let localSilence = null;
+
+    const tick = () => {
+      if (!callModeActive) return;
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < bufLen; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
+      const rms = Math.sqrt(sum / bufLen) * 100;
+
+      // Animate the inner avatar ring with live voice amplitude
+      const inner = document.querySelector(".call-avatar-circle");
+      if (inner) inner.style.transform = callState === "listening"
+        ? `scale(${1 + Math.min(rms / 120, 0.18)})` : "";
+
+      if (rms < SILENCE_THRESHOLD) {
+        if (!localSilence) localSilence = Date.now();
+        if (Date.now() - localSilence >= CALL_SILENCE_MS) {
+          if (callRecorder && callRecorder.state === "recording") callRecorder.stop();
+          return; // don't schedule next frame
+        }
+      } else {
+        localSilence = null;
+      }
+      callSilenceAnimId = requestAnimationFrame(tick);
+    };
+    callSilenceAnimId = requestAnimationFrame(tick);
+  } catch (_) { /* no VAD — rely on max-duration timeout */ }
+
+  callChunks  = [];
+  callRecorder = new MediaRecorder(stream);
+  callRecorder.ondataavailable = (e) => { if (e.data.size) callChunks.push(e.data); };
+  callRecorder.onstop = () => {
+    stream.getTracks().forEach(t => t.stop());
+    if (callSilenceAnimId) { cancelAnimationFrame(callSilenceAnimId); callSilenceAnimId = null; }
+    if (callAudioCtx)      { callAudioCtx.close().catch(() => {}); callAudioCtx = null; }
+    const inner = document.querySelector(".call-avatar-circle");
+    if (inner) inner.style.transform = "";
+
+    if (!callModeActive || callMuted) return; // stopped intentionally
+    const blob = new Blob(callChunks, { type: callRecorder.mimeType });
+    _callHandleBlob(blob);
+  };
+  callRecorder.start();
+  setTimeout(() => {
+    if (callRecorder && callRecorder.state === "recording") callRecorder.stop();
+  }, CALL_MAX_MS);
+}
+
+async function _callHandleBlob(blob) {
+  if (!callModeActive) return;
+  _setCallState("processing");
+
+  try {
+    let audio_b64, mime_type;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new Ctx();
+      await ctx.resume();
+      const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+      const wav = encodeWav(buf);
+      ctx.close();
+      audio_b64 = await blobToBase64(wav);
+      mime_type  = "audio/wav";
+    } catch {
+      audio_b64 = await blobToBase64(blob);
+      mime_type  = blob.type || "audio/mp4";
+    }
+
+    const sttData = await postJson("/api/stt", { audio_b64, mime_type });
+    const text    = cleanStt(sttData.text || "");
+
+    if (!text || !callModeActive) {
+      // Silence or empty — restart listening immediately (no chat bubble)
+      if (callModeActive) _callStartListening();
+      return;
+    }
+
+    await _callSendMessage(text);
+  } catch (_) {
+    if (callModeActive) { _setCallState("listening"); _callStartListening(); }
+  }
+}
+
+async function _callSendMessage(text) {
+  if (!text.trim() || !callModeActive) return;
+  addMessage("customer", text);
+  showTyping();
+
+  let fullText = "";
+  let meta     = null;
+
+  try {
+    const resp = await fetch("/api/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId, message: text }),
+    });
+    if (!resp.ok) throw new Error(`${resp.status}`);
+
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const ev = JSON.parse(line.slice(6));
+          if (ev.token) {
+            fullText += ev.token;
+          } else if (ev.meta) {
+            meta = ev.meta;
+            sessionId = meta.session_id;
+            applyRawMode(Boolean(meta.raw_mode));
+            setRailUser(meta.verified);
+            renderChatActions(meta);
+            renderHandoff(meta.in_handoff ? { handled_by: meta.handled_by || null } : null);
+            if (meta.in_handoff) startPolling();
+          } else if (ev.error) {
+            throw new Error(ev.error);
+          }
+        } catch (_) {}
+      }
+    }
+  } catch (_) {
+    await hideTyping();
+    if (callModeActive) { _setCallState("listening"); _callStartListening(); }
+    return;
+  }
+
+  await hideTyping();
+
+  if (fullText.trim()) {
+    addMessage("assistant", fullText.trim(), meta);
+    updateInspector(meta);
+
+    // Show a short preview of the reply inside the voice overlay
+    const lmEl = $("call-last-msg");
+    if (lmEl) {
+      const preview = fullText.trim().replace(/\s+/g, " ");
+      lmEl.textContent = preview.slice(0, 160) + (preview.length > 160 ? "…" : "");
+      lmEl.classList.remove("hidden");
+    }
+
+    if (ttsAvailable && callModeActive) {
+      _setCallState("speaking");
+      await _playTtsForCall(stripMarkdownForTts(fullText.trim()));
+    }
+  }
+
+  if (callModeActive) {
+    _setCallState("listening");
+    _callStartListening();
+  }
+}
+
+// Returns a promise that resolves only after TTS audio has finished playing.
+async function _playTtsForCall(text) {
+  return new Promise((resolve) => {
+    if (streamingAudio) { streamingAudio.pause(); streamingAudio.src = ""; streamingAudio = null; }
+    fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    })
+      .then(r => (r.ok ? r.blob() : null))
+      .then(b => (b ? URL.createObjectURL(b) : null))
+      .then(url => {
+        if (!url) { resolve(); return; }
+        const audio = new Audio();
+        streamingAudio = audio;
+        const finish = () => {
+          URL.revokeObjectURL(url);
+          if (streamingAudio === audio) streamingAudio = null;
+          resolve();
+        };
+        audio.onended = finish;
+        audio.onerror = finish;
+        audio.src = url;
+        audio.play().catch(finish);
+      })
+      .catch(() => resolve());
+  });
+}
+
+// ---- mute toggle ----
+
+function _callToggleMute() {
+  callMuted = !callMuted;
+  const btn = $("call-mute-btn");
+  btn.querySelector(".vs-icon-active").classList.toggle("hidden", callMuted);
+  btn.querySelector(".vs-icon-muted").classList.toggle("hidden", !callMuted);
+  btn.title = callMuted ? "Bật tiếng" : "Tắt tiếng";
+  btn.setAttribute("aria-label", callMuted ? "Bật tiếng" : "Tắt tiếng");
+  btn.classList.toggle("muted", callMuted);
+  const lbl = $("call-mute-label");
+  if (lbl) lbl.textContent = callMuted ? "Bật tiếng" : "Tắt tiếng";
+
+  if (callMuted) {
+    // Stop current recording — onstop will skip re-start because callMuted=true
+    if (callRecorder && callRecorder.state === "recording") callRecorder.stop();
+    _setCallState("listening"); // keep visual state coherent
+  } else if (callModeActive && callState === "listening") {
+    _callStartListening();
+  }
+}
+
+// ---- wire up buttons ----
+$("call-btn").addEventListener("click", startCall);
+$("call-end-btn").addEventListener("click", stopCall);
+$("call-mute-btn").addEventListener("click", _callToggleMute);
 
 (async function init() {
   updateSendState();
