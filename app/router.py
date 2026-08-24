@@ -18,6 +18,8 @@ import re
 import time
 from dataclasses import dataclass, field
 
+from . import canned_responses as R
+from . import demo_script
 from . import flows, guardrails, llm, policy
 from .llm import rerank, route
 from .nlu import (HIGH_CONFIDENCE, LOW_CONFIDENCE, IntentClassifier,
@@ -81,16 +83,8 @@ def _flow_label(name: str | None) -> str:
     return _FLOW_LABELS.get(name or "", "yêu cầu trước đó")
 
 
-ESCALATION_MESSAGE = (
-    "Để tôi kết nối bạn với một chuyên viên - họ sẽ có đầy đủ nội dung cuộc hội thoại này, "
-    "bạn không cần phải giải thích lại.\n\n"
-    "**Bạn đang trong hàng chờ nhân viên hỗ trợ.**"
-)
-
-REQUEUED_MESSAGE = (
-    "Câu hỏi này cũng nằm ngoài phạm vi tôi có thể trả lời - tôi đã ghi vào ghi chú "
-    "cho chuyên viên tiếp nhận bạn. **Bạn vẫn đang trong hàng chờ.**"
-)
+ESCALATION_MESSAGE = R.ESCALATION_MESSAGE
+REQUEUED_MESSAGE = R.REQUEUED_MESSAGE
 
 
 @dataclass
@@ -123,6 +117,47 @@ class Router:
         started = time.perf_counter()
         self.trace = Trace()
         session.add_message("customer", text)
+
+        # Scripted-reply lever, checked before even raw mode - it is the
+        # strongest override in the system. Armed explicitly by staff
+        # (data/demo_scripts.json via app/demo_script.py) so a presenter can
+        # guarantee the next reply for a live demo regardless of what the
+        # model, retrieval, or the customer fixture would actually produce
+        # right now. Deliberately does not look at what the customer typed:
+        # a scripted demo should survive a mistyped digit, not derail on one.
+        if session.script_name:
+            script_name = session.script_name
+            step = demo_script.next_reply(session)
+            if step is not None:
+                self.trace.decide(
+                    "demo_script", f"scripted reply ({script_name})",
+                    "routing, guardrails, retrieval and the model were all bypassed")
+                result = TurnResult(
+                    text=step.get("reply", ""),
+                    route=step.get("route", "scripted"),
+                    intent=step.get("intent", "scripted"),
+                    confidence=1.0,
+                    sources=step.get("sources", []),
+                    generated=False,
+                    debug={"note": f"scripted step {session.script_step}/"
+                                   f"{demo_script.step_count(script_name)} "
+                                   f"({script_name})"},
+                )
+                result.latency_ms = int((time.perf_counter() - started) * 1000)
+                result.trace = self.trace.to_list()
+                session.add_message("assistant", result.text)
+                session.record(
+                    utterance=text, route=result.route, intent=result.intent,
+                    confidence=1.0, generated=False,
+                    latency_ms=result.latency_ms, note=result.debug["note"],
+                )
+                return result
+            # The script just ran out on this turn - no reply was staged, so
+            # this turn is real. Fall through to normal routing, but leave a
+            # trace entry so an operator watching the inspector sees why the
+            # answer suddenly stopped being scripted.
+            self.trace.add("demo_script", f"'{script_name}' script ended",
+                           "falling back to normal routing for this turn")
 
         # Demo lever, checked before anything else the router does. Everyone
         # below this line - guardrails, NLU, flows, retrieval, grounding -
@@ -160,11 +195,9 @@ class Router:
                 note=(f"customer left the chat with {agent_name}" if agent_name
                       else "customer left the handoff queue before it was claimed"),
             )
-            reply = ((f"Bạn đã quay lại với trợ lý - {agent_name} đã kết thúc cuộc hội thoại này. "
-                      "Tôi có thể giúp gì cho bạn?")
-                     if agent_name else
-                     ("Bạn đã quay lại với trợ lý, tôi đã đưa bạn ra khỏi hàng chờ. "
-                      "Tôi có thể giúp gì cho bạn?"))
+            reply = (f"Bạn đã quay lại với mình rồi nè - {agent_name} đã kết thúc cuộc trò chuyện này. "
+                     "Mình có thể giúp gì cho bạn tiếp theo?"
+                     if agent_name else R.LEFT_AGENT_NO_NAME)
             session.add_message("assistant", reply)
             return TurnResult(
                 text=reply, route="deterministic", intent="left_agent",
@@ -177,7 +210,7 @@ class Router:
         # it as one offered the customer a handoff, which is the opposite of
         # what they asked for.
         if _LEAVE_RE.match(text):
-            reply = "Bạn đang trò chuyện với trợ lý ảo. Tôi có thể giúp gì cho bạn?"
+            reply = R.LEAVE_NOOP
             session.add_message("assistant", reply)
             session.record(utterance=text, route="deterministic",
                            intent="left_agent", confidence=1.0,
@@ -326,7 +359,7 @@ class Router:
                 self.trace.decide("handoff_offer", "customer declined",
                                   "assistant continues")
                 return TurnResult(
-                    text="Được rồi, tôi sẽ tiếp tục hỗ trợ bạn. Bạn cần hỏi thêm điều gì không?",
+                    text=R.ESCALATION_DECLINED,
                     route="deterministic", intent="escalation_declined",
                     confidence=1.0, debug={"note": "customer declined the handoff"},
                 )
@@ -450,11 +483,17 @@ class Router:
         if flows.wants_out(text):
             return "explicit-cancel"
 
-        # Verification flow: only keep it if the input looks like a
-        # verification code (a 4-digit group). No digits means this is
-        # clearly a new question, so drop verify and re-route immediately.
+        # Verification flow: only keep it if the input looks like an attempt
+        # at a code - at least as many digits as the current step expects (10
+        # for the phone number, 12 for the CCCD). Loose on purpose: a message
+        # with *more* digits than that, or the right count with a typo, still
+        # reads as an attempt and is left for flows.py's exact-length check to
+        # give a proper "wrong format" reply, rather than being kicked out of
+        # verification as if it were an unrelated question. Fewer digits than
+        # expected is clearly a new question.
         if session.pending_flow == "verify":
-            if not re.search(r"\b\d{4}\b", text):
+            expected = 12 if session.slots.get("verify_stage") == "cccd" else 10
+            if len(re.sub(r"[^0-9]", "", text)) < expected:
                 return "new-question-during-verify"
             return None
 
@@ -771,12 +810,7 @@ class Router:
         exempt: there is nothing to consult them about in either case.
         """
         session.pending_escalation = reason
-        body = (
-            "Thành thật mà nói, tôi không có thông tin chính xác về vấn đề này.\n\n"
-            "**Bạn có muốn tôi kết nối với một chuyên viên để được tư vấn thêm không?** "
-            "Họ sẽ có đầy đủ nội dung cuộc hội thoại này, bạn không cần giải thích lại. "
-            "Hoặc bạn có thể hỏi tôi câu khác."
-        )
+        body = R.ESCALATION_OFFER_BODY
         message = f"{prefix.strip()}\n\n{body}" if prefix.strip() else body
         return TurnResult(
             text=message, route="escalation_offered", intent=intent,

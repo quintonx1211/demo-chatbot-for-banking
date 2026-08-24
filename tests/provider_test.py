@@ -109,9 +109,9 @@ def main() -> int:
     check(result.route == "rag", f"routed to rag (got {result.route})")
     check(result.generated, "marked as generated")
     check(len(stub.calls) == 1, "adapter called exactly once")
-    check("Knowledge base passages:" in stub.calls[0].user,
+    check("cơ sở tri thức" in stub.calls[0].user,
           "adapter received the retrieved passages")
-    check(stub.calls[0].system.startswith("You are the customer service"),
+    check(stub.calls[0].system.startswith("Bạn là Linh"),
           "adapter received the answering system prompt")
     check(result.grounding is not None and result.grounding > 0.5,
           f"grounding computed ({result.grounding})")
@@ -171,7 +171,7 @@ def main() -> int:
     session = router.sessions.create()
     router.handle_turn(session, "cho tôi gặp nhân viên")
     check(session.escalated, "session escalated")
-    check(any("handover brief" in c.user.lower() or "transcript" in c.user.lower()
+    check(any("bản ghi đầy đủ" in c.user.lower() or "thông tin phiên" in c.user.lower()
               for c in stub.calls),
           "adapter received the summarisation request")
 

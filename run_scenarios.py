@@ -59,38 +59,39 @@ check("A2-not-deterministic", res.route != "deterministic", res.route)
 check("A2-no-identity-prompt", "xác minh" not in res.text.lower() or res.route == "rag",
       res.route)
 
-# A5 - xác thực 2 yếu tố thành công
+# A5 - xác thực 2 yếu tố thành công (Nguyen Van An)
 print("\nA5. Xác thực hai yếu tố thành công")
 r, s = mk()
 turn(r, s, "kiểm tra số dư")
-res = turn(r, s, "9411 3147")
+turn(r, s, "0842199388")
+res = turn(r, s, "183589113804")
 check("A5-verified", s.verified, str(s.verified))
 check("A5-shows-balance", any(c in res.text for c in ["VND","số dư","tài khoản"]),
       res.text[:80])
 check("A5-uses-first-name", "An" in res.text, res.text[:80])
 
-# A6 - từ chối khi dán số thẻ đầy đủ
+# A6 - từ chối khi dán số thẻ đầy đủ (nhiều số hơn mức mong đợi)
 print("\nA6. Từ chối khi khách dán số thẻ")
 r, s = mk()
 turn(r, s, "kiểm tra số dư")
-res = turn(r, s, "thẻ của tôi là 9411 3147 1234 5678")
+res = turn(r, s, "thẻ của tôi là 0842199388 1234567890123456")
 check("A6-not-verified-16digit", not s.verified, f"verified={s.verified}")
 r2, s2 = mk()
 turn(r2, s2, "kiểm tra số dư")
-res2 = turn(r2, s2, "9411314712345678")
+res2 = turn(r2, s2, "08421993881234567890123456")
 check("A6-not-verified-nospace", not s2.verified, f"verified={s2.verified}")
 r3, s3 = mk()
 turn(r3, s3, "kiểm tra số dư")
-res3 = turn(r3, s3, "9411 3147 9999")
+res3 = turn(r3, s3, "0842199388 9999")
 check("A6-not-verified-extra", not s3.verified, f"verified={s3.verified}")
 
-# A7 - sai 3 lần → escalation bảo mật
+# A7 - sai 3 lần → escalation bảo mật (không phải SĐT của ai trong dữ liệu)
 print("\nA7. Sai 3 lần → chuyển nhân viên vì bảo mật")
 r, s = mk()
 turn(r, s, "kiểm tra số dư")
-turn(r, s, "1111 1111")
-turn(r, s, "2222 2222")
-res = turn(r, s, "3333 3333")
+turn(r, s, "0911111111")
+turn(r, s, "0922222222")
+res = turn(r, s, "0933333333")
 check("A7-escalated-after-3", res.route == "escalation" or s.escalated,
       f"route={res.route} escalated={s.escalated}")
 check("A7-reason-security",
@@ -100,11 +101,12 @@ check("A7-reason-security",
       s.escalated,
       str(res.escalation_reason))
 
-# A8-1 - tạm khoá rồi mở khoá (Vu Duc Hieu 9170 3723 - 1 thẻ ghi nợ)
+# A8-1 - tạm khoá rồi mở khoá (Hoang Thi Ha - 1 thẻ ghi nợ tạm khoá sẵn)
 print("\nA8-1. Tạm khoá rồi mở khoá - phải đảo ngược được")
 r, s = mk()
 turn(r, s, "tạm khoá thẻ giúp tôi")
-turn(r, s, "9170 3723")
+turn(r, s, "0328985767")
+turn(r, s, "530146763936")
 res_frz = turn(r, s, "có")
 check("A8-1-freeze-confirmed", "FRZ-" in res_frz.text, res_frz.text[:80])
 res_ufrz = turn(r, s, "mở khoá thẻ giúp tôi")
@@ -112,22 +114,24 @@ check("A8-1-unfreeze-intent", res_ufrz.route == "deterministic", res_ufrz.route)
 res_ufrz2 = turn(r, s, "có")
 check("A8-1-unfreeze-confirmed", "UNF-" in res_ufrz2.text, res_ufrz2.text[:80])
 
-# A8-2 - báo mất thẻ → blocked + thẻ thay thế (multi_card: 2 thẻ → cần chọn thẻ)
+# A8-2 - báo mất thẻ → blocked + thẻ thay thế (Do Thi Mai, multi_card: 2 thẻ → cần chọn thẻ)
 print("\nA8-2. Báo mất thẻ → blocked + thẻ thay thế")
 r, s = mk()
 turn(r, s, "tôi làm mất thẻ")
-turn(r, s, "5194 9572")
+turn(r, s, "0395821542")
+turn(r, s, "226291473446")
 turn(r, s, "ghi nợ")     # chọn thẻ ghi nợ khi bot hỏi "khóa thẻ nào?"
 res = turn(r, s, "có")
 check("A8-2-blocked", "BLK-" in res.text, res.text[:80])
 check("A8-2-replacement", any(w in res.text.lower() for w in ["thay thế","thẻ mới","replace"]),
       res.text[:100])
 
-# A8-3 - thẻ đã khoá do báo mất KHÔNG mở lại được
+# A8-3 - thẻ đã khoá do báo mất KHÔNG mở lại được (Bui Van Long)
 print("\nA8-3. Thẻ đã khoá do báo mất không mở lại")
 r, s = mk()
 res = turn(r, s, "mở khoá thẻ giúp tôi")
-turn(r, s, "6850 7777")
+turn(r, s, "0380591171")
+turn(r, s, "718873715684")
 # Check response refuses or warns about blocked card
 check("A8-3-no-unfreeze", any(w in res.text.lower() for w in
       ["xác minh","không thể","bảo mật","blocked","khoá","nhân viên","chuyên viên"]) or
@@ -285,11 +289,12 @@ check("D4-summary-exists-after-handoff", bool(summary_off.strip()),
 # ─────────────────────────────────────────────────────────────────────────────
 section("E - CHIẾN DỊCH KHÁCH HÀNG")
 
-# E1 - kích hoạt thẻ chưa kích hoạt → hướng dẫn app/IVR
+# E1 - kích hoạt thẻ chưa kích hoạt → hướng dẫn app/IVR (Le Minh Chau)
 print("\nE1. Kích hoạt thẻ mới")
 r, s = mk()
 turn(r, s, "làm sao để kích hoạt thẻ mới?")
-res = turn(r, s, "7454 9005")
+turn(r, s, "0944984320")
+res = turn(r, s, "706686007998")
 check("E1-verified", s.verified, str(s.verified))
 check("E1-guidance-not-activation",
       any(w in res.text.lower() for w in ["app","ivr","quầy","chi nhánh","hướng dẫn","kích hoạt"]),
@@ -299,38 +304,42 @@ check("E1-no-otp-request",
       not any(w in res.text.lower() for w in ["nhập otp","cung cấp otp","gửi otp","cvv","số thẻ đầy đủ"]),
       res.text[:120])
 
-# E2 - cùng ý định, diễn đạt khác
+# E2 - cùng ý định, diễn đạt khác (Le Minh Chau)
 print("\nE2. Cùng ý định, khách nói khác")
 r, s = mk()
 turn(r, s, "thẻ mới về rồi, tôi bắt đầu dùng thế nào?")
-res = turn(r, s, "7454 9005")
+turn(r, s, "0944984320")
+res = turn(r, s, "706686007998")
 check("E2-same-flow", s.verified and
       any(w in res.text.lower() for w in ["app","ivr","kích hoạt","hướng dẫn"]),
       res.text[:80])
 
-# E3 - kích hoạt lại thẻ ngủ đông
+# E3 - kích hoạt lại thẻ ngủ đông (Tran Thi Bich)
 print("\nE3. Kích hoạt lại thẻ ngủ đông")
 r, s = mk()
 turn(r, s, "thẻ lâu rồi tôi không dùng, còn dùng được không?")
-res = turn(r, s, "8502 1346")
+turn(r, s, "0882935134")
+res = turn(r, s, "834161133919")
 check("E3-dormant-recognized",
       any(w in res.text.lower() for w in ["ngủ","dormant","kích hoạt","lại"]),
       res.text[:120])
 
-# E4 - bán chéo, chỉ nêu ưu đãi có thật
+# E4 - bán chéo, chỉ nêu ưu đãi có thật (Nguyen Van An)
 print("\nE4. Bán chéo - chỉ ưu đãi từ file")
 r, s = mk()
 turn(r, s, "có ưu đãi nào cho tôi không?")
-res = turn(r, s, "9411 3147")
+turn(r, s, "0842199388")
+res = turn(r, s, "183589113804")
 check("E4-verified", s.verified, str(s.verified))
 check("E4-has-offer", any(w in res.text.lower() for w in
       ["ưu đãi","chiến dịch","campaign","khuyến"]), res.text[:120])
 
-# E5 - không nằm trong danh sách
+# E5 - không nằm trong danh sách (Do Thi Mai)
 print("\nE5. Khách không có ưu đãi")
 r, s = mk()
 turn(r, s, "tôi có đủ điều kiện nâng hạng thẻ không?")
-res = turn(r, s, "5194 9572")
+turn(r, s, "0395821542")
+res = turn(r, s, "226291473446")
 check("E5-no-hallucinate-offer",
       not any(w in res.text.lower() for w in ["bịa","không có thông tin"]) and
       any(w in res.text.lower() for w in ["hiện","chưa","không có","không tìm"]),

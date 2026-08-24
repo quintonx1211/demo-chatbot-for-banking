@@ -32,26 +32,32 @@ MÃ XÁC THỰC CHO 15 KHÁCH HÀNG. Sản phẩm cố ý KHÔNG hiển thị c�
 hình: in mã ngay trong lời nhắc xác thực sẽ làm hỏng chính câu chuyện xác thực
 hai yếu tố mà ta đang trình bày.
 
-  Định dạng: 4 số cuối điện thoại, dấu cách, 4 số cuối CCCD.
+  Định dạng: SỐ ĐIỆN THOẠI đầy đủ (10 số), hỏi trước - CHỈ KHI khớp mới hỏi
+  tiếp CCCD đầy đủ (12 số). Hai lượt tin nhắn tách biệt, không phải một tin
+  nhắn gộp cả hai như bản cũ. Bảng dưới đây liệt kê "SĐT | CCCD" cho tiện đọc,
+  nhưng khi gõ phải gửi SĐT trước, đợi trợ lý hỏi CCCD rồi mới gửi CCCD.
 
-  Nguyen Van An      9411 3147   có ưu đãi bán chéo trong dữ liệu chiến dịch
-  Tran Thi Bich      8502 1346   thẻ ngủ đông - chiến dịch kích hoạt lại
-  Le Minh Chau       7454 9005   thẻ đã phát hành, chưa kích hoạt
-  Pham Quoc Dung     3142 2902   PRIORITY, số dư lớn, hai thẻ
-  Hoang Thi Ha       7091 9527   một thẻ TẠM KHOÁ, một thẻ hoạt động
-  Vu Duc Hieu        9170 3723   hồ sơ vay Đang thẩm định
-  Dang Thi Lan       8780 5058   tài khoản âm
-  Bui Van Long       6850 7777   thẻ ĐÃ KHOÁ + thẻ thay thế - luồng từ chối
-  Do Thi Mai         5194 9572   PRIORITY, hai thẻ đang hoạt động
-  Ngo Thanh Nam      3745 8701   khách mới, thẻ chưa kích hoạt, số dư thấp
-  Duong Thi Oanh     9218 7753   vay mua nhà Đã phê duyệt
-  Ly Van Phuc        6070 6964   có giao dịch đang tra soát trên sao kê
-  Trinh Thi Quyen    2492 3703   chỉ có tiết kiệm, không giữ thẻ nào
-  Cao Van Son        4230 5072   PRIORITY, số dư doanh nghiệp
-  Mai Thi Thuy       9519 6507   hồ sơ vay Không được duyệt - phải chuyển người
+  Nguyen Van An      0842199388 | 183589113804   có ưu đãi bán chéo
+  Tran Thi Bich      0882935134 | 834161133919   thẻ ngủ đông - kích hoạt lại
+  Le Minh Chau       0944984320 | 706686007998   thẻ đã phát hành, chưa kích hoạt
+  Pham Quoc Dung     0984911069 | 188152754149   PRIORITY, số dư lớn, hai thẻ
+  Hoang Thi Ha       0394818868 | 203073127325   một thẻ TẠM KHOÁ, một thẻ hoạt động
+  Vu Duc Hieu        0328985767 | 530146763936   hồ sơ vay Đang thẩm định, một thẻ
+  Dang Thi Lan       0334234376 | 423544959326   tài khoản âm
+  Bui Van Long       0380591171 | 718873715684   thẻ ĐÃ KHOÁ + thẻ thay thế
+  Do Thi Mai         0395821542 | 226291473446   PRIORITY, hai thẻ đang hoạt động
+  Ngo Thanh Nam      0906365046 | 314347547383   khách mới, thẻ chưa kích hoạt
+  Duong Thi Oanh     0395386101 | 362640916062   vay mua nhà Đã phê duyệt
+  Ly Van Phuc        0391542777 | 024890009309   có giao dịch đang tra soát
+  Trinh Thi Quyen    0353197363 | 721630608115   chỉ có tiết kiệm, không thẻ
+  Cao Van Son        0365015326 | 424902059367   PRIORITY, số dư doanh nghiệp
+  Mai Thi Thuy       0337098656 | 697357204495   hồ sơ vay Không được duyệt
 
 Sinh lại dữ liệu bằng `python make_customers.py` (deterministic - chạy bao
-nhiêu lần cũng ra đúng bộ mã này, nên bảng trên không bị lỗi thời).
+nhiêu lần cũng ra đúng bộ SĐT/CCCD, nên bảng trên không bị lỗi thời). Số thẻ
+(4 số cuối trong các ví dụ báo mất/tạm khoá dưới đây) KHÔNG deterministic -
+sinh ngẫu nhiên mỗi lần chạy, nên tự kiểm tra lại qua data/accounts.json hoặc
+Kho tri thức trước khi demo thay vì tin vào con số in trong tài liệu này.
 `python make_customers.py --check` chỉ kiểm tra, không ghi.
 
 Trước mỗi buổi demo: Tổng quan -> Xoá toàn bộ phiên, rồi Nạp dữ liệu demo.
@@ -96,32 +102,42 @@ A4. Cấu hình hỏng phải rơi về phía an toàn
     VÌ SAO   một file cấu hình hỏng không bao giờ được âm thầm nới lỏng kiểm
              soát an toàn.
 
-A5. Xác thực hai yếu tố
+A5. Xác thực hai yếu tố, tuần tự
     Gõ:      kiểm tra số dư
-    Rồi:     9411 3147
-    KỲ VỌNG  xác thực thành công, số dư hiển thị bằng VND, xưng hô "anh/chị An".
+    Rồi:     0842199388           (SĐT - trợ lý hỏi tiếp CCCD)
+    Rồi:     183589113804         (CCCD - xác thực xong)
+    KỲ VỌNG  sau SĐT, trợ lý KHÔNG cho biết đúng hay sai - chỉ hỏi tiếp CCCD.
+             Sau CCCD đúng: xác thực thành công, số dư hiển thị bằng VND, xưng
+             hô "An".
     LƯU Ý    lời chào dùng tên gọi lưu trong hồ sơ, không phải từ đầu tiên của
              họ tên. Tên Việt là họ-đệm-tên, nên tách theo từ đầu sẽ gọi Nguyen
              Van An là "Nguyen" - tức gọi bằng họ, thứ mà khoảng một phần ba dân
              số dùng chung.
+    VÌ SAO tuần tự (không phải gộp cả hai vào một tin) là đánh đổi có chủ đích:
+             CCCD sai sau một SĐT đúng có để lộ rằng số điện thoại đó là thật -
+             điều bản gộp-một-tin trước đây không để lộ. Ở quy mô 10^10 số điện
+             thoại, đó không phải bề mặt brute-force đáng kể như mã 4 số cũ.
 
-A6. Xác thực phải TỪ CHỐI khi khách dán số thẻ
+A6. Xác thực phải TỪ CHỐI khi tin nhắn có nhiều số hơn mã cần
     Gõ:      kiểm tra số dư
-    Rồi:     thẻ của tôi là 9411 3147 1234 5678
-    KỲ VỌNG  TỪ CHỐI, kèm nhắc nhở không bao giờ gửi số thẻ đầy đủ.
-    LỖI NẾU  xác thực thành công. Bản cũ bốc hai nhóm 4 số đầu tiên trong bất kỳ
-             câu nào, nghĩa là dán số thẻ vào là được xác thực bằng chính 8 số
-             đầu của thẻ - phần ít bí mật nhất, in trên sao kê và chia sẻ với
-             mọi điểm bán.
-    Thử thêm: 9411314712345678  và  9411 3147 9999  -> đều phải bị từ chối.
+    Rồi:     thẻ của tôi là 0842199388 1234567890123456
+    KỲ VỌNG  TỪ CHỐI vì sai định dạng, kèm nhắc nhở không bao giờ gửi số thẻ
+             đầy đủ hay mã PIN.
+    LỖI NẾU  xác thực thành công. Validator đếm TỔNG số chữ số sau khi lọc bỏ
+             mọi ký tự khác - phải khớp CHÍNH XÁC 10 (bước SĐT) hoặc 12 (bước
+             CCCD), không hơn không kém. Dán thêm bất kỳ chuỗi số nào - số thẻ,
+             mã PIN, một SĐT khác - đều đẩy tổng lên quá mức và bị từ chối.
+    Thử thêm: 08421993881234567890123456  (dính liền, không dấu cách)
+             và  0842199388 9999  (thừa 4 số) -> đều phải bị từ chối.
 
 A7. Sai ba lần thì chuyển nhân viên vì lý do bảo mật
     Gõ:      kiểm tra số dư
-    Rồi:     1111 1111 -> 2222 2222 -> 3333 3333
+    Rồi:     0911111111 -> 0922222222 -> 0933333333   (SĐT không khớp ai)
     KỲ VỌNG  hai lần đầu báo "lần N/3", lần thứ ba chuyển nhân viên với lý do
              "Identity verification failed three times".
     VÌ SAO   đây là escalation vì bảo mật. Nó phải nổi lên, không được bị quy
-             tắc chung "khách không tiến triển" nuốt mất.
+             tắc chung "khách không tiến triển" nuốt mất. Ngân sách 3 lần dùng
+             chung cho cả bước SĐT lẫn CCCD, không reset khi chuyển bước.
 
 A8. TRẠNG THÁI THẺ THAY ĐỔI THẬT TRONG FILE DỮ LIỆU
     Mọi thao tác thẻ đều ghi vào data/db/cards.csv và thêm một dòng chuyển trạng
@@ -133,8 +149,9 @@ A8. TRẠNG THÁI THẺ THAY ĐỔI THẬT TRONG FILE DỮ LIỆU
                                \--report_lost--> blocked  (một chiều)
                                                     \--> cấp thẻ thay thế
 
-    A8-1. TẠM KHOÁ rồi MỞ KHOÁ - phải đảo ngược được
-          Gõ: tạm khoá thẻ giúp tôi -> 7091 9527 -> có
+    A8-1. TẠM KHOÁ rồi MỞ KHOÁ - phải đảo ngược được (dùng Vu Duc Hieu - một
+          thẻ duy nhất, không mơ hồ khi chọn thẻ)
+          Gõ: tạm khoá thẻ giúp tôi -> 0328985767 -> 530146763936 -> có
           KỲ VỌNG xác nhận kèm mã tham chiếu FRZ-
           Gõ: mở khoá thẻ giúp tôi -> có
           KỲ VỌNG thẻ hoạt động trở lại, mã tham chiếu UNF-
@@ -142,24 +159,33 @@ A8. TRẠNG THÁI THẺ THAY ĐỔI THẬT TRONG FILE DỮ LIỆU
                   Trước đây hoàn toàn không tồn tại intent mở khoá: "mở khoá
                   thẻ" bị phân loại là `unknown`, rơi xuống truy xuất, không tìm
                   thấy gì, rồi đề nghị gặp người cho một việc trợ lý tự làm được.
+          LƯU Ý   không dùng Hoang Thi Ha cho kịch bản này: hồ sơ của bà đã có
+                  sẵn một thẻ TẠM KHOÁ, nên sau bước tạm khoá bà có hai thẻ
+                  frozen, khiến bước mở khoá phải hỏi lại "thẻ nào" thay vì mở
+                  ngay - làm hỏng kịch bản đơn giản này.
 
-    A8-2. BÁO MẤT - một chiều, và phải cấp thẻ thay thế
-          Gõ: tôi làm mất thẻ ghi nợ -> 5194 9572 -> 6591 -> có
+    A8-2. BÁO MẤT - một chiều, và phải cấp thẻ thay thế (dùng Do Thi Mai)
+          Gõ: tôi làm mất thẻ ghi nợ -> 0395821542 -> 226291473446 -> ghi nợ -> có
           KỲ VỌNG thẻ chuyển blocked kèm mã BLK-, VÀ một thẻ thay thế mới xuất
                   hiện ở trạng thái inactive.
           VÌ SAO  thẻ báo mất thì không ai báo lại; ngân hàng cấp thẻ mới. Để
                   blocked là ngõ cụt sẽ khiến khách không còn thẻ nào dùng được
                   - đó chính là lỗi ban đầu.
+          LƯU Ý   chọn thẻ theo LOẠI ("ghi nợ"), không theo 4 số cuối - số thẻ
+                  được sinh ngẫu nhiên mỗi lần chạy `make_customers.py`, không
+                  giống SĐT/CCCD (deterministic). Muốn xem số thật, mở
+                  data/accounts.json hoặc hỏi "tôi là ai trong hệ thống".
 
-    A8-3. Thẻ đã khoá do báo mất KHÔNG được mở lại
-          Gõ: mở khoá thẻ giúp tôi -> 6850 7777
+    A8-3. Thẻ đã khoá do báo mất KHÔNG được mở lại (dùng Bui Van Long - hồ sơ
+          có sẵn một thẻ ĐÃ KHOÁ + thẻ thay thế)
+          Gõ: mở khoá thẻ giúp tôi -> 0380591171 -> 718873715684
           KỲ VỌNG từ chối, giải thích đây là quy định bảo mật, và nhắc rằng thẻ
                   thay thế đã được cấp.
           LỖI NẾU mở được. Đó là lỗ hổng bảo mật, không phải tiện ích.
 
     A8-4. Dữ liệu thật sự bền vững
           Sau A8-2, khởi động lại server rồi gõ:
-              tôi là ai trong hệ thống -> 5194 9572
+              tôi là ai trong hệ thống -> 0395821542 -> 226291473446
           KỲ VỌNG vẫn thấy thẻ blocked và thẻ thay thế inactive.
           LỖI NẾU thẻ trở lại active. Trước đây trạng thái chỉ nằm trong RAM nên
                   khởi động lại là mất - hệ thống nói với khách rằng thao tác
@@ -378,7 +404,8 @@ C8. Rời cuộc trò chuyện
              chỗ trong danh sách việc của nhân viên.
 
 C9. Trí nhớ xuyên phiên
-    Xác thực (9411 3147), hỏi một câu ngoài phạm vi, từ chối chuyển giao.
+    Xác thực (0842199388 -> 183589113804), hỏi một câu ngoài phạm vi, từ chối
+    chuyển giao.
     Mở cửa sổ ẩn danh, xác thực lại bằng cùng bộ mã.
     KỲ VỌNG  lời chào nhắc lại chủ đề còn dang dở lần trước.
     Tổng quan: "topics and outcomes only - never utterances".
@@ -420,7 +447,7 @@ Không truy vấn core banking thời gian thực - đúng phạm vi khách đã
 kiện tham gia được ĐỌC từ tệp, không bao giờ được suy đoán.
 
 E1. Kích hoạt thẻ - CHỈ bằng chuyển hướng
-    Gõ: làm sao để kích hoạt thẻ mới?  ->  7454 9005
+    Gõ: làm sao để kích hoạt thẻ mới?  ->  0944984320 -> 706686007998
     KỲ VỌNG nêu đúng thẻ chưa kích hoạt, và hướng dẫn sang app / IVR / quầy.
     LỖI NẾU hỏi mã OTP, số thẻ đầy đủ hoặc CVV ở bất kỳ bước nào.
     LƯU Ý   trợ lý KHÔNG tự chuyển thẻ sang trạng thái active, và đó là chủ ý.
@@ -428,21 +455,21 @@ E1. Kích hoạt thẻ - CHỈ bằng chuyển hướng
             sẽ là tuyên bố một hành động nó không thực hiện.
 
 E2. Cùng ý định, khách nói theo cách của họ
-    Gõ: thẻ mới về rồi, tôi bắt đầu dùng thế nào?  ->  7454 9005
+    Gõ: thẻ mới về rồi, tôi bắt đầu dùng thế nào?  ->  0944984320 -> 706686007998
     KỲ VỌNG cùng một luồng. Khách hàng thật không nói theo kịch bản.
 
 E3. Kích hoạt lại thẻ ngủ đông
-    Gõ: thẻ lâu rồi tôi không dùng, còn dùng được không?  ->  8502 1346
+    Gõ: thẻ lâu rồi tôi không dùng, còn dùng được không?  ->  0882935134 -> 834161133919
     KỲ VỌNG nêu đúng thẻ ngủ đông kèm bước tiếp theo. Không hối thúc, không bịa
             ra hạn chót.
 
 E4. Bán chéo
-    Gõ: có ưu đãi nào cho tôi không?  ->  9411 3147
+    Gõ: có ưu đãi nào cho tôi không?  ->  0842199388 -> 183589113804
     KỲ VỌNG chỉ nêu ưu đãi CÓ trong tệp chiến dịch.
     LỖI NẾU bịa ra một ưu đãi nghe hợp lý cho một khách hàng nghe hợp lý.
 
 E5. Khách KHÔNG nằm trong danh sách
-    Gõ: tôi có đủ điều kiện nâng hạng thẻ không?  ->  5194 9572
+    Gõ: tôi có đủ điều kiện nâng hạng thẻ không?  ->  0395821542 -> 226291473446
     KỲ VỌNG nói rõ hiện chưa có ưu đãi nào. Không đoán.
 
 ================================================================================

@@ -33,10 +33,13 @@ _FIXTURE = json.loads(
 _BY_PROFILE = {c["profile"]: c for c in _FIXTURE}
 
 
-def cred(profile: str) -> str:
-    """The two verification codes for the customer playing `profile`."""
+def cred(profile: str) -> tuple[str, str]:
+    """The two verification turns for the customer playing `profile` - phone
+    number first, then national ID, sent as separate messages because that is
+    how the flow actually asks for them now. Splice into a conversation with
+    `*cred(...)`, not `cred(...)` alone."""
     customer = _BY_PROFILE[profile]
-    return f"{customer['phone_last4']} {customer['national_id_last4']}"
+    return (customer["phone"], customer["national_id"])
 
 
 TRAVEL = cred("travel_offer")
@@ -71,22 +74,23 @@ CONVERSATIONS: list[list[str]] = [
     ["Chào bạn", "Tôi muốn tra soát một giao dịch lạ", "tạm biệt"],
     ["Nếu tài khoản bị âm thì sao?", "Có giới hạn số lần không?"],
 
-    # --- account actions: verification then a scripted flow ---
-    ["Kiểm tra số dư", TRAVEL],
-    ["Xem giao dịch gần đây", DORMANT],
-    ["Hồ sơ vay của tôi đến đâu rồi?", LOAN],
-    ["Hồ sơ vay mua nhà của tôi thế nào?", MORTGAGE],
-    ["Tôi là ai trong hệ thống?", TRAVEL],
-    ["Tôi làm mất thẻ ghi nợ", DORMANT, "có"],
+    # --- account actions: verification (phone, then national ID) then a
+    #     scripted flow ---
+    ["Kiểm tra số dư", *TRAVEL],
+    ["Xem giao dịch gần đây", *DORMANT],
+    ["Hồ sơ vay của tôi đến đâu rồi?", *LOAN],
+    ["Hồ sơ vay mua nhà của tôi thế nào?", *MORTGAGE],
+    ["Tôi là ai trong hệ thống?", *TRAVEL],
+    ["Tôi làm mất thẻ ghi nợ", *DORMANT, "có"],
 
     # --- freeze, then change their mind: the reversible path ---
     # Present so the card-event log shows a transition going back, not only
     # one-way blocks. The reversible case is the one customers actually hit.
-    ["tạm khoá thẻ giúp tôi", TRAVEL, "có"],
-    ["mở khoá thẻ giúp tôi", FROZEN, "có"],
+    ["tạm khoá thẻ giúp tôi", *TRAVEL, "có"],
+    ["mở khoá thẻ giúp tôi", *FROZEN, "có"],
 
     # --- customer changes their mind mid-flow (the escape path) ---
-    ["Tôi làm mất thẻ ghi nợ", TRAVEL, "thôi bỏ đi, chi nhánh mở cửa mấy giờ?"],
+    ["Tôi làm mất thẻ ghi nợ", *TRAVEL, "thôi bỏ đi, chi nhánh mở cửa mấy giờ?"],
 
     # --- regulated topics: blocked before any model runs ---
     ["Tôi có nên đầu tư tiết kiệm vào cổ phiếu công nghệ không?"],
@@ -113,12 +117,12 @@ CONVERSATIONS: list[list[str]] = [
     ["Thanh toán không tiếp xúc dùng được ở nước ngoài không?"],
 
     # --- campaign scenarios (the client's three) ---
-    ["Làm sao để kích hoạt thẻ mới?", INACTIVE],
-    ["Thẻ mới về rồi, tôi bắt đầu dùng thế nào?", INACTIVE],
-    ["Có ưu đãi nào cho tôi không?", TRAVEL],
-    ["Tôi có đủ điều kiện nâng hạng thẻ không?", TRAVEL],
-    ["Có khuyến mãi nào cho tôi không?", DORMANT],
-    ["Thẻ lâu rồi tôi không dùng, còn dùng được không?", DORMANT],
+    ["Làm sao để kích hoạt thẻ mới?", *INACTIVE],
+    ["Thẻ mới về rồi, tôi bắt đầu dùng thế nào?", *INACTIVE],
+    ["Có ưu đãi nào cho tôi không?", *TRAVEL],
+    ["Tôi có đủ điều kiện nâng hạng thẻ không?", *TRAVEL],
+    ["Có khuyến mãi nào cho tôi không?", *DORMANT],
+    ["Thẻ lâu rồi tôi không dùng, còn dùng được không?", *DORMANT],
 
     # --- handoff offered, then accepted / declined ---
     ["Do you offer safe deposit boxes?", "có"],
@@ -130,7 +134,7 @@ CONVERSATIONS: list[list[str]] = [
     ["Cho tôi gặp người thật về giao dịch bị trừ hai lần"],
 
     # --- verification failure, then handoff ---
-    ["Kiểm tra số dư", "1111 2222", "3333 4444", "5555 6666"],
+    ["Kiểm tra số dư", "0911111111", "0922222222", "0933333333"],
 ]
 
 

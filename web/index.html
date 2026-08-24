@@ -342,7 +342,7 @@
             <path d="M15 5l-7 7 7 7"/></svg>
         </button>
         <div class="chat-id">
-          <span class="chat-name">Trợ lý ABC Bank</span>
+          <span class="chat-name">Linh - Trợ lý ảo ABC Bank</span>
           <span class="chat-status ok" id="chat-status">
             <i class="dot" aria-hidden="true"></i><span id="chat-status-text">Trực tuyến</span>
           </span>
@@ -390,8 +390,25 @@
         </label>
       </div>
 
+      <div class="arch-toggle hidden" id="script-toggle-box">
+        <div class="arch-toggle-text">
+          <strong id="script-toggle-title">Kịch bản demo: tắt</strong>
+          <span class="hint" id="script-toggle-hint">Bật để ép các câu trả lời tiếp theo theo đúng kịch bản đã soạn, bất kể router/model trả lời gì.</span>
+        </div>
+        <select id="script-select" class="script-select"></select>
+        <button type="button" class="link-btn" id="script-start-btn">Bắt đầu</button>
+        <button type="button" class="link-btn hidden" id="script-stop-btn">Dừng</button>
+      </div>
+
       <div id="messages" class="messages" role="log" aria-live="polite"
            aria-label="Nội dung hội thoại"></div>
+
+      <div id="script-banner" class="raw-banner hidden">
+        <div>
+          <strong id="script-banner-title">Chế độ kịch bản demo</strong>
+          <p>Mọi câu trả lời tiếp theo trong hội thoại này đang bị ép theo kịch bản đã chọn, bỏ qua toàn bộ định tuyến.</p>
+        </div>
+      </div>
 
       <div id="raw-banner" class="raw-banner hidden">
         <div>

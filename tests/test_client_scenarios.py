@@ -27,8 +27,10 @@ from app.router import Router
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
-def cred(profile: str) -> str:
-    """Lấy credentials từ fixture – không hard-code để không bị stale."""
+def cred(profile: str) -> tuple[str, str]:
+    """Hai lượt xác thực (SĐT rồi CCCD) từ fixture – không hard-code để không
+    bị stale. Xác thực giờ hỏi tuần tự nên đây là hai tin nhắn, không phải
+    một - dùng `*cred(...)` khi ghép vào danh sách lượt hội thoại."""
     import json
     from pathlib import Path
     data = json.loads(
@@ -36,7 +38,7 @@ def cred(profile: str) -> str:
         .read_text(encoding="utf-8"))["customers"]
     by_profile = {c["profile"]: c for c in data}
     c = by_profile[profile]
-    return f"{c['phone_last4']} {c['national_id_last4']}"
+    return (c["phone"], c["national_id"])
 
 
 VAN_AN   = cred("travel_offer")    # CUS-100301 MASS, có XS-CLASSIC-2026Q3
@@ -166,7 +168,7 @@ def t1d(router: Router) -> list[str]:
 def t2a_verify(router: Router) -> list[str]:
     session, results = run(router, [
         "tôi muốn kiểm tra số dư",
-        VAN_AN,
+        *VAN_AN,
     ])
     errs = []
     if not session.verified:
@@ -184,7 +186,7 @@ def t2a_proactive(router: Router) -> list[str]:
     session, results = run(router, [
         "xin chào",
         "tôi muốn kiểm tra số dư",
-        VAN_AN,
+        *VAN_AN,
     ])
     # Tìm turn chứa xác minh (turn cuối cùng)
     r = results[-1]
@@ -207,7 +209,7 @@ def t2a_proactive(router: Router) -> list[str]:
 def t2a_interest(router: Router) -> list[str]:
     session, results = run(router, [
         "tôi muốn kiểm tra số dư",
-        VAN_AN,
+        *VAN_AN,
         "tôi muốn biết thêm về thẻ này",
     ])
     r = results[-1]
@@ -222,7 +224,7 @@ def t2a_interest(router: Router) -> list[str]:
 def t2a_fit(router: Router) -> list[str]:
     session, results = run(router, [
         "tôi muốn kiểm tra số dư",
-        VAN_AN,
+        *VAN_AN,
         "tôi muốn biết thêm về thẻ này",
         "tôi hay mua sắm online",
     ])
@@ -242,7 +244,7 @@ def t2b(router: Router) -> list[str]:
     # xử lý ngay với session đã verified.
     session, results = run(router, [
         "kiểm tra số dư tài khoản",
-        VAN_AN,
+        *VAN_AN,
         "tôi có ưu đãi gì không?",
     ])
     r = results[-1]
@@ -261,7 +263,7 @@ def t2b(router: Router) -> list[str]:
 def t2c(router: Router) -> list[str]:
     session, results = run(router, [
         "số dư tài khoản",
-        VAN_AN,
+        *VAN_AN,
     ])
     r = results[-1]
     errs = []
@@ -274,7 +276,7 @@ def t2c(router: Router) -> list[str]:
 def t2d(router: Router) -> list[str]:
     session, results = run(router, [
         "tôi có ưu đãi gì không?",
-        HA,
+        *HA,
         "tôi có ưu đãi gì không?",
     ])
     r = results[-1]
@@ -293,7 +295,7 @@ def t2d(router: Router) -> list[str]:
 def t3a(router: Router) -> list[str]:
     session, results = run(router, [
         "thẻ của tôi có quyền lợi gì?",
-        VAN_AN,
+        *VAN_AN,
     ])
     r = results[-1]
     errs = []
@@ -311,7 +313,7 @@ def t3a(router: Router) -> list[str]:
 def t3b_step1(router: Router) -> list[str]:
     session, results = run(router, [
         "tôi muốn tăng hạn mức thẻ",
-        VAN_AN,
+        *VAN_AN,
     ])
     r = results[-1]
     errs = []
@@ -327,7 +329,7 @@ def t3b_step1(router: Router) -> list[str]:
 def t3b_step2(router: Router) -> list[str]:
     session, results = run(router, [
         "tôi muốn tăng hạn mức thẻ",
-        VAN_AN,
+        *VAN_AN,
         "50 triệu",
     ])
     r = results[-1]
@@ -350,7 +352,7 @@ def t3c_step1(router: Router) -> list[str]:
     cards_mod.reset()
     session, results = run(router, [
         "tôi muốn đóng thẻ",
-        VAN_AN,
+        *VAN_AN,
     ])
     r = results[-1]
     errs = []
@@ -367,7 +369,7 @@ def t3c_step2(router: Router) -> list[str]:
     cards_mod.reset()
     session, results = run(router, [
         "tôi muốn đóng thẻ",
-        VAN_AN,
+        *VAN_AN,
         "có",
     ])
     r = results[-1]
@@ -386,9 +388,9 @@ def t3c_step3(router: Router) -> list[str]:
     db.reset()
     cards_mod.reset()
     # Lần 1: đóng thẻ thành công
-    run(router, ["tôi muốn đóng thẻ", VAN_AN, "có"])
+    run(router, ["tôi muốn đóng thẻ", *VAN_AN, "có"])
     # Lần 2: thử đóng lại (session mới, cùng khách)
-    session2, results2 = run(router, ["tôi muốn đóng thẻ", VAN_AN, "có"])
+    session2, results2 = run(router, ["tôi muốn đóng thẻ", *VAN_AN, "có"])
     combined = " ".join(r.text for r in results2)
     errs = []
     # Một trong hai kết quả hợp lệ: (a) thông báo "đã đóng trước đó"
@@ -412,7 +414,7 @@ def t3d(router: Router) -> list[str]:
     cards_mod.reset()
     session, results = run(router, [
         "tôi muốn đóng thẻ",
-        VAN_AN,
+        *VAN_AN,
         "thôi không cần, hỏi về số dư thôi",
     ])
     r = results[-1]
@@ -428,7 +430,7 @@ def t3d(router: Router) -> list[str]:
 def t3e_step1(router: Router) -> list[str]:
     session, results = run(router, [
         "tôi muốn mở khoá thẻ",
-        HA,
+        *HA,
     ])
     r = results[-1]
     errs = []
@@ -443,7 +445,7 @@ def t3e_step1(router: Router) -> list[str]:
 def t3e_step2(router: Router) -> list[str]:
     session, results = run(router, [
         "tôi muốn mở khoá thẻ",
-        HA,
+        *HA,
         "có",
     ])
     r = results[-1]

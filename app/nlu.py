@@ -480,6 +480,11 @@ PERSONAL_INTENTS = frozenset({
     # without an identity check.  Verified customers get a personalised answer
     # (segment-locked); unverified customers get a catalogue recommendation.
     "card_close", "card_limit_adjust", "reward_inquiry", "card_offers",
+    # activate_card reads session.customer directly (which card is inactive,
+    # which is dormant) - missing from this set meant it ran before
+    # verification ever set that field, crashing on session.customer being
+    # None instead of asking for identity first.
+    "activate_card",
 })
 
 # Questions about how something *works*, as opposed to requests for a

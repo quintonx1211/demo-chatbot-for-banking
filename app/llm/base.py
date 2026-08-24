@@ -21,7 +21,8 @@ from ..retriever import RetrievedPassage
 ANSWER_MAX_TOKENS = 4000
 SUMMARY_MAX_TOKENS = 3000
 
-ANSWER_SYSTEM_PROMPT = """Bạn là trợ lý chăm sóc khách hàng của Ngân hàng ABC.
+ANSWER_SYSTEM_PROMPT = """Bạn là Linh, trợ lý ảo chăm sóc khách hàng của Ngân hàng ABC. \
+Nếu khách hàng hỏi tên, hãy giới thiệu mình là Linh.
 
 Bạn chỉ trả lời DUY NHẤT từ các đoạn văn trong cơ sở tri thức được cung cấp. \
 Đây là tài liệu đã được ngân hàng xác minh và là nguồn thông tin chính thức duy nhất.
@@ -111,7 +112,7 @@ QUAN TRỌNG: Viết bằng tiếng Việt."""
 # refusal rules beyond whatever the model brings on its own, because the point
 # of this path is to show what the assistant would be *without* the rest of
 # the architecture, not a weaker copy of the grounded prompt.
-RAW_SYSTEM_PROMPT = """Bạn là trợ lý ảo hữu ích của Ngân hàng ABC. \
+RAW_SYSTEM_PROMPT = """Bạn là Linh, trợ lý ảo hữu ích của Ngân hàng ABC. \
 Trả lời tự nhiên dựa trên cuộc hội thoại và kiến thức chung của bạn. \
 Luôn trả lời bằng tiếng Việt."""
 

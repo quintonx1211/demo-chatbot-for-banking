@@ -32,23 +32,23 @@ from app.router import Router
 SCENARIOS: list[tuple[str, list[str], str, bool]] = [
     (
         "Deterministic flow with identity verification",
-        ["xin chào", "số dư của tôi còn bao nhiêu?", cred("travel_offer")],
+        ["xin chào", "số dư của tôi còn bao nhiêu?", *cred("travel_offer")],
         "deterministic", True,
     ),
     (
         "Card block - two-step confirmation, writes to the record",
-        ["tôi làm mất thẻ ghi nợ", cred("multi_card"), "6591", "có"],
+        ["tôi làm mất thẻ ghi nợ", *cred("multi_card"), "ghi nợ", "có"],
         "deterministic", True,
     ),
     (
         "Freeze then unfreeze - the reversible path",
-        ["tạm khoá thẻ giúp tôi", cred("loan_in_review"), "có",
+        ["tạm khoá thẻ giúp tôi", *cred("loan_in_review"), "có",
          "mở khoá thẻ giúp tôi", "có"],
         "deterministic", True,
     ),
     (
         "Loan status lookup",
-        ["hồ sơ vay của tôi đến đâu rồi?", cred("loan_in_review")],
+        ["hồ sơ vay của tôi đến đâu rồi?", *cred("loan_in_review")],
         "deterministic", True,
     ),
     (

@@ -6,49 +6,49 @@
       "given_name": "An",
       "segment": "MASS",
       "profile": "travel_offer",
-      "dob": "1997-08-20",
-      "phone_last4": "9411",
-      "national_id_last4": "3147",
+      "dob": "1994-01-27",
+      "phone": "0842199388",
+      "national_id": "183589113804",
       "accounts": [
         {
-          "account_id": "ACC-9411-3101",
+          "account_id": "ACC-9926-6701",
           "type": "Tài khoản thanh toán",
-          "mask": "****3101",
-          "balance": 35918993.55,
-          "available": 33418993.55,
+          "mask": "****6701",
+          "balance": 49267690.81,
+          "available": 49167690.81,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-7062",
+          "card_id": "CRD-7539",
           "type": "ghi nợ",
-          "mask": "****7062",
+          "mask": "****7539",
           "status": "active",
-          "linked_account": "ACC-9411-3101"
+          "linked_account": "ACC-9926-6701"
         }
       ],
       "loans": [],
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "GRAB TRANSPORT",
-          "amount": -3654000.0
+          "description": "NAP TIEN DIEN THOAI",
+          "amount": -530000.0
         },
         {
           "date": "2026-08-04",
-          "description": "LUONG THANG",
-          "amount": 24713000.0
+          "description": "BACH HOA XANH",
+          "amount": -1081000.0
         },
         {
           "date": "2026-08-03",
-          "description": "LUONG THANG",
-          "amount": 23906000.0
+          "description": "CGV CINEMA",
+          "amount": -503000.0
         },
         {
           "date": "2026-08-02",
-          "description": "VINMART SUPERMARKET",
-          "amount": -2774000.0
+          "description": "LUONG THANG",
+          "amount": 18390000.0
         }
       ]
     },
@@ -58,54 +58,49 @@
       "given_name": "Bich",
       "segment": "MASS",
       "profile": "dormant_card",
-      "dob": "1988-01-01",
-      "phone_last4": "3728",
-      "national_id_last4": "9926",
+      "dob": "1990-11-16",
+      "phone": "0882935134",
+      "national_id": "834161133919",
       "accounts": [
         {
-          "account_id": "ACC-8502-8201",
+          "account_id": "ACC-2681-1001",
           "type": "Tài khoản thanh toán",
-          "mask": "****8201",
-          "balance": 16526147.99,
-          "available": 16526147.99,
+          "mask": "****1001",
+          "balance": 13211419.73,
+          "available": 10711419.73,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-9414",
+          "card_id": "CRD-5258",
           "type": "ghi nợ",
-          "mask": "****9414",
+          "mask": "****5258",
           "status": "dormant",
-          "linked_account": "ACC-8502-8201"
+          "linked_account": "ACC-2681-1001"
         }
       ],
       "loans": [],
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "TIEN NUOC",
-          "amount": -3809000.0
+          "description": "BACH HOA XANH",
+          "amount": -528000.0
         },
         {
           "date": "2026-08-04",
-          "description": "TIEN NUOC",
-          "amount": -409000.0
+          "description": "SHOPEE PAY",
+          "amount": -177000.0
         },
         {
           "date": "2026-08-03",
-          "description": "NAP TIEN DIEN THOAI",
-          "amount": -37000.0
+          "description": "LUONG THANG",
+          "amount": 17638000.0
         },
         {
           "date": "2026-08-02",
-          "description": "LUONG THANG",
-          "amount": 12112000.0
-        },
-        {
-          "date": "2026-08-01",
-          "description": "CGV CINEMA",
-          "amount": -2701000.0
+          "description": "VINMART SUPERMARKET",
+          "amount": -658000.0
         }
       ]
     },
@@ -113,56 +108,66 @@
       "customer_id": "CUS-100315",
       "name": "Le Minh Chau",
       "given_name": "Chau",
-      "segment": "MASS_AFFLUENT",
+      "segment": "MASS",
       "profile": "inactive_card",
-      "dob": "1983-04-08",
-      "phone_last4": "8386",
-      "national_id_last4": "5738",
+      "dob": "1983-01-18",
+      "phone": "0944984320",
+      "national_id": "706686007998",
       "accounts": [
         {
-          "account_id": "ACC-7454-4801",
+          "account_id": "ACC-2951-2501",
           "type": "Tài khoản thanh toán",
-          "mask": "****4801",
-          "balance": 32760536.24,
-          "available": 32760536.24,
+          "mask": "****2501",
+          "balance": 16170941.29,
+          "available": 16170941.29,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-6387",
+          "card_id": "CRD-5342",
           "type": "ghi nợ",
-          "mask": "****6387",
+          "mask": "****5342",
           "status": "inactive",
-          "linked_account": "ACC-7454-4801"
+          "linked_account": "ACC-2951-2501"
         }
       ],
       "loans": [],
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "PETROLIMEX FUEL",
-          "amount": -639000.0
+          "description": "VINMART SUPERMARKET",
+          "amount": -2404000.0
         },
         {
           "date": "2026-08-04",
-          "description": "LUONG THANG",
-          "amount": 22957000.0
+          "description": "NAP TIEN DIEN THOAI",
+          "amount": -645000.0
         },
         {
           "date": "2026-08-03",
           "description": "LUONG THANG",
-          "amount": 21711000.0
+          "amount": 15337000.0
         },
         {
           "date": "2026-08-02",
           "description": "LUONG THANG",
-          "amount": 15337000.0
+          "amount": 22740000.0
         },
         {
           "date": "2026-08-01",
+          "description": "NAP TIEN DIEN THOAI",
+          "amount": -281000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "PHARMACITY",
+          "amount": -2942000.0
+        },
+        {
+          "date": "2026-07-30",
           "description": "LUONG THANG",
-          "amount": 22740000.0
+          "amount": 15387000.0
         }
       ]
     },
@@ -170,43 +175,43 @@
       "customer_id": "CUS-100322",
       "name": "Pham Quoc Dung",
       "given_name": "Dung",
-      "segment": "MASS_AFFLUENT",
+      "segment": "PRIORITY",
       "profile": "high_balance",
-      "dob": "2001-08-18",
-      "phone_last4": "3826",
-      "national_id_last4": "2134",
+      "dob": "1975-05-14",
+      "phone": "0984911069",
+      "national_id": "188152754149",
       "accounts": [
         {
-          "account_id": "ACC-3142-9001",
+          "account_id": "ACC-8846-3901",
           "type": "Tài khoản thanh toán",
-          "mask": "****9001",
-          "balance": 872242026.21,
-          "available": 869742026.21,
+          "mask": "****3901",
+          "balance": 538017975.78,
+          "available": 537917975.78,
           "currency": "VND"
         },
         {
-          "account_id": "ACC-3142-6288",
+          "account_id": "ACC-8846-6288",
           "type": "Tài khoản tiết kiệm",
           "mask": "****6288",
-          "balance": 375888496.62,
-          "available": 375888496.62,
+          "balance": 786949514.75,
+          "available": 786949514.75,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-5792",
+          "card_id": "CRD-3798",
           "type": "ghi nợ",
-          "mask": "****5792",
+          "mask": "****3798",
           "status": "active",
-          "linked_account": "ACC-3142-9001"
+          "linked_account": "ACC-8846-3901"
         },
         {
-          "card_id": "CRD-1208",
+          "card_id": "CRD-1223",
           "type": "tín dụng",
-          "mask": "****1208",
+          "mask": "****1223",
           "status": "active",
-          "linked_account": "ACC-3142-9001"
+          "linked_account": "ACC-8846-3901"
         }
       ],
       "loans": [],
@@ -214,42 +219,27 @@
         {
           "date": "2026-08-05",
           "description": "LUONG THANG",
-          "amount": 10894000.0
+          "amount": 23860000.0
         },
         {
           "date": "2026-08-04",
-          "description": "THE GIOI DI DONG",
-          "amount": -3609000.0
+          "description": "GRAB TRANSPORT",
+          "amount": -3064000.0
         },
         {
           "date": "2026-08-03",
-          "description": "LUONG THANG",
-          "amount": 8683000.0
+          "description": "BACH HOA XANH",
+          "amount": -3700000.0
         },
         {
           "date": "2026-08-02",
-          "description": "NAP TIEN DIEN THOAI",
-          "amount": -319000.0
+          "description": "BACH HOA XANH",
+          "amount": -435000.0
         },
         {
           "date": "2026-08-01",
-          "description": "GRAB TRANSPORT",
-          "amount": -667000.0
-        },
-        {
-          "date": "2026-07-31",
           "description": "LUONG THANG",
-          "amount": 15170000.0
-        },
-        {
-          "date": "2026-07-30",
-          "description": "TIEN NUOC",
-          "amount": -2169000.0
-        },
-        {
-          "date": "2026-07-29",
-          "description": "GRAB TRANSPORT",
-          "amount": -427000.0
+          "amount": 18292000.0
         }
       ]
     },
@@ -257,58 +247,63 @@
       "customer_id": "CUS-100329",
       "name": "Hoang Thi Ha",
       "given_name": "Ha",
-      "segment": "AFFLUENT",
+      "segment": "MASS",
       "profile": "frozen_card",
-      "dob": "1982-03-19",
-      "phone_last4": "8318",
-      "national_id_last4": "7062",
+      "dob": "1993-12-22",
+      "phone": "0394818868",
+      "national_id": "203073127325",
       "accounts": [
         {
-          "account_id": "ACC-7091-3001",
+          "account_id": "ACC-4943-4001",
           "type": "Tài khoản thanh toán",
-          "mask": "****3001",
-          "balance": 53417688.61,
-          "available": 50917688.61,
+          "mask": "****4001",
+          "balance": 16333845.13,
+          "available": 16233845.13,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-4973",
+          "card_id": "CRD-7005",
           "type": "ghi nợ",
-          "mask": "****4973",
+          "mask": "****7005",
           "status": "frozen",
-          "linked_account": "ACC-7091-3001"
+          "linked_account": "ACC-4943-4001"
         },
         {
-          "card_id": "CRD-8971",
+          "card_id": "CRD-7331",
           "type": "tín dụng",
-          "mask": "****8971",
+          "mask": "****7331",
           "status": "active",
-          "linked_account": "ACC-7091-3001"
+          "linked_account": "ACC-4943-4001"
         }
       ],
       "loans": [],
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "LUONG THANG",
-          "amount": 18533000.0
+          "description": "TIEN DIEN EVN",
+          "amount": -268000.0
         },
         {
           "date": "2026-08-04",
           "description": "LUONG THANG",
-          "amount": 21457000.0
+          "amount": 16423000.0
         },
         {
           "date": "2026-08-03",
-          "description": "PETROLIMEX FUEL",
-          "amount": -1084000.0
+          "description": "GRAB TRANSPORT",
+          "amount": -1830000.0
         },
         {
           "date": "2026-08-02",
+          "description": "SHOPEE PAY",
+          "amount": -1499000.0
+        },
+        {
+          "date": "2026-08-01",
           "description": "LUONG THANG",
-          "amount": 12706000.0
+          "amount": 14882000.0
         }
       ]
     },
@@ -316,33 +311,33 @@
       "customer_id": "CUS-100336",
       "name": "Vu Duc Hieu",
       "given_name": "Hieu",
-      "segment": "AFFLUENT",
+      "segment": "MASS",
       "profile": "loan_in_review",
-      "dob": "1977-05-22",
-      "phone_last4": "7539",
-      "national_id_last4": "1860",
+      "dob": "1976-04-10",
+      "phone": "0328985767",
+      "national_id": "530146763936",
       "accounts": [
         {
-          "account_id": "ACC-9170-2601",
+          "account_id": "ACC-7238-5701",
           "type": "Tài khoản thanh toán",
-          "mask": "****2601",
-          "balance": 28217847.58,
-          "available": 25717847.58,
+          "mask": "****5701",
+          "balance": 32534826.51,
+          "available": 32434826.51,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-1201",
+          "card_id": "CRD-4275",
           "type": "ghi nợ",
-          "mask": "****1201",
+          "mask": "****4275",
           "status": "active",
-          "linked_account": "ACC-9170-2601"
+          "linked_account": "ACC-7238-5701"
         }
       ],
       "loans": [
         {
-          "application_id": "LN-2026-66939",
+          "application_id": "LN-2026-53026",
           "product": "Vay mua ô tô",
           "amount": 240000000,
           "status": "Đang thẩm định",
@@ -353,38 +348,33 @@
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "PHARMACITY",
-          "amount": -3475000.0
+          "description": "LUONG THANG",
+          "amount": 11240000.0
         },
         {
           "date": "2026-08-04",
-          "description": "LUONG THANG",
-          "amount": 20709000.0
-        },
-        {
-          "date": "2026-08-03",
-          "description": "HIGHLANDS COFFEE",
-          "amount": -3936000.0
-        },
-        {
-          "date": "2026-08-02",
-          "description": "LUONG THANG",
-          "amount": 9613000.0
-        },
-        {
-          "date": "2026-08-01",
           "description": "CGV CINEMA",
           "amount": -390000.0
         },
         {
-          "date": "2026-07-31",
+          "date": "2026-08-03",
           "description": "LUONG THANG",
           "amount": 20398000.0
         },
         {
-          "date": "2026-07-30",
+          "date": "2026-08-02",
           "description": "LUONG THANG",
           "amount": 18663000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "VINMART SUPERMARKET",
+          "amount": -200000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "TIEN NUOC",
+          "amount": -2096000.0
         }
       ]
     },
@@ -392,61 +382,61 @@
       "customer_id": "CUS-100343",
       "name": "Dang Thi Lan",
       "given_name": "Lan",
-      "segment": "PRIVATE",
+      "segment": "MASS",
       "profile": "overdrawn",
-      "dob": "1990-12-14",
-      "phone_last4": "1434",
-      "national_id_last4": "6488",
+      "dob": "2001-10-02",
+      "phone": "0334234376",
+      "national_id": "423544959326",
       "accounts": [
         {
-          "account_id": "ACC-8780-1701",
+          "account_id": "ACC-3600-5201",
           "type": "Tài khoản thanh toán",
-          "mask": "****1701",
-          "balance": -1528989.13,
-          "available": -1528989.13,
+          "mask": "****5201",
+          "balance": -1872183.91,
+          "available": -1872183.91,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-5906",
+          "card_id": "CRD-8318",
           "type": "ghi nợ",
-          "mask": "****5906",
+          "mask": "****8318",
           "status": "active",
-          "linked_account": "ACC-8780-1701"
+          "linked_account": "ACC-3600-5201"
         }
       ],
       "loans": [],
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "LUONG THANG",
-          "amount": 13613000.0
+          "description": "TIEN NUOC",
+          "amount": -3470000.0
         },
         {
           "date": "2026-08-04",
-          "description": "SHOPEE PAY",
-          "amount": -92000.0
+          "description": "CGV CINEMA",
+          "amount": -649000.0
         },
         {
           "date": "2026-08-03",
-          "description": "THE GIOI DI DONG",
-          "amount": -419000.0
+          "description": "LUONG THANG",
+          "amount": 23289000.0
         },
         {
           "date": "2026-08-02",
-          "description": "LUONG THANG",
-          "amount": 20102000.0
+          "description": "PHARMACITY",
+          "amount": -2476000.0
         },
         {
           "date": "2026-08-01",
-          "description": "PETROLIMEX FUEL",
-          "amount": -3306000.0
+          "description": "LUONG THANG",
+          "amount": 18462000.0
         },
         {
           "date": "2026-07-31",
           "description": "GRAB TRANSPORT",
-          "amount": -3832000.0
+          "amount": -3812000.0
         }
       ]
     },
@@ -454,59 +444,74 @@
       "customer_id": "CUS-100350",
       "name": "Bui Van Long",
       "given_name": "Long",
-      "segment": "PRIVATE",
+      "segment": "MASS",
       "profile": "blocked_and_replaced",
-      "dob": "1983-03-09",
-      "phone_last4": "6167",
-      "national_id_last4": "3423",
+      "dob": "1994-01-18",
+      "phone": "0380591171",
+      "national_id": "718873715684",
       "accounts": [
         {
-          "account_id": "ACC-6850-6401",
+          "account_id": "ACC-7217-1501",
           "type": "Tài khoản thanh toán",
-          "mask": "****6401",
-          "balance": 27177019.48,
-          "available": 27177019.48,
+          "mask": "****1501",
+          "balance": 58121241.82,
+          "available": 58021241.82,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-1974",
+          "card_id": "CRD-8712",
           "type": "ghi nợ",
-          "mask": "****1974",
+          "mask": "****8712",
           "status": "blocked",
-          "linked_account": "ACC-6850-6401"
+          "linked_account": "ACC-7217-1501"
         },
         {
-          "card_id": "CRD-4326",
+          "card_id": "CRD-2307",
           "type": "ghi nợ",
-          "mask": "****4326",
+          "mask": "****2307",
           "status": "inactive",
-          "linked_account": "ACC-6850-6401",
-          "replaces": "CRD-1974"
+          "linked_account": "ACC-7217-1501",
+          "replaces": "CRD-8712"
         }
       ],
       "loans": [],
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "THE GIOI DI DONG",
-          "amount": -357000.0
+          "description": "LUONG THANG",
+          "amount": 13888000.0
         },
         {
           "date": "2026-08-04",
           "description": "TIEN DIEN EVN",
-          "amount": -540000.0
+          "amount": -349000.0
         },
         {
           "date": "2026-08-03",
-          "description": "PHARMACITY",
-          "amount": -440000.0
+          "description": "LUONG THANG",
+          "amount": 18964000.0
         },
         {
           "date": "2026-08-02",
           "description": "LUONG THANG",
-          "amount": 24986000.0
+          "amount": 8582000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "BACH HOA XANH",
+          "amount": -43000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "HIGHLANDS COFFEE",
+          "amount": -2061000.0
+        },
+        {
+          "date": "2026-07-30",
+          "description": "LUONG THANG",
+          "amount": 15564000.0
         }
       ]
     },
@@ -516,41 +521,41 @@
       "given_name": "Mai",
       "segment": "PRIORITY",
       "profile": "multi_card",
-      "dob": "1997-12-02",
-      "phone_last4": "5194",
-      "national_id_last4": "9572",
+      "dob": "1975-05-13",
+      "phone": "0395821542",
+      "national_id": "226291473446",
       "accounts": [
         {
-          "account_id": "ACC-5194-3101",
+          "account_id": "ACC-8956-9501",
           "type": "Tài khoản thanh toán",
-          "mask": "****3101",
-          "balance": 49684525.47,
-          "available": 49684525.47,
+          "mask": "****9501",
+          "balance": 13904721.77,
+          "available": 13904721.77,
           "currency": "VND"
         },
         {
-          "account_id": "ACC-5194-1488",
+          "account_id": "ACC-8956-2888",
           "type": "Tài khoản tiết kiệm",
-          "mask": "****1488",
-          "balance": 524391134.57,
-          "available": 524391134.57,
+          "mask": "****2888",
+          "balance": 84309985.02,
+          "available": 84309985.02,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-6591",
+          "card_id": "CRD-6234",
           "type": "ghi nợ",
-          "mask": "****6591",
+          "mask": "****6234",
           "status": "active",
-          "linked_account": "ACC-5194-3101"
+          "linked_account": "ACC-8956-9501"
         },
         {
-          "card_id": "CRD-5743",
+          "card_id": "CRD-9932",
           "type": "tín dụng",
-          "mask": "****5743",
+          "mask": "****9932",
           "status": "active",
-          "linked_account": "ACC-5194-3101"
+          "linked_account": "ACC-8956-9501"
         }
       ],
       "loans": [],
@@ -558,32 +563,32 @@
         {
           "date": "2026-08-05",
           "description": "LUONG THANG",
-          "amount": 22937000.0
+          "amount": 18886000.0
         },
         {
           "date": "2026-08-04",
-          "description": "TIEN NUOC",
-          "amount": -1110000.0
+          "description": "TIEN DIEN EVN",
+          "amount": -545000.0
         },
         {
           "date": "2026-08-03",
-          "description": "THE GIOI DI DONG",
-          "amount": -207000.0
+          "description": "TIEN NUOC",
+          "amount": -1163000.0
         },
         {
           "date": "2026-08-02",
-          "description": "THE GIOI DI DONG",
-          "amount": -1574000.0
+          "description": "SHOPEE PAY",
+          "amount": -437000.0
         },
         {
           "date": "2026-08-01",
-          "description": "LUONG THANG",
-          "amount": 19872000.0
+          "description": "PETROLIMEX FUEL",
+          "amount": -1143000.0
         },
         {
           "date": "2026-07-31",
-          "description": "TIEN DIEN EVN",
-          "amount": -545000.0
+          "description": "SHOPEE PAY",
+          "amount": -884000.0
         }
       ]
     },
@@ -593,64 +598,54 @@
       "given_name": "Nam",
       "segment": "MASS",
       "profile": "new_customer",
-      "dob": "1982-07-17",
-      "phone_last4": "3745",
-      "national_id_last4": "8701",
+      "dob": "1965-09-18",
+      "phone": "0906365046",
+      "national_id": "314347547383",
       "accounts": [
         {
-          "account_id": "ACC-3745-4501",
+          "account_id": "ACC-9304-8001",
           "type": "Tài khoản thanh toán",
-          "mask": "****4501",
-          "balance": 1909109.43,
-          "available": 1909109.43,
+          "mask": "****8001",
+          "balance": 1749265.87,
+          "available": 1649265.87,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-9277",
+          "card_id": "CRD-8459",
           "type": "ghi nợ",
-          "mask": "****9277",
+          "mask": "****8459",
           "status": "inactive",
-          "linked_account": "ACC-3745-4501"
+          "linked_account": "ACC-9304-8001"
         }
       ],
       "loans": [],
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "SHOPEE PAY",
-          "amount": -884000.0
+          "description": "LUONG THANG",
+          "amount": 20471000.0
         },
         {
           "date": "2026-08-04",
-          "description": "THE GIOI DI DONG",
-          "amount": -2190000.0
+          "description": "HIGHLANDS COFFEE",
+          "amount": -763000.0
         },
         {
           "date": "2026-08-03",
-          "description": "PETROLIMEX FUEL",
-          "amount": -3872000.0
+          "description": "LUONG THANG",
+          "amount": 15327000.0
         },
         {
           "date": "2026-08-02",
-          "description": "BACH HOA XANH",
-          "amount": -3232000.0
+          "description": "LUONG THANG",
+          "amount": 9268000.0
         },
         {
           "date": "2026-08-01",
-          "description": "GRAB TRANSPORT",
-          "amount": -2366000.0
-        },
-        {
-          "date": "2026-07-31",
-          "description": "LUONG THANG",
-          "amount": 23014000.0
-        },
-        {
-          "date": "2026-07-30",
-          "description": "PETROLIMEX FUEL",
-          "amount": -695000.0
+          "description": "CGV CINEMA",
+          "amount": -106000.0
         }
       ]
     },
@@ -660,39 +655,39 @@
       "given_name": "Oanh",
       "segment": "MASS",
       "profile": "mortgage_approved",
-      "dob": "1983-02-06",
-      "phone_last4": "9218",
-      "national_id_last4": "7753",
+      "dob": "1985-09-17",
+      "phone": "0395386101",
+      "national_id": "362640916062",
       "accounts": [
         {
-          "account_id": "ACC-9218-1901",
+          "account_id": "ACC-4582-7801",
           "type": "Tài khoản thanh toán",
-          "mask": "****1901",
-          "balance": 15985666.8,
-          "available": 15985666.8,
+          "mask": "****7801",
+          "balance": 12438414.64,
+          "available": 12438414.64,
           "currency": "VND"
         },
         {
-          "account_id": "ACC-9218-8988",
+          "account_id": "ACC-4582-9288",
           "type": "Tài khoản tiết kiệm",
-          "mask": "****8988",
-          "balance": 761738291.53,
-          "available": 761738291.53,
+          "mask": "****9288",
+          "balance": 603446869.37,
+          "available": 603446869.37,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-9853",
+          "card_id": "CRD-8469",
           "type": "ghi nợ",
-          "mask": "****9853",
+          "mask": "****8469",
           "status": "active",
-          "linked_account": "ACC-9218-1901"
+          "linked_account": "ACC-4582-7801"
         }
       ],
       "loans": [
         {
-          "application_id": "LN-2026-52078",
+          "application_id": "LN-2026-24312",
           "product": "Vay mua nhà",
           "amount": 1800000000,
           "status": "Đã phê duyệt",
@@ -703,38 +698,38 @@
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "LUONG THANG",
-          "amount": 18987000.0
-        },
-        {
-          "date": "2026-08-04",
-          "description": "NAP TIEN DIEN THOAI",
-          "amount": -1166000.0
-        },
-        {
-          "date": "2026-08-03",
-          "description": "CGV CINEMA",
-          "amount": -729000.0
-        },
-        {
-          "date": "2026-08-02",
           "description": "GRAB TRANSPORT",
           "amount": -688000.0
         },
         {
-          "date": "2026-08-01",
+          "date": "2026-08-04",
           "description": "HIGHLANDS COFFEE",
           "amount": -2281000.0
         },
         {
-          "date": "2026-07-31",
+          "date": "2026-08-03",
           "description": "TIEN NUOC",
           "amount": -1333000.0
         },
         {
-          "date": "2026-07-30",
+          "date": "2026-08-02",
           "description": "LUONG THANG",
           "amount": 22361000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "LUONG THANG",
+          "amount": 9548000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "NAP TIEN DIEN THOAI",
+          "amount": -550000.0
+        },
+        {
+          "date": "2026-07-30",
+          "description": "LUONG THANG",
+          "amount": 11803000.0
         }
       ]
     },
@@ -744,26 +739,26 @@
       "given_name": "Phuc",
       "segment": "MASS",
       "profile": "dispute_open",
-      "dob": "1970-06-04",
-      "phone_last4": "6070",
-      "national_id_last4": "6964",
+      "dob": "1995-09-22",
+      "phone": "0391542777",
+      "national_id": "024890009309",
       "accounts": [
         {
-          "account_id": "ACC-6070-2601",
+          "account_id": "ACC-2512-6201",
           "type": "Tài khoản thanh toán",
-          "mask": "****2601",
-          "balance": 13059708.23,
-          "available": 12959708.23,
+          "mask": "****6201",
+          "balance": 21276150.08,
+          "available": 18776150.08,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-9323",
+          "card_id": "CRD-9931",
           "type": "ghi nợ",
-          "mask": "****9323",
+          "mask": "****9931",
           "status": "active",
-          "linked_account": "ACC-6070-2601"
+          "linked_account": "ACC-2512-6201"
         }
       ],
       "loans": [],
@@ -775,28 +770,33 @@
         },
         {
           "date": "2026-08-05",
-          "description": "CGV CINEMA",
-          "amount": -110000.0
+          "description": "TIEN NUOC",
+          "amount": -2079000.0
         },
         {
           "date": "2026-08-04",
-          "description": "PETROLIMEX FUEL",
-          "amount": -1296000.0
+          "description": "NAP TIEN DIEN THOAI",
+          "amount": -242000.0
         },
         {
           "date": "2026-08-03",
-          "description": "LUONG THANG",
-          "amount": 22988000.0
+          "description": "GRAB TRANSPORT",
+          "amount": -106000.0
         },
         {
           "date": "2026-08-02",
-          "description": "TIEN NUOC",
-          "amount": -3373000.0
+          "description": "LUONG THANG",
+          "amount": 10200000.0
         },
         {
           "date": "2026-08-01",
-          "description": "NAP TIEN DIEN THOAI",
-          "amount": -242000.0
+          "description": "GRAB TRANSPORT",
+          "amount": -96000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "VINMART SUPERMARKET",
+          "amount": -1984000.0
         }
       ]
     },
@@ -806,16 +806,16 @@
       "given_name": "Quyen",
       "segment": "MASS",
       "profile": "savings_only",
-      "dob": "1995-09-14",
-      "phone_last4": "2492",
-      "national_id_last4": "3703",
+      "dob": "1965-08-25",
+      "phone": "0353197363",
+      "national_id": "721630608115",
       "accounts": [
         {
-          "account_id": "ACC-2492-6088",
+          "account_id": "ACC-6002-3388",
           "type": "Tài khoản tiết kiệm",
-          "mask": "****6088",
-          "balance": 739657534.36,
-          "available": 739657534.36,
+          "mask": "****3388",
+          "balance": 788847247.22,
+          "available": 788847247.22,
           "currency": "VND"
         }
       ],
@@ -824,23 +824,38 @@
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "SHOPEE PAY",
-          "amount": -178000.0
+          "description": "THE GIOI DI DONG",
+          "amount": -202000.0
         },
         {
           "date": "2026-08-04",
-          "description": "PETROLIMEX FUEL",
-          "amount": -830000.0
+          "description": "LUONG THANG",
+          "amount": 14239000.0
         },
         {
           "date": "2026-08-03",
           "description": "LUONG THANG",
-          "amount": 8301000.0
+          "amount": 12824000.0
         },
         {
           "date": "2026-08-02",
-          "description": "GRAB TRANSPORT",
-          "amount": -296000.0
+          "description": "VINMART SUPERMARKET",
+          "amount": -1672000.0
+        },
+        {
+          "date": "2026-08-01",
+          "description": "SHOPEE PAY",
+          "amount": -860000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "LUONG THANG",
+          "amount": 11242000.0
+        },
+        {
+          "date": "2026-07-30",
+          "description": "CGV CINEMA",
+          "amount": -550000.0
         }
       ]
     },
@@ -850,41 +865,41 @@
       "given_name": "Son",
       "segment": "PRIORITY",
       "profile": "business_owner",
-      "dob": "1986-04-03",
-      "phone_last4": "4230",
-      "national_id_last4": "5072",
+      "dob": "1990-04-05",
+      "phone": "0365015326",
+      "national_id": "424902059367",
       "accounts": [
         {
-          "account_id": "ACC-4230-2601",
+          "account_id": "ACC-6472-3701",
           "type": "Tài khoản thanh toán",
-          "mask": "****2601",
-          "balance": 505713542.7,
-          "available": 505713542.7,
+          "mask": "****3701",
+          "balance": 229394174.06,
+          "available": 229394174.06,
           "currency": "VND"
         },
         {
-          "account_id": "ACC-4230-3888",
+          "account_id": "ACC-6472-2188",
           "type": "Tài khoản tiết kiệm",
-          "mask": "****3888",
-          "balance": 51500742.23,
-          "available": 51500742.23,
+          "mask": "****2188",
+          "balance": 678885905.48,
+          "available": 678885905.48,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-1531",
+          "card_id": "CRD-7929",
           "type": "ghi nợ",
-          "mask": "****1531",
+          "mask": "****7929",
           "status": "active",
-          "linked_account": "ACC-4230-2601"
+          "linked_account": "ACC-6472-3701"
         },
         {
-          "card_id": "CRD-1183",
+          "card_id": "CRD-9248",
           "type": "tín dụng",
-          "mask": "****1183",
+          "mask": "****9248",
           "status": "active",
-          "linked_account": "ACC-4230-2601"
+          "linked_account": "ACC-6472-3701"
         }
       ],
       "loans": [],
@@ -892,27 +907,37 @@
         {
           "date": "2026-08-05",
           "description": "LUONG THANG",
-          "amount": 8969000.0
+          "amount": 18509000.0
         },
         {
           "date": "2026-08-04",
           "description": "LUONG THANG",
-          "amount": 9815000.0
+          "amount": 10617000.0
         },
         {
           "date": "2026-08-03",
           "description": "LUONG THANG",
-          "amount": 16723000.0
+          "amount": 14906000.0
         },
         {
           "date": "2026-08-02",
-          "description": "CGV CINEMA",
-          "amount": -58000.0
+          "description": "LUONG THANG",
+          "amount": 19060000.0
         },
         {
           "date": "2026-08-01",
-          "description": "CGV CINEMA",
-          "amount": -1005000.0
+          "description": "NAP TIEN DIEN THOAI",
+          "amount": -3259000.0
+        },
+        {
+          "date": "2026-07-31",
+          "description": "LUONG THANG",
+          "amount": 11560000.0
+        },
+        {
+          "date": "2026-07-30",
+          "description": "LUONG THANG",
+          "amount": 13149000.0
         }
       ]
     },
@@ -922,31 +947,31 @@
       "given_name": "Thuy",
       "segment": "MASS",
       "profile": "loan_declined",
-      "dob": "1979-02-20",
-      "phone_last4": "9519",
-      "national_id_last4": "6507",
+      "dob": "1993-02-01",
+      "phone": "0337098656",
+      "national_id": "697357204495",
       "accounts": [
         {
-          "account_id": "ACC-9519-4201",
+          "account_id": "ACC-1197-5901",
           "type": "Tài khoản thanh toán",
-          "mask": "****4201",
-          "balance": 42578695.35,
-          "available": 40078695.35,
+          "mask": "****5901",
+          "balance": 15861226.08,
+          "available": 13361226.08,
           "currency": "VND"
         }
       ],
       "cards": [
         {
-          "card_id": "CRD-8156",
+          "card_id": "CRD-3405",
           "type": "ghi nợ",
-          "mask": "****8156",
+          "mask": "****3405",
           "status": "active",
-          "linked_account": "ACC-9519-4201"
+          "linked_account": "ACC-1197-5901"
         }
       ],
       "loans": [
         {
-          "application_id": "LN-2026-91029",
+          "application_id": "LN-2026-21351",
           "product": "Vay tiêu dùng",
           "amount": 80000000,
           "status": "Không được duyệt",
@@ -957,43 +982,33 @@
       "transactions": [
         {
           "date": "2026-08-05",
-          "description": "PETROLIMEX FUEL",
-          "amount": -2080000.0
+          "description": "LUONG THANG",
+          "amount": 18122000.0
         },
         {
           "date": "2026-08-04",
-          "description": "LUONG THANG",
-          "amount": 22591000.0
+          "description": "CGV CINEMA",
+          "amount": -1716000.0
         },
         {
           "date": "2026-08-03",
-          "description": "LUONG THANG",
-          "amount": 19060000.0
+          "description": "SHOPEE PAY",
+          "amount": -2038000.0
         },
         {
           "date": "2026-08-02",
-          "description": "NAP TIEN DIEN THOAI",
-          "amount": -3259000.0
+          "description": "PETROLIMEX FUEL",
+          "amount": -1014000.0
         },
         {
           "date": "2026-08-01",
           "description": "LUONG THANG",
-          "amount": 11560000.0
+          "amount": 12993000.0
         },
         {
           "date": "2026-07-31",
-          "description": "LUONG THANG",
-          "amount": 13149000.0
-        },
-        {
-          "date": "2026-07-30",
-          "description": "CGV CINEMA",
-          "amount": -866000.0
-        },
-        {
-          "date": "2026-07-29",
-          "description": "VINMART SUPERMARKET",
-          "amount": -349000.0
+          "description": "TIEN DIEN EVN",
+          "amount": -280000.0
         }
       ]
     }

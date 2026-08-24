@@ -644,7 +644,7 @@ function clockNow() {
 function avatarFor(role) {
   if (role === "customer") return el("span", "avatar sm me", "B");   // "Bạn"
   if (role === "agent") return el("span", "avatar sm", "NV");        // nhân viên
-  return el("span", "avatar sm bot", "AB");
+  return el("span", "avatar sm bot", "L");
 }
 
 function addMessage(role, text, meta, author) {
@@ -1019,6 +1019,69 @@ async function toggleRawMode(enabled) {
   }
 }
 
+/* ---------- demo script (safety net for live demos) ---------- */
+
+let scriptName = null;
+let scriptStep = 0;
+let scriptTotal = 0;
+
+// Reflects whatever the server last reported for this session - called both
+// after start/stop and after every chat turn, so a script that runs out
+// mid-conversation clears the UI on its own instead of staying "armed" after
+// the router has already stopped enforcing it.
+function applyScriptState(name, step, total) {
+  scriptName = name || null;
+  scriptStep = step || 0;
+  scriptTotal = total || 0;
+
+  $("script-toggle-title").textContent = scriptName
+    ? `Kịch bản demo: đang chạy (${scriptStep}/${scriptTotal})`
+    : "Kịch bản demo: tắt";
+  $("script-select").disabled = Boolean(scriptName);
+  $("script-start-btn").classList.toggle("hidden", Boolean(scriptName));
+  $("script-stop-btn").classList.toggle("hidden", !scriptName);
+  $("script-banner").classList.toggle("hidden", !scriptName);
+  if (scriptName) {
+    const opt = $("script-select").selectedOptions[0];
+    $("script-banner-title").textContent =
+      `Chế độ kịch bản demo - ${opt ? opt.textContent : scriptName} (${scriptStep}/${scriptTotal})`;
+  }
+}
+
+async function refreshScriptList() {
+  try {
+    const data = await api("/api/demo-script");
+    const select = $("script-select");
+    select.innerHTML = (data.scripts || [])
+      .map((s) => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.label)} (${s.steps} lượt)</option>`)
+      .join("");
+  } catch (_) {
+    // Staff-only endpoint; a failure here just leaves the picker empty.
+  }
+}
+
+async function startScript() {
+  const name = $("script-select").value;
+  if (!name) return;
+  try {
+    const data = await postJson("/api/demo-script/start", { session_id: sessionId, name });
+    sessionId = data.session_id;
+    applyScriptState(data.script_name, data.script_step, data.script_total);
+  } catch (error) {
+    addMessage("system", `Could not start script: ${error.message}`);
+  }
+}
+
+async function stopScript() {
+  try {
+    const data = await postJson("/api/demo-script/stop", { session_id: sessionId });
+    sessionId = data.session_id;
+    applyScriptState(data.script_name, 0, 0);
+  } catch (error) {
+    addMessage("system", `Could not stop script: ${error.message}`);
+  }
+}
+
 async function send(message) {
   if (!message.trim()) return;
   if (voiceEnabled && ttsAvailable) _unlockAudio();
@@ -1147,6 +1210,7 @@ async function send(message) {
           const m = ev.meta;
           sessionId = m.session_id;
           applyRawMode(Boolean(m.raw_mode));
+          applyScriptState(m.script_name, m.script_step, m.script_total);
           finalizeMeta(m);
 
           if (useVoice && fullText.trim() && m.route !== "agent") {
@@ -1751,7 +1815,11 @@ function renderStaff() {
   $("view-customer-btn").classList.toggle("hidden", !staff);
   $("view-console-btn").classList.toggle("hidden", !staff);
   $("arch-toggle-box").classList.toggle("hidden", !staff);
-  if (staff) $("staff-pill").textContent = `${staff.display_name} · ${staff.role}`;
+  $("script-toggle-box").classList.toggle("hidden", !staff);
+  if (staff) {
+    $("staff-pill").textContent = `${staff.display_name} · ${staff.role}`;
+    refreshScriptList();
+  }
 }
 
 async function refreshStaff() {
@@ -1777,9 +1845,11 @@ async function login(event) {
 }
 
 async function logout() {
-  // Leave no live conversation stuck in raw mode behind a sign-out - the
-  // endpoint that turns it off requires staff, so it has to happen first.
+  // Leave no live conversation stuck in raw mode or a demo script behind a
+  // sign-out - both endpoints that turn them off require staff, so they
+  // have to happen first.
   if ($("raw-toggle").checked) await toggleRawMode(false);
+  if (scriptName) await stopScript();
   await postJson("/api/auth/logout", {});
   staff = null;
   renderStaff();
@@ -1829,6 +1899,8 @@ $("talk-to-person").onclick = () => send("Tôi muốn gặp nhân viên");
 /* ---------- wiring ---------- */
 
 $("raw-toggle").onchange = (e) => toggleRawMode(e.target.checked);
+$("script-start-btn").onclick = startScript;
+$("script-stop-btn").onclick = stopScript;
 
 $("composer").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
 $("input").oninput = updateSendState;
@@ -1965,9 +2037,9 @@ function startTranscript() {
 
   $("messages").appendChild(el("div", "day-divider", "Hôm nay"));
   addMessage("assistant",
-    "Xin chào! Tôi là trợ lý ảo của **ABC Bank**. Tôi có thể tra cứu số dư và "
-    + "giao dịch, khoá hoặc mở khoá thẻ, kiểm tra hồ sơ vay, và giải đáp về sản "
-    + "phẩm, biểu phí của ngân hàng.\n\nAnh/chị cần hỗ trợ điều gì ạ?");
+    "Xin chào! Mình là **Linh**, trợ lý ảo của Ngân hàng ABC. Mình có thể giúp bạn "
+    + "kiểm tra số dư và giao dịch, khoá hoặc mở khoá thẻ, tra cứu hồ sơ vay, và giải đáp "
+    + "về sản phẩm, biểu phí của ngân hàng.\n\nBạn đang cần hỗ trợ gì vậy?");
 }
 
 // Whether this session has passed the identity check, so the demo shows
@@ -2219,6 +2291,7 @@ async function _callSendMessage(text) {
             meta = ev.meta;
             sessionId = meta.session_id;
             applyRawMode(Boolean(meta.raw_mode));
+            applyScriptState(meta.script_name, meta.script_step, meta.script_total);
             setRailUser(meta.verified);
             renderChatActions(meta);
             renderHandoff(meta.in_handoff ? { handled_by: meta.handled_by || null } : null);

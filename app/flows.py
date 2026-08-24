@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass
 
 from . import cards, memory
+from . import canned_responses as R
 from .campaigns import CampaignBook
 from . import db
 from .nlu import PERSONAL_INTENTS
@@ -54,73 +55,71 @@ def _money(amount: float, currency: str = "VND") -> str:
 # -- verification ---------------------------------------------------------
 
 def _verification_prompt(session: Session, intent: str) -> FlowResult:
-    """Start (or continue) the identity check before a protected flow runs.
+    """Start the identity check before a protected flow runs: full phone
+    number first, full national ID (CCCD) only once the phone has already
+    matched someone. See `_verify_phone_step` / `_verify_cccd_step`.
 
-    Two factors, asked for and checked together: the phone number alone was a
-    4-digit space with no lockout wider than one session - a customer (or an
-    attacker) could open a fresh session after every third guess and keep
-    dialling. A second, independent factor - the national ID (ID) - does
-    not fix that on its own, but it takes the search space from "guess one
-    4-digit code" to "guess two 4-digit codes for the same person at once",
-    which is the cheapest real improvement available without a true step-up
-    channel (OTP to the registered device) standing in for a demo.
+    Sequential rather than "send both at once": a real phone number and CCCD
+    are long enough (10 and 12 digits) that pasting them as one message is
+    awkward to get right, and asking one at a time is the pattern a customer
+    already expects from step-up auth elsewhere. The trade-off, stated
+    plainly: a wrong CCCD after a correct phone number does reveal that the
+    phone number itself was real, which the old two-at-once, one generic
+    "doesn't match" design deliberately did not. At 10^10 phone numbers that
+    is not a meaningful brute-force surface the way a 4-digit code was.
     """
     session.pending_flow = "verify"
     session.slots["target_intent"] = intent
-    return FlowResult(
-        text=(
-            "Tôi sẵn sàng hỗ trợ. Trước tiên, cần xác minh nhanh để đảm bảo đây là bạn.\n\n"
-            "Bạn có thể gửi **4 số cuối số điện thoại đã đăng ký** và "
-            "**4 số cuối CMND/CCCD**, cách nhau bằng dấu cách không?"
-        ),
-        note="verification_started",
-    )
+    session.slots["verify_stage"] = "phone"
+    return FlowResult(text=R.VERIFICATION_PROMPT, note="verification_started")
 
 
 def _handle_verification(session: Session, text: str) -> FlowResult:
-    # The message has to *be* the two codes, not merely contain them.
-    #
-    # Scraping the first two 4-digit groups out of free text let a customer who
-    # pasted a card number verify themselves on its opening digits - the part
-    # of a card that is printed on statements and shared with every merchant,
-    # and identical for everyone holding the same product. Anything that is not
-    # exactly two groups is far more likely to be a customer typing a sentence,
-    # or pasting something they should not, than an identity check.
-    digits = re.findall(r"\d{4}", re.sub(r"[^0-9]+", " ", text))
-    if len(digits) != 2 or re.search(r"\d{5,}", re.sub(r"[^0-9]+", " ", text)):
-        return FlowResult(
-            text=("Chưa đúng - tôi cần hai mã gồm 4 chữ số: "
-                  "4 số cuối số điện thoại, rồi 4 số cuối CMND/CCCD. "
-                  "Ví dụ: `1234 5678`.\n\n"
-                  "Vui lòng không gửi số thẻ đầy đủ hoặc mã PIN - tôi không bao giờ cần những thông tin đó."),
-            note="verification_retry",
-        )
+    if session.slots.get("verify_stage") == "cccd":
+        return _verify_cccd_step(session, text)
+    return _verify_phone_step(session, text)
 
-    phone, national_id = digits[0], digits[1]
-    # Both factors have to match the same customer. The failure message below
-    # does not say which one was wrong - telling an attacker "the phone
-    # matched but the ID didn't" turns two independent secrets into one,
-    # guessed a factor at a time.
-    match = db.find_by_credentials(phone, national_id)
+
+def _digits_only(text: str) -> str:
+    return re.sub(r"[^0-9]", "", text)
+
+
+def _verify_phone_step(session: Session, text: str) -> FlowResult:
+    # The message has to *be* the phone number, not merely contain it: strip
+    # everything that is not a digit and the result must be *exactly* 10
+    # characters, no more and no fewer. "Số điện thoại của tôi là 0912345678
+    # ạ" passes (the words contribute no digits); a pasted 16-digit card
+    # number, or the real phone number with a PIN or CCCD tacked on, does
+    # not - both leave more than 10 digits behind, which a customer merely
+    # containing the right code inside a longer paste would otherwise slip
+    # through.
+    digits = _digits_only(text)
+    if len(digits) != 10:
+        return FlowResult(text=R.VERIFICATION_PHONE_FORMAT_RETRY, note="verification_retry")
+
+    match = db.find_by_phone(digits)
     if not match:
-        attempts = int(session.slots.get("verify_attempts", "0")) + 1
-        session.slots["verify_attempts"] = str(attempts)
-        if attempts >= 3:
-            session.reset_flow()
-            return FlowResult(
-                text=("Xin lỗi - tôi không thể xác minh thông tin của bạn, "
-                      "và không thể tiếp tục thử thêm. Để tôi chuyển bạn đến "
-                      "chuyên viên để hỗ trợ bạn trực tiếp."),
-                escalate=True,
-                escalation_reason="Xác minh danh tính thất bại ba lần",
-                note="verification_failed",
-            )
-        return FlowResult(
-            text=(f"Thông tin không khớp với hồ sơ của chúng tôi (lần thử {attempts}/3). "
-                  "Vui lòng thử lại với cả hai mã."),
-            note="verification_retry",
-        )
+        return _verification_retry_or_fail(session)
 
+    session.slots["verify_candidate_id"] = match["customer_id"]
+    session.slots["verify_stage"] = "cccd"
+    return FlowResult(text=R.VERIFICATION_ASK_CCCD, note="verification_phone_matched")
+
+
+def _verify_cccd_step(session: Session, text: str) -> FlowResult:
+    digits = _digits_only(text)
+    if len(digits) != 12:
+        return FlowResult(text=R.VERIFICATION_CCCD_FORMAT_RETRY, note="verification_retry")
+
+    candidate_id = session.slots.get("verify_candidate_id")
+    if not candidate_id or not db.check_national_id(candidate_id, digits):
+        # Stays on the CCCD step against the same candidate rather than
+        # bouncing back to re-ask the phone number: the phone already matched
+        # a real record, so re-typing the same digits again would not add
+        # anything - the 3-attempt budget is what actually limits guessing.
+        return _verification_retry_or_fail(session)
+
+    match = db.get_customer(candidate_id)
     session.customer_id = match["customer_id"]
     session.verified = True
     target = session.slots.get("target_intent")
@@ -129,7 +128,7 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
     # Cross-session recall lands here and nowhere earlier: before this line the
     # session has no verified customer, so there is nobody to remember.
     recalled = memory.store.summary(match["customer_id"])
-    greeting = f"Cảm ơn, {_first_name(match)} - bạn đã được xác minh. "
+    greeting = f"Cảm ơn {_first_name(match)} nhé, bạn đã xác minh thành công rồi ạ. "
     if recalled:
         greeting += recalled + " "
 
@@ -147,8 +146,29 @@ def _handle_verification(session: Session, text: str) -> FlowResult:
                           note="verified_then_" + target)
     proactive = proactive_offer(session)
     proactive_text = proactive.text if proactive else ""
-    return FlowResult(text=greeting + "Tôi có thể giúp gì cho bạn?" + proactive_text,
+    return FlowResult(text=greeting + "Mình có thể giúp gì cho bạn tiếp theo đây?" + proactive_text,
                       note="verified")
+
+
+def _verification_retry_or_fail(session: Session) -> FlowResult:
+    """One failed attempt at either step, shared so the 3-strike budget is
+    spent across the whole identity check, not reset by moving from the
+    phone step to the CCCD step or back."""
+    attempts = int(session.slots.get("verify_attempts", "0")) + 1
+    session.slots["verify_attempts"] = str(attempts)
+    if attempts >= 3:
+        session.reset_flow()
+        return FlowResult(
+            text=R.VERIFICATION_FAILED,
+            escalate=True,
+            escalation_reason="Xác minh danh tính thất bại ba lần",
+            note="verification_failed",
+        )
+    return FlowResult(
+        text=(f"Thông tin chưa khớp với hồ sơ của mình (lần thử {attempts}/3) - "
+              "bạn thử lại giúp mình nhé."),
+        note="verification_retry",
+    )
 
 
 # -- account flows --------------------------------------------------------
@@ -222,11 +242,7 @@ def _activate_card(session: Session) -> FlowResult:
         )
 
     if not inactive:
-        return FlowResult(
-            text=("Tất cả thẻ trong hồ sơ của bạn đã được kích hoạt. Nếu một "
-                  "giao dịch bị từ chối, đó là vấn đề khác và tôi có thể kiểm tra cho bạn."),
-            note="activation_none_pending",
-        )
+        return FlowResult(text=R.ACTIVATION_NONE_PENDING, note="activation_none_pending")
 
     card = inactive[0]
     return FlowResult(
@@ -252,11 +268,7 @@ def _card_offers(session: Session) -> FlowResult:
     """
     offers = CAMPAIGNS.offers_for(session.customer_id)
     if not offers:
-        return FlowResult(
-            text=("Bạn hiện không có ưu đãi nào, vậy nên tôi không có gì để "
-                  "hiển thị hôm nay. Bạn cần hỏi thêm điều gì không?"),
-            note="offers_none",
-        )
+        return FlowResult(text=R.OFFERS_NONE, note="offers_none")
 
     # Mark as shown so proactive_offer won't repeat the same offers below.
     session.slots["campaign_offered"] = "1"
@@ -307,7 +319,7 @@ def _transactions(session: Session) -> FlowResult:
     customer = session.customer
     transactions = customer["transactions"][:5]
     if not transactions:
-        return FlowResult(text="Tôi không thấy giao dịch gần đây nào trên tài khoản của bạn.")
+        return FlowResult(text=R.NO_TRANSACTIONS, note="no_transactions")
     lines = ["Các giao dịch gần nhất của bạn:"]
     for txn in transactions:
         sign = "+" if txn["amount"] > 0 else "−"
@@ -322,12 +334,7 @@ def _loan_status(session: Session) -> FlowResult:
     customer = session.customer
     loans = customer.get("loans", [])
     if not loans:
-        return FlowResult(
-            text=("Tôi không thấy hồ sơ vay nào đang mở trong tài khoản của bạn. "
-                  "Nếu bạn nộp hồ sơ tại chi nhánh trong vòng 24 giờ qua, có thể chưa đồng bộ - "
-                  "tôi có thể chuyển bạn đến bộ phận tín dụng để kiểm tra."),
-            note="no_loan_on_file",
-        )
+        return FlowResult(text=R.NO_LOAN_ON_FILE, note="no_loan_on_file")
     lines = ["Đây là trạng thái hồ sơ vay của bạn:"]
     for loan in loans:
         lines.append(
@@ -352,26 +359,24 @@ CARD_ACTIONS: dict[str, dict] = {
                     "Thao tác này không thể hoàn tác - thẻ đã khóa sẽ không mở lại được, "
                     "vì vậy tôi sẽ đặt thẻ thay thế cho bạn cùng lúc. Nếu bạn chỉ thất lạc "
                     "tạm thời và nghĩ sẽ tìm lại được, hãy nói **tạm khóa** để có thể mở khóa sau."),
-        "none_left": "Hiện bạn không có thẻ nào để khóa.",
+        "none_left": R.CARD_NONE_LEFT_REPORT_LOST,
     },
     "freeze": {
         "verb": "tạm khóa",
         "from": ("active",),
         "reversible": True,
-        "confirm": ("Tôi có thể tạm khóa **thẻ {type} {mask}** của bạn ngay. "
+        "confirm": ("Mình có thể tạm khóa **thẻ {type} {mask}** của bạn ngay. "
                     "Mọi giao dịch sẽ bị từ chối cho đến khi bạn mở khóa, "
-                    "và bạn có thể làm điều đó bất cứ lúc nào tại đây.\n\nTrả lời **có** để tạm khóa."),
-        "none_left": "Bạn không có thẻ đang hoạt động nào để tạm khóa.",
+                    "và bạn có thể làm điều đó bất cứ lúc nào tại đây.\n\nTrả lời **có** để tạm khóa nhé."),
+        "none_left": R.CARD_NONE_LEFT_FREEZE,
     },
     "unfreeze": {
         "verb": "mở khóa",
         "from": ("frozen",),
         "reversible": True,
-        "confirm": ("Sẵn sàng mở khóa **thẻ {type} {mask}** của bạn - thẻ sẽ hoạt động "
-                    "ngay lập tức.\n\nTrả lời **có** để xác nhận."),
-        "none_left": ("Hiện không có thẻ nào đang bị tạm khóa. Nếu thẻ đã bị báo mất "
-                      "thì đang ở trạng thái khóa vĩnh viễn, không thể mở lại - "
-                      "nhưng tôi có thể kiểm tra thẻ thay thế cho bạn."),
+        "confirm": ("Mình mở khóa **thẻ {type} {mask}** của bạn ngay nhé - thẻ sẽ hoạt động "
+                    "lại ngay lập tức.\n\nTrả lời **có** để xác nhận."),
+        "none_left": R.CARD_NONE_LEFT_UNFREEZE,
     },
 }
 
@@ -412,11 +417,11 @@ def _card_action(session: Session, action: str, text: str) -> FlowResult:
     if stage == "confirm":
         if _NO_RE.search(text) and not _YES_RE.search(text):
             session.reset_flow()
-            return FlowResult(text="Được rồi - tôi đã giữ nguyên trạng thái thẻ.",
+            return FlowResult(text=R.CARD_ACTION_CANCELLED,
                               note=f"{action}_cancelled")
         if not _YES_RE.search(text):
             return FlowResult(
-                text=f"Trả lời **có** để {spec['verb']} thẻ, hoặc **không** để giữ nguyên.",
+                text=f"Bạn trả lời **có** để {spec['verb']} thẻ, hoặc **không** để giữ nguyên nhé.",
                 note=f"{action}_confirm_retry")
 
         try:
@@ -481,8 +486,8 @@ def _card_choice_prompt(cards: list[dict], verb: str) -> str:
         f"- Thẻ {c['type']} {c['mask']}"
         + ("" if c["status"] == "active" else f" ({c['status']})")
         for c in cards)
-    return (f"Bạn muốn tôi {verb} thẻ nào?\n{options}\n\n"
-            "Trả lời bằng 4 số cuối hoặc loại thẻ.")
+    return (f"Bạn muốn mình {verb} thẻ nào ạ?\n{options}\n\n"
+            "Bạn trả lời bằng 4 số cuối hoặc loại thẻ giúp mình nhé.")
 
 
 def _match_card(cards: list[dict], text: str) -> dict | None:
@@ -589,7 +594,7 @@ def _cross_sell_interest(session: Session, text: str) -> FlowResult:
     session.pending_flow = "cross_sell_interest"
     session.slots["cross_sell_asked"] = "1"
     return FlowResult(
-        text="Bạn hay mua hàng trên nền tảng nào, hay thường chi tiêu nhiều ở đâu nhất?",
+        text=R.CROSS_SELL_ASK_INTEREST_UNVERIFIED,
         note="cross_sell_ask_interest_unverified",
     )
 
@@ -613,44 +618,37 @@ def _card_close(session: Session, text: str) -> FlowResult:
     if stage == "await_confirm":
         session.reset_flow()
         if _NO_RE.search(text):
-            return FlowResult(text="Đã huỷ yêu cầu - thẻ của bạn vẫn hoạt động bình thường.",
-                              note="card_close_cancelled")
+            return FlowResult(text=R.CARD_CLOSE_CANCELLED, note="card_close_cancelled")
         if not _YES_RE.search(text):
-            return FlowResult(text="Bạn xác nhận đóng thẻ không? Vui lòng trả lời có hoặc không.",
-                              note="card_close_unclear")
+            return FlowResult(text=R.CARD_CLOSE_UNCLEAR, note="card_close_unclear")
         try:
             result = cards.close_card(session.customer_id, session.session_id)
         except cards.TransitionError as exc:
             return FlowResult(text=str(exc), note="card_close_error")
-        return FlowResult(text=f"Đã đóng thẻ của bạn (mã tham chiếu {result['reference']}).",
+        return FlowResult(text=f"Xong rồi ạ - mình đã đóng thẻ của bạn (mã tham chiếu {result['reference']}).",
                           note="card_close_done")
     card = cards.get_card(session.customer_id)
     if not card:
-        return FlowResult(text="Tôi không tìm thấy thẻ nào trên hồ sơ của bạn.",
-                          note="card_close_none")
+        return FlowResult(text=R.CARD_CLOSE_NONE, note="card_close_none")
     if card["status"] == "closed":
-        return FlowResult(text="Thẻ này đã được đóng trước đó rồi.",
-                          note="card_close_already_closed")
+        return FlowResult(text=R.CARD_CLOSE_ALREADY_CLOSED, note="card_close_already_closed")
     if card["status"] != "active":
-        return FlowResult(text="Tôi không tìm thấy thẻ đang hoạt động nào trên hồ sơ của bạn.",
-                          note="card_close_none")
+        return FlowResult(text=R.CARD_CLOSE_NONE, note="card_close_none")
     session.pending_flow = "card_close"
     session.slots["card_close_stage"] = "await_confirm"
-    return FlowResult(text="Bạn có chắc muốn đóng thẻ này không? Vui lòng xác nhận có/không.",
-                      note="card_close_confirm")
+    return FlowResult(text=R.CARD_CLOSE_CONFIRM_ASK, note="card_close_confirm")
 
 
 def _submit_limit_request(session: Session, amount: float | None) -> FlowResult:
     if amount is None:
-        return FlowResult(text="Tôi chưa nhận được số hạn mức hợp lệ, bạn vui lòng thử lại.",
-                          note="card_limit_invalid")
+        return FlowResult(text=R.LIMIT_INVALID, note="card_limit_invalid")
     try:
         result = cards.request_limit_adjustment(session.customer_id, amount, session.session_id)
     except cards.TransitionError as exc:
         return FlowResult(text=str(exc), note="card_limit_error")
     return FlowResult(
-        text=(f"Đã ghi nhận yêu cầu điều chỉnh hạn mức lên {_money(amount)} "
-              f"(mã tham chiếu {result['reference']}). Đây là yêu cầu chờ duyệt - "
+        text=(f"Mình đã ghi nhận yêu cầu điều chỉnh hạn mức lên {_money(amount)} "
+              f"(mã tham chiếu {result['reference']}) rồi nhé. Đây là yêu cầu chờ duyệt - "
               "hạn mức hiện tại chưa thay đổi cho tới khi có kết quả xét duyệt."),
         note="card_limit_requested",
     )
@@ -667,7 +665,7 @@ def _card_limit_adjust(session: Session, text: str) -> FlowResult:
         return _submit_limit_request(session, amount)
     session.pending_flow = "card_limit_adjust"
     session.slots["limit_stage"] = "await_amount"
-    return FlowResult(text="Bạn muốn hạn mức mới là bao nhiêu?", note="card_limit_ask_amount")
+    return FlowResult(text=R.LIMIT_ASK_AMOUNT, note="card_limit_ask_amount")
 
 
 # -- dispatch -------------------------------------------------------------
@@ -702,13 +700,7 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
     if intent == "card_limit_adjust":
         return _card_limit_adjust(session, text)
     if intent == "greeting":
-        return FlowResult(
-            text=("Xin chào! Tôi là trợ lý ảo của Ngân hàng ABC. Tôi có thể "
-                  "kiểm tra số dư và giao dịch, khóa thẻ mất cắp, tra cứu hồ sơ vay, "
-                  "so sánh sản phẩm, xem ưu đãi thẻ, hoặc hỗ trợ đóng thẻ và điều chỉnh hạn mức. "
-                  "Bạn cần hỗ trợ gì?"),
-            note="greeting",
-        )
+        return FlowResult(text=R.GREETING, note="greeting")
     if intent == "activate_card":
         return _activate_card(session)
     if intent == "card_offers":
@@ -717,16 +709,12 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
         # Acknowledgements and "are you there?" are not questions. Sending them
         # through retrieval produced the worst turn in the demo: a customer
         # typing "ok thanks" was offered a human agent.
-        return FlowResult(
-            text="Tôi đây. Bạn cần hỏi thêm điều gì không?",
-            note="smalltalk",
-        )
+        return FlowResult(text=R.SMALLTALK, note="smalltalk")
     if intent == "goodbye":
-        return FlowResult(
-            text="Rất vui được hỗ trợ bạn. Chúc bạn một ngày tốt lành!", note="goodbye")
+        return FlowResult(text=R.GOODBYE, note="goodbye")
     if intent == "human_agent":
         return FlowResult(
-            text="Được, để tôi kết nối bạn ngay.",
+            text=R.HUMAN_AGENT_HANDOFF,
             escalate=True,
             escalation_reason="Customer explicitly asked for a human agent",
             note="explicit_handoff_request",

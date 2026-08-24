@@ -104,6 +104,15 @@ class Session:
         # demonstration never touches anyone else's conversation.
         self.raw_mode = False
 
+        # Demo lever: a named, ordered script (data/demo_scripts.json,
+        # app/demo_script.py) armed for this session only. While set, every
+        # turn returns that script's next reply verbatim instead of being
+        # routed - a safety net for live demos so a flaky provider, a
+        # retrieval miss, or a fixture that has drifted since the script was
+        # written can never surface in front of an audience.
+        self.script_name: str | None = None
+        self.script_step = 0
+
     # -- transcript -------------------------------------------------------
 
     def add_message(self, role: str, text: str, author: str | None = None) -> None:

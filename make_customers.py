@@ -71,6 +71,28 @@ LOAN_PRODUCTS = [
     ("Vay tiêu dùng", 80_000_000), ("Vay du học", 150_000_000),
 ]
 
+# Real Vietnamese mobile prefixes (Viettel/Vinaphone/Mobifone/Vietnamobile),
+# so a generated number at least looks like something a customer could read
+# out over chat rather than an obviously fake 09999... block.
+MOBILE_PREFIXES = [
+    "032", "033", "034", "035", "036", "037", "038", "039",
+    "070", "076", "077", "078", "079",
+    "081", "082", "083", "084", "085", "088",
+    "089", "090", "091", "092", "093", "094", "096", "097", "098", "099",
+]
+
+
+def _random_phone(rng: random.Random) -> str:
+    """10-digit Vietnamese mobile number."""
+    return rng.choice(MOBILE_PREFIXES) + f"{rng.randint(0, 9_999_999):07d}"
+
+
+def _random_national_id(rng: random.Random) -> str:
+    """12-digit CCCD. Real ones encode province/century/gender/year in the
+    first digits - not replicated here, since this only has to be a 12-digit
+    string for the demo, not pass a real checksum."""
+    return f"{rng.randint(0, 999_999_999_999):012d}"
+
 
 def build() -> dict:
     rng = random.Random(SEED)
@@ -86,13 +108,16 @@ def build() -> dict:
         # phone/ID pair would make verification ambiguous, and the flow would
         # silently pick whichever row came back first.
         while True:
-            phone = f"{rng.randint(1000, 9999)}"
-            national = f"{rng.randint(1000, 9999)}"
+            phone = _random_phone(rng)
+            national = _random_national_id(rng)
             if (phone, national) not in used_credentials:
                 used_credentials.add((phone, national))
                 break
 
-        stem = phone
+        # Kept separate from the credential: a 10-digit phone number makes an
+        # ugly, hard-to-read account id, and there is no reason the two need
+        # to be related.
+        stem = f"{rng.randint(1000, 9999)}"
         checking_id = f"ACC-{stem}-{rng.randint(10, 99)}01"
         savings_id = f"ACC-{stem}-{rng.randint(10, 99)}88"
 
@@ -195,8 +220,8 @@ def build() -> dict:
             "profile": profile,
             "dob": str(date(rng.randint(1965, 2001), rng.randint(1, 12),
                             rng.randint(1, 28))),
-            "phone_last4": phone,
-            "national_id_last4": national,
+            "phone": phone,
+            "national_id": national,
             "accounts": accounts,
             "cards": cards,
             "loans": loans,
@@ -245,7 +270,7 @@ def check(data: dict) -> list[str]:
     seen_ids: set[str] = set()
 
     for customer in data["customers"]:
-        key = (customer["phone_last4"], customer["national_id_last4"])
+        key = (customer["phone"], customer["national_id"])
         if key in seen_credentials:
             problems.append(
                 f"{customer['customer_id']} shares credentials with "

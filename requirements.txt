@@ -19,3 +19,15 @@ openai>=1.40
 # Required (not optional like the LLM providers above) - server.py loads .env
 # at startup before any app imports so provider keys are picked up.
 python-dotenv>=1.0
+
+# Voice (app/tts.py) - optional, independent of the LLM providers above:
+#
+#   gtts>=2.5                                # TTS_PROVIDER=gtts (free, no key,
+#                                             #   also what pregenerate_voice.py
+#                                             #   defaults to - see data/voice_cache/)
+#   VBEE_TTS_KEY + VBEE_APP_ID env vars only  # TTS_PROVIDER=vbee - no package,
+#                                             #   called over plain HTTP
+#
+# Without either, /api/tts reports unavailable and the mic/speaker controls
+# hide themselves - the rest of the demo is unaffected.
+gtts>=2.5

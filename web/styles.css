@@ -383,6 +383,15 @@ button.nav-item:hover { background: var(--bg-canvas); color: var(--text); }
 .raw-banner strong { color: var(--red); font-weight: 600; }
 .raw-banner p { margin: 3px 0 0; font-size: 12.5px; color: var(--text); }
 
+.script-select {
+  font-size: 12.5px; padding: 4px 8px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg-surface);
+}
+#script-toggle-box { flex-wrap: wrap; }
+#script-banner { background: var(--amber-tint); border: 1px solid var(--amber-line); }
+#script-banner strong { color: var(--amber); font-weight: 600; }
+#script-banner p { margin: 3px 0 0; font-size: 12.5px; color: var(--text); }
+
 .handoff-banner {
   display: flex; gap: 12px; align-items: center; justify-content: space-between;
   background: var(--amber-tint); border: 1px solid var(--amber-line);

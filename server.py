@@ -11,6 +11,11 @@ Endpoints
     POST /api/session/raw-mode {session_id?, enabled} -> demo lever (staff):
                                strips routing/guardrails/retrieval/grounding
                                down to a plain LLM chat, scoped to one session
+    GET  /api/demo-script      list scripts in data/demo_scripts.json (staff)
+    POST /api/demo-script/start {session_id?, name} -> arm a script (staff):
+                               forces the next replies verbatim, scoped to
+                               one session, bypassing routing entirely
+    POST /api/demo-script/stop {session_id} -> disarm it (staff)
     GET  /api/session/<id>     transcript + audit trail
     GET  /api/queue            escalated sessions waiting for a human
     POST /api/summary          {session_id} -> regenerate the handover brief
@@ -63,8 +68,8 @@ from urllib.parse import parse_qs, urlparse
 
 import base64
 
-from app import (auth, campaigns as campaign_mod, db, llm, memory, metrics,
-                 policy, replay, topics)
+from app import (auth, campaigns as campaign_mod, db, demo_script, llm,
+                 memory, metrics, policy, replay, topics)
 from app import tts, stt
 from app.kbstore import KBError, KnowledgeBaseStore
 from app.llm import runtime
@@ -262,6 +267,11 @@ class Handler(BaseHTTPRequestHandler):
                 "card_events": db.card_events(limit=12),
             })
 
+        elif path == "/api/demo-script":
+            if not self._require_staff():
+                return
+            self._send_json({"scripts": demo_script.list_scripts()})
+
         elif path == "/api/auth/me":
             staff = self._staff()
             self._send_json({"staff": {
@@ -452,6 +462,28 @@ class Handler(BaseHTTPRequestHandler):
                 "session_id": session.session_id, "raw_mode": session.raw_mode,
             })
 
+        elif path == "/api/demo-script/start":
+            if not self._require_staff():
+                return
+            session = router.sessions.get_or_create(payload.get("session_id"))
+            name = (payload.get("name") or "").strip()
+            if not demo_script.start(session, name):
+                self._send_json({"error": f"unknown script '{name}'"}, status=400)
+                return
+            self._send_json({
+                "session_id": session.session_id,
+                "script_name": session.script_name,
+                "script_step": session.script_step,
+                "script_total": demo_script.step_count(name),
+            })
+
+        elif path == "/api/demo-script/stop":
+            if not self._require_staff():
+                return
+            session = router.sessions.get_or_create(payload.get("session_id"))
+            demo_script.stop(session)
+            self._send_json({"session_id": session.session_id, "script_name": None})
+
         elif path == "/api/chat/stream":
             message = (payload.get("message") or "").strip()
             if not message:
@@ -478,6 +510,10 @@ class Handler(BaseHTTPRequestHandler):
                 "latency_ms": result.latency_ms,
                 "verified": session.verified,
                 "raw_mode": session.raw_mode,
+                "script_name": session.script_name,
+                "script_step": session.script_step,
+                "script_total": demo_script.step_count(session.script_name)
+                                if session.script_name else 0,
                 "debug": result.debug,
             }
             self.send_response(200)
@@ -528,6 +564,10 @@ class Handler(BaseHTTPRequestHandler):
                 "latency_ms": result.latency_ms,
                 "verified": session.verified,
                 "raw_mode": session.raw_mode,
+                "script_name": session.script_name,
+                "script_step": session.script_step,
+                "script_total": demo_script.step_count(session.script_name)
+                                if session.script_name else 0,
                 "debug": result.debug,
             })
 

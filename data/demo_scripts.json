@@ -1,0 +1,57 @@
+{
+  "balance_an": {
+    "label": "Kiểm tra số dư - Nguyễn Văn An",
+    "steps": [
+      {
+        "reply": "Mình rất sẵn lòng hỗ trợ bạn! Trước tiên mình cần xác minh nhanh để chắc chắn đúng là bạn nhé.\n\nBạn cho mình xin **số điện thoại** (đủ 10 số) đăng ký với ngân hàng nhé.",
+        "route": "deterministic", "intent": "balance_inquiry"
+      },
+      {
+        "reply": "Cảm ơn bạn. Giờ bạn cho mình xin thêm **số CCCD/CMND** (đủ 12 số) để hoàn tất xác minh nhé.",
+        "route": "deterministic", "intent": "flow:verify"
+      },
+      {
+        "reply": "Cảm ơn An nhé, bạn đã xác minh thành công rồi ạ. Đây là số dư tài khoản của bạn tính đến hôm nay, An:\n- **Tài khoản thanh toán**: 128.450.000 VND\n- **Tài khoản tiết kiệm**: 320.000.000 VND",
+        "route": "deterministic", "intent": "flow:resumed"
+      }
+    ]
+  },
+  "freeze_unfreeze_hieu": {
+    "label": "Tạm khoá rồi mở khoá thẻ - Vu Duc Hieu",
+    "steps": [
+      {
+        "reply": "Được rồi, mình sẽ tạm khoá thẻ giúp bạn. Trước tiên mình cần xác minh nhanh - bạn cho mình xin **số điện thoại** (đủ 10 số) nhé.",
+        "route": "deterministic", "intent": "freeze_card"
+      },
+      {
+        "reply": "Cảm ơn bạn. Giờ bạn cho mình xin thêm **số CCCD/CMND** (đủ 12 số) để hoàn tất xác minh nhé.",
+        "route": "deterministic", "intent": "flow:verify"
+      },
+      {
+        "reply": "Cảm ơn bạn, bạn đã xác minh thành công rồi ạ. Mình xác nhận tạm khoá thẻ ghi nợ đuôi 5767 của bạn nhé - bạn đồng ý không?",
+        "route": "deterministic", "intent": "flow:resumed"
+      },
+      {
+        "reply": "Thẻ của bạn đã được tạm khoá thành công. Mã tham chiếu: **FRZ-DEMO001**. Bạn cần mình hỗ trợ gì thêm không?",
+        "route": "deterministic", "intent": "freeze_card"
+      },
+      {
+        "reply": "Mình xác nhận mở khoá lại thẻ ghi nợ đuôi 5767 của bạn nhé - bạn đồng ý không?",
+        "route": "deterministic", "intent": "unfreeze_card"
+      },
+      {
+        "reply": "Thẻ của bạn đã hoạt động trở lại. Mã tham chiếu: **UNF-DEMO001**. Rất vui vì đã hỗ trợ được bạn!",
+        "route": "deterministic", "intent": "unfreeze_card"
+      }
+    ]
+  },
+  "restricted_topic": {
+    "label": "Guardrail - từ chối chủ đề đầu tư",
+    "steps": [
+      {
+        "reply": "Mình xin phép không tư vấn về đầu tư, thuế hay pháp lý, vì đây là những lĩnh vực cần chuyên viên có chứng chỉ phù hợp tư vấn trực tiếp cho bạn. Bạn có muốn mình kết nối với chuyên viên tư vấn không?",
+        "route": "guardrail", "intent": "restricted"
+      }
+    ]
+  }
+}

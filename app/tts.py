@@ -4,6 +4,7 @@ Provider switch happens at runtime, no restart needed.
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import logging
@@ -11,17 +12,26 @@ import os
 import threading
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 AUDIO_CONTENT_TYPE = "audio/mpeg"
+
+# Pre-generated audio for the fixed replies in app/canned_responses.py - see
+# pregenerate_voice.py. Checked before any live provider call: the goal is
+# that the *first* time a canned reply is spoken in a freshly started
+# process is exactly as fast as the hundredth, not just every call after the
+# first, which is all the in-memory cache below could ever give you.
+VOICE_CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "voice_cache"
 
 # --- runtime state ---
 _lock = threading.Lock()
 _provider: str    = "vbee"
 _vbee_key: str    = os.environ.get("VBEE_TTS_KEY", "")
 _vbee_app_id: str = os.environ.get("VBEE_APP_ID", "")
-_vbee_voice: str  = "hn_female_ngochuyen_full_48k-fhg"
+# Giọng nữ Sài Gòn, "Mềm mại" - giọng miền Nam nhẹ nhàng theo yêu cầu.
+_vbee_voice: str  = "sg_female_thaotrinh_full_44k-phg"
 
 # --- Vbee callback state ---
 _callback_url: str = ""          # set by server after ngrok is established
@@ -92,11 +102,46 @@ def status() -> dict:
         }
 
 
-def synthesize(text: str) -> bytes:
+def cache_path_for(text: str, provider: str | None = None, voice: str | None = None) -> Path:
+    """Where the pre-generated file for `text` would live, under the
+    currently configured provider/voice unless overridden.
+
+    Hashed rather than named after the reply (`GREETING.mp3`, say) because
+    the text is the only thing that actually has to match at lookup time -
+    keying on it directly means a reply that quietly changed wording in
+    canned_responses.py can never silently serve stale, mismatched audio
+    under an old filename; it just misses the cache and falls through to a
+    live call until pregenerate_voice.py is run again.
+    """
+    with _lock:
+        prov = provider or _provider
+        vox = voice or _vbee_voice
+    digest = hashlib.sha256(f"{prov}|{vox}|{text}".encode("utf-8")).hexdigest()[:24]
+    return VOICE_CACHE_DIR / f"{digest}.mp3"
+
+
+def synthesize_live(text: str) -> bytes:
+    """Call the configured provider directly - no cache, disk or memory.
+
+    What pregenerate_voice.py calls to bake the disk cache in the first
+    place; `synthesize()` below is what everything else should call.
+    """
     with _lock:
         prov   = _provider
         vkey   = _vbee_key
         app_id = _vbee_app_id
+        voice  = _vbee_voice
+
+    if prov == "vbee":
+        if not vkey or not app_id:
+            raise RuntimeError("Vbee API key và App ID chưa được đặt")
+        return _call_vbee(text, vkey, app_id, voice)
+    return _call_gtts(text)
+
+
+def synthesize(text: str) -> bytes:
+    with _lock:
+        prov   = _provider
         voice  = _vbee_voice
 
     cache_key = (prov, voice, text)
@@ -104,12 +149,14 @@ def synthesize(text: str) -> bytes:
         if cache_key in _cache:
             return _cache[cache_key]
 
-    if prov == "vbee":
-        if not vkey or not app_id:
-            raise RuntimeError("Vbee API key và App ID chưa được đặt")
-        audio = _call_vbee(text, vkey, app_id, voice)
-    else:
-        audio = _call_gtts(text)
+    disk_path = cache_path_for(text, prov, voice)
+    if disk_path.exists():
+        audio = disk_path.read_bytes()
+        with _cache_lock:
+            _cache[cache_key] = audio
+        return audio
+
+    audio = synthesize_live(text)
 
     with _cache_lock:
         _cache[cache_key] = audio

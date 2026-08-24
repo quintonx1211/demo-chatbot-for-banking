@@ -58,8 +58,8 @@ SEED_PATH = DATA_DIR / "accounts.json"
 # so the files stay diffable and a human editing one in Excel gets the columns
 # they expect back.
 COLUMNS: dict[str, list[str]] = {
-    "customers": ["customer_id", "name", "given_name", "dob", "phone_last4",
-                  "national_id_last4", "segment", "profile"],
+    "customers": ["customer_id", "name", "given_name", "dob", "phone",
+                  "national_id", "segment", "profile"],
     "accounts": ["account_id", "customer_id", "type", "mask", "balance",
                  "available", "currency"],
     "cards": ["card_id", "customer_id", "type", "mask", "status",
@@ -203,8 +203,8 @@ def reset() -> None:
                 "given_name": (customer.get("given_name")
                                or customer["name"].split()[-1]),
                 "dob": customer.get("dob"),
-                "phone_last4": customer["phone_last4"],
-                "national_id_last4": customer["national_id_last4"],
+                "phone": customer["phone"],
+                "national_id": customer["national_id"],
                 "segment": customer.get("segment", "MASS"),
                 "profile": customer.get("profile", ""),
             })
@@ -260,12 +260,25 @@ def get_customer(customer_id: str | None) -> dict | None:
     return customer
 
 
-def find_by_credentials(phone_last4: str, national_id_last4: str) -> dict | None:
-    """Both factors, matched against the same customer."""
-    match = next((row for row in _read("customers")
-                  if row["phone_last4"] == phone_last4
-                  and row["national_id_last4"] == national_id_last4), None)
+def find_by_phone(phone: str) -> dict | None:
+    """First verification factor: the full registered phone number.
+
+    Checked before the national ID is ever asked for - see
+    `flows._verify_phone_step`. Returns the full customer record so the
+    caller has everything it needs once the second factor also matches,
+    without a second read.
+    """
+    match = next((row for row in _read("customers") if row["phone"] == phone), None)
     return get_customer(match["customer_id"]) if match else None
+
+
+def check_national_id(customer_id: str, national_id: str) -> bool:
+    """Second verification factor, checked against the customer the phone
+    number already identified - not looked up independently, so this can
+    never itself identify who is asking."""
+    row = next((r for r in _read("customers")
+                if r["customer_id"] == customer_id), None)
+    return bool(row) and row["national_id"] == national_id
 
 
 def get_card(card_id: str) -> dict | None:

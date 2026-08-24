@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from . import canned_responses as R
 from .textmodel import tokenize
 
 # Topics the assistant must never answer generatively, however confident the
@@ -70,12 +71,7 @@ RESTRICTED_TOPICS: list[tuple[str, re.Pattern, str]] = [
     ),
 ]
 
-RESTRICTED_RESPONSE = (
-    "Tôi không thể tư vấn về đầu tư, thuế hoặc pháp lý - những vấn đề này phải đến từ "
-    "chuyên gia có chứng chỉ hành nghề. Tôi có thể kết nối bạn với chuyên viên ngân hàng "
-    "để trao đổi về các sản phẩm chúng tôi cung cấp, hoặc trả lời câu hỏi về "
-    "tài khoản, thẻ hoặc hồ sơ của bạn."
-)
+RESTRICTED_RESPONSE = R.RESTRICTED_RESPONSE
 
 # Redaction patterns, applied in order. Card numbers first so their digits are
 # not partially eaten by the generic long-number rule.

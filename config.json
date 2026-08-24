@@ -30,7 +30,7 @@
   "router_mode": "nlu",
 
   "overrides": {
-    "min_grounding": 0.04,
+    "min_grounding": null,
     "min_relevance": null,
     "high_confidence": null
   },

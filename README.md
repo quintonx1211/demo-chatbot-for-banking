@@ -120,13 +120,37 @@ losing the console. It changes nothing about what any other customer's
 conversation is doing, live or in memory - only the one session named in the
 request.
 
+## Demo scripts (forcing the next reply)
+
+The opposite lever from raw mode: instead of removing the architecture, it
+removes the *uncertainty* of a live demo. `data/demo_scripts.json` holds
+named, ordered lists of replies; once a script is armed on a session
+(`POST /api/demo-script/start {session_id, name}`), every following turn in
+that conversation returns the script's next reply verbatim - routing,
+guardrails, retrieval, and the model are all bypassed, and what the
+"customer" actually typed is not checked at all, on purpose (`app/router.py`,
+checked before even raw mode). A flaky provider, a retrieval miss, or a
+customer fixture that drifted since the script was written can never surface
+mid-presentation. Once every step in the script has been used, the *next*
+turn falls through to normal routing on its own - `script_name` comes back
+`null` in the response, and the session behaves exactly as if the script had
+never been armed.
+
+Staff-gated like raw mode (`_require_staff()`), scoped to one session, and
+surfaced in the same UI area (**Kịch bản demo**, next to the architecture
+switch) once signed in as `agent` / `demo1234`. `GET /api/demo-script` lists
+what is available; `POST /api/demo-script/stop {session_id}` disarms early.
+Add a new script by adding an entry to `data/demo_scripts.json` - each step
+is `{"reply": "...", "route": "...", "intent": "..."}`, where `route`/`intent`
+only affect what the routing inspector displays, never what actually ran.
+
 ## What to try
 
 Open the **Customer chat** tab. Each suggestion below hits a different branch:
 
 | Try this | What happens |
 |---|---|
-| `Check my balance` → `9411 3147` | High-confidence intent → identity verification (phone + national ID) → deterministic flow reading the customer record |
+| `Check my balance` → `0842199388` → `183589113804` | High-confidence intent → sequential identity verification (full phone, then full national ID) → deterministic flow reading the customer record |
 | `freeze my card` → `7091 9527` → `yes`, then `unblock my card` → `yes` | A reversible card action, written to `data/db/cards.csv` and logged |
 | `I lost my debit card` → `5194 9572` → `6591` → `yes` | Irreversible: the card is blocked for good and a replacement is issued |
 | `What's the status of my loan application?` → `9170 3723` | Deterministic lookup, no model involved |
