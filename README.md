@@ -143,6 +143,8 @@ what is available; `POST /api/demo-script/stop {session_id}` disarms early.
 Add a new script by adding an entry to `data/demo_scripts.json` - each step
 is `{"reply": "...", "route": "...", "intent": "..."}`, where `route`/`intent`
 only affect what the routing inspector displays, never what actually ran.
+Run `python -m app.demo_script` after editing the file to catch a JSON typo
+before it costs you mid-demo. Full guide (Vietnamese): `DEMO-SCRIPT-GUIDE.md`.
 
 ## What to try
 
