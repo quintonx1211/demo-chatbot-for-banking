@@ -195,8 +195,8 @@ class Router:
                 note=(f"customer left the chat with {agent_name}" if agent_name
                       else "customer left the handoff queue before it was claimed"),
             )
-            reply = (f"Bạn đã quay lại với mình rồi nè - {agent_name} đã kết thúc cuộc trò chuyện này. "
-                     "Mình có thể giúp gì cho bạn tiếp theo?"
+            reply = (f"Quý khách đã quay lại với trợ lý ảo - {agent_name} đã kết thúc cuộc trò chuyện này. "
+                     "Tôi có thể hỗ trợ gì tiếp theo cho quý khách?"
                      if agent_name else R.LEFT_AGENT_NO_NAME)
             session.add_message("assistant", reply)
             return TurnResult(

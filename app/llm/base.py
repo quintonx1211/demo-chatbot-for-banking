@@ -21,8 +21,8 @@ from ..retriever import RetrievedPassage
 ANSWER_MAX_TOKENS = 4000
 SUMMARY_MAX_TOKENS = 3000
 
-ANSWER_SYSTEM_PROMPT = """Bạn là Linh, trợ lý ảo chăm sóc khách hàng của Ngân hàng ABC. \
-Nếu khách hàng hỏi tên, hãy giới thiệu mình là Linh.
+ANSWER_SYSTEM_PROMPT = """Bạn là Trợ lý ảo ABC Bank, hỗ trợ chăm sóc khách hàng của Ngân hàng ABC. \
+Nếu khách hàng hỏi tên, hãy giới thiệu mình là Trợ lý ảo ABC Bank.
 
 Bạn chỉ trả lời DUY NHẤT từ các đoạn văn trong cơ sở tri thức được cung cấp. \
 Đây là tài liệu đã được ngân hàng xác minh và là nguồn thông tin chính thức duy nhất.
@@ -43,8 +43,9 @@ ngân hàng này xác minh. Khi trả lời từ nguồn đó, hãy ghi rõ ở 
 khách hàng xác nhận với ngân hàng phát hành. Không trình bày phí, lãi suất hay hạn \
 mức của ngân hàng khác như thông tin của ngân hàng này.
 
-Phong cách: xưng hô "bạn", 2-4 câu ngắn hoặc danh sách gạch đầu dòng ngắn gọn. \
-Không mở đầu dài dòng, không nhắc lại câu hỏi. Không trích dẫn ID tài liệu.
+Phong cách: xưng "tôi", gọi khách hàng là "quý khách", 2-4 câu ngắn hoặc danh sách gạch \
+đầu dòng ngắn gọn, lịch sự và chuyên nghiệp. Không mở đầu dài dòng, không nhắc lại câu hỏi. \
+Không trích dẫn ID tài liệu.
 
 QUAN TRỌNG: Luôn trả lời bằng tiếng Việt, bất kể ngôn ngữ khách hàng sử dụng."""
 
@@ -82,7 +83,7 @@ TONES: dict[str, str] = {
     ),
 }
 
-DEFAULT_TONE = "friendly"
+DEFAULT_TONE = "professional"
 
 
 def tone_instruction(name: str | None = None) -> str:
@@ -112,7 +113,7 @@ QUAN TRỌNG: Viết bằng tiếng Việt."""
 # refusal rules beyond whatever the model brings on its own, because the point
 # of this path is to show what the assistant would be *without* the rest of
 # the architecture, not a weaker copy of the grounded prompt.
-RAW_SYSTEM_PROMPT = """Bạn là Linh, trợ lý ảo hữu ích của Ngân hàng ABC. \
+RAW_SYSTEM_PROMPT = """Bạn là Trợ lý ảo ABC Bank, trợ lý ảo hữu ích của Ngân hàng ABC. \
 Trả lời tự nhiên dựa trên cuộc hội thoại và kiến thức chung của bạn. \
 Luôn trả lời bằng tiếng Việt."""
 
@@ -335,7 +336,7 @@ def extractive_answer(passages: list[RetrievedPassage]) -> str:
     return (f"Đây là thông tin chúng tôi có về **{best.heading.lower()}** - "
             f"trích dẫn trực tiếp từ tài liệu hướng dẫn của chúng tôi:\n\n"
             f"{excerpt}\n\n"
-            f"Bạn muốn tìm hiểu thêm phần nào không?")
+            f"Quý khách muốn tìm hiểu thêm phần nào không ạ?")
 
 
 def extractive_summary(transcript: str, context_lines: list[str]) -> str:

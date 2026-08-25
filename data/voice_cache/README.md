@@ -4,7 +4,7 @@ Pre-generated audio (`.mp3`) for the fixed replies in `app/canned_responses.py`
 - the greeting, goodbye, guardrail refusal, verification prompts, and the
 other ~30 messages that are the exact same text every single time they are
 sent. `app/tts.py`'s `synthesize()` checks this folder before ever calling a
-live TTS provider, so the first customer to hear "Xin chào! Mình là Linh..."
+live TTS provider, so the first customer to hear "Trợ lý ảo ABC Bank hân hạnh..."
 today gets it as fast as the thousandth.
 
 Generate (or refresh, after editing `canned_responses.py`):
@@ -25,10 +25,31 @@ TTS call only resolves through a webhook to a public URL, which is set up by
 `--provider vbee` requires `--via-server` pointed at a running server rather
 than calling the provider directly.
 
-Filenames are a hash of `provider|voice|text`, not the reply's name - so a
-reply that changes wording never risks serving stale audio under an old
-filename; it just misses the cache and falls back to a live call until this
-script runs again.
+Filenames are the constant's own name from `canned_responses.py` -
+`GREETING.mp3`, `ESCALATION_MESSAGE.mp3`, and so on - not a content hash.
+`app/tts.py::named_cache_path()` matches an incoming reply to its file by
+looking up the *exact text* against every canned reply's text, then reading
+`<CONSTANT_NAME>.mp3`; `synthesize()` checks this before anything else
+(before Markdown stripping, before the hash-based fallback cache, before any
+live provider call), and serves the file byte-for-byte with no processing.
+
+A file placed here by hand - a human recording, a vendor delivery - is
+therefore final: `pregenerate_voice.py` checks for `<NAME>.mp3` first and
+never touches it if present, so it can't be overwritten by a lesser TTS
+generation on a later run. Pass `--force` to intentionally replace one, e.g.
+after re-recording it.
+
+The tradeoff this naming makes, stated plainly: unlike a content hash, a
+file named after the constant does **not** automatically go stale when the
+reply's wording changes in `canned_responses.py` - it keeps matching by
+name, so a wording edit silently starts serving the *old* recording's audio
+for the *new* text until someone notices and re-records it. `manifest.json`
+(rewritten by every `pregenerate_voice.py` run) is the way to notice: it
+lists every reply's `name`, current `text`, `spoken_text` (Markdown
+stripped - what a recording should actually say), `filename`, and whether
+that file already exists (`recorded: true/false`) - diff it after editing a
+reply's wording to see which recordings are now describing text that no
+longer exists.
 
 Nothing dynamic belongs here (a balance, a customer's name, a reference
 number) - only text that is identical on every send is worth pre-generating,

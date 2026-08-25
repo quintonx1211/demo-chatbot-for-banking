@@ -109,7 +109,7 @@ class CustomerMemory:
                     f"tôi đã chuyển cho đồng nghiệp hỗ trợ ạ.")
         if topics:
             subjects = " and ".join(n.label for n in topics)
-            return f"Chào anh/chị. Lần trước mình đã trao đổi về {subjects} ạ."
+            return f"Chào anh/chị. Lần trước tôi đã trao đổi về {subjects} ạ."
         return ""
 
     def forget(self, customer_id: str | None = None) -> int:

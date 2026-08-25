@@ -424,6 +424,9 @@ function stripMarkdownForTts(text) {
     .replace(/\n{2,}/g, ". ")
     // Remaining newlines → space
     .replace(/\n/g, " ")
+    // A sentence that already ended in punctuation before the paragraph
+    // break just picked up a doubled ".." or ".!" - collapse it back to one.
+    .replace(/([.!?,;:])\.\s/g, "$1 ")
     // Collapse extra spaces
     .replace(/ {2,}/g, " ")
     // Expand Vietnamese banking abbreviations so TTS reads them naturally
@@ -2037,9 +2040,9 @@ function startTranscript() {
 
   $("messages").appendChild(el("div", "day-divider", "Hôm nay"));
   addMessage("assistant",
-    "Xin chào! Mình là **Linh**, trợ lý ảo của Ngân hàng ABC. Mình có thể giúp bạn "
+    "**Trợ lý ảo ABC Bank** hân hạnh được phục vụ quý khách. Tôi có thể hỗ trợ quý khách "
     + "kiểm tra số dư và giao dịch, khoá hoặc mở khoá thẻ, tra cứu hồ sơ vay, và giải đáp "
-    + "về sản phẩm, biểu phí của ngân hàng.\n\nBạn đang cần hỗ trợ gì vậy?");
+    + "về sản phẩm, biểu phí của ngân hàng.\n\nQuý khách cần hỗ trợ gì ạ?");
 }
 
 // Whether this session has passed the identity check, so the demo shows

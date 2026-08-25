@@ -9,6 +9,7 @@ import io
 import json
 import logging
 import os
+import re
 import threading
 import urllib.error
 import urllib.request
@@ -17,6 +18,66 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 AUDIO_CONTENT_TYPE = "audio/mpeg"
+
+# Kept in sync with web/app.js::stripMarkdownForTts() by hand - same
+# transformation, same order, because the two have to agree on what a reply
+# sounds like. This copy is the one that actually matters: it runs inside
+# cache_path_for()/synthesize_live() below, so it is the version that decides
+# the cache key and what the provider is asked to say, regardless of whether
+# the caller is a browser (which also strips client-side, redundantly but
+# harmlessly), pregenerate_voice.py, or a future caller that sends raw
+# canned_responses.py text straight through.
+_MD_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_MD_BOLD_ITALIC_RE = re.compile(r"\*{3}([^*]+)\*{3}")
+_MD_BOLD_RE = re.compile(r"\*{2}([^*]+)\*{2}")
+_MD_ITALIC_RE = re.compile(r"\*([^*\n]+)\*")
+_MD_UNDERLINE_BOLD_RE = re.compile(r"_{2}([^_]+)_{2}")
+_MD_UNDERLINE_ITALIC_RE = re.compile(r"_([^_\n]+)_")
+_MD_INLINE_CODE_RE = re.compile(r"`([^`]+)`")
+_MD_HEADING_RE = re.compile(r"^#{1,6}\s+(.+)$", re.MULTILINE)
+_MD_HR_RE = re.compile(r"^[-*_]{3,}\s*$", re.MULTILINE)
+_MD_BLOCKQUOTE_RE = re.compile(r"^>\s*", re.MULTILINE)
+_MD_BULLET_RE = re.compile(r"^[ \t]*[-*+•]\s+", re.MULTILINE)
+_MD_ORDERED_RE = re.compile(r"^[ \t]*\d+[.)]\s+", re.MULTILINE)
+_CMND_CCCD_RE = re.compile(r"CMND\s*/\s*CCCD", re.IGNORECASE)
+_CCCD_CMND_RE = re.compile(r"CCCD\s*/\s*CMND", re.IGNORECASE)
+_CMND_RE = re.compile(r"\bCMND\b")
+_CCCD_RE = re.compile(r"\bCCCD\b")
+
+
+def strip_markdown_for_tts(text: str) -> str:
+    """Plain speech from a reply that may contain chat-display Markdown.
+
+    Bold/italic/link/heading/list syntax read aloud as literal asterisks and
+    hashes is a bug a customer hears, not a cosmetic one - this runs before
+    every TTS call and every cache-key computation so it is not possible to
+    bypass by calling a different entry point.
+    """
+    text = re.sub(r"```[\s\S]*?```", "", text)
+    text = _MD_LINK_RE.sub(r"\1", text)
+    text = _MD_BOLD_ITALIC_RE.sub(r"\1", text)
+    text = _MD_BOLD_RE.sub(r"\1", text)
+    text = _MD_ITALIC_RE.sub(r"\1", text)
+    text = _MD_UNDERLINE_BOLD_RE.sub(r"\1", text)
+    text = _MD_UNDERLINE_ITALIC_RE.sub(r"\1", text)
+    text = _MD_INLINE_CODE_RE.sub(r"\1", text)
+    text = _MD_HEADING_RE.sub(r"\1", text)
+    text = _MD_HR_RE.sub(".", text)
+    text = _MD_BLOCKQUOTE_RE.sub("", text)
+    text = _MD_BULLET_RE.sub("", text)
+    text = _MD_ORDERED_RE.sub("", text)
+    text = re.sub(r"\n{2,}", ". ", text)
+    text = text.replace("\n", " ")
+    # A sentence that already ended in punctuation before a paragraph break
+    # (the common case) would otherwise pick up a doubled ".." or ".!" that
+    # most TTS engines pause oddly on.
+    text = re.sub(r"([.!?,;:])\.\s", r"\1 ", text)
+    text = re.sub(r" {2,}", " ", text)
+    text = _CMND_CCCD_RE.sub("chứng minh nhân dân hoặc căn cước công dân", text)
+    text = _CCCD_CMND_RE.sub("căn cước công dân hoặc chứng minh nhân dân", text)
+    text = _CMND_RE.sub("chứng minh nhân dân", text)
+    text = _CCCD_RE.sub("căn cước công dân", text)
+    return text.strip()
 
 # Pre-generated audio for the fixed replies in app/canned_responses.py - see
 # pregenerate_voice.py. Checked before any live provider call: the goal is
@@ -102,6 +163,48 @@ def status() -> dict:
         }
 
 
+_canned_text_to_name_cache: dict[str, str] | None = None
+
+
+def _canned_text_to_name() -> dict[str, str]:
+    """Every canned reply's exact text -> its constant name in
+    canned_responses.py, e.g. "Trợ lý ảo ABC Bank hân hạnh..." -> "GREETING".
+
+    Imported lazily (not at module load) so a circular-import surprise in
+    canned_responses.py can never take app/tts.py down with it - this module
+    has to keep working even if that lookup fails. Computed once and cached:
+    the constants don't change at runtime, and this is on the hot path of
+    every synthesize() call.
+    """
+    global _canned_text_to_name_cache
+    if _canned_text_to_name_cache is None:
+        from . import canned_responses
+        _canned_text_to_name_cache = {
+            text: name for name, text in canned_responses.all_responses().items()
+        }
+    return _canned_text_to_name_cache
+
+
+def named_cache_path(text: str) -> Path | None:
+    """Where a manually-supplied recording for this exact canned reply would
+    live - `data/voice_cache/<CONSTANT_NAME>.mp3` - or None if `text` is not
+    one of the fixed replies in canned_responses.py.
+
+    This is the path a human voice actor or a vendor delivery gets matched
+    against: name the file after the constant, not a content hash, because a
+    person naming files by hand needs a name they can read off
+    canned_responses.py, not a hex digest they have to compute. Checked
+    before the hash-based cache in `synthesize()`, and never regenerated by
+    `pregenerate_voice.py` once present - a file placed here by hand is
+    already the exact intended audio for that exact text, so re-synthesizing
+    it would only replace a real recording with a lesser TTS one.
+    """
+    name = _canned_text_to_name().get(text)
+    if name is None:
+        return None
+    return VOICE_CACHE_DIR / f"{name}.mp3"
+
+
 def cache_path_for(text: str, provider: str | None = None, voice: str | None = None) -> Path:
     """Where the pre-generated file for `text` would live, under the
     currently configured provider/voice unless overridden.
@@ -116,7 +219,8 @@ def cache_path_for(text: str, provider: str | None = None, voice: str | None = N
     with _lock:
         prov = provider or _provider
         vox = voice or _vbee_voice
-    digest = hashlib.sha256(f"{prov}|{vox}|{text}".encode("utf-8")).hexdigest()[:24]
+    clean = strip_markdown_for_tts(text)
+    digest = hashlib.sha256(f"{prov}|{vox}|{clean}".encode("utf-8")).hexdigest()[:24]
     return VOICE_CACHE_DIR / f"{digest}.mp3"
 
 
@@ -132,11 +236,12 @@ def synthesize_live(text: str) -> bytes:
         app_id = _vbee_app_id
         voice  = _vbee_voice
 
+    clean = strip_markdown_for_tts(text)
     if prov == "vbee":
         if not vkey or not app_id:
             raise RuntimeError("Vbee API key và App ID chưa được đặt")
-        return _call_vbee(text, vkey, app_id, voice)
-    return _call_gtts(text)
+        return _call_vbee(clean, vkey, app_id, voice)
+    return _call_gtts(clean)
 
 
 def synthesize(text: str) -> bytes:
@@ -144,7 +249,22 @@ def synthesize(text: str) -> bytes:
         prov   = _provider
         voice  = _vbee_voice
 
-    cache_key = (prov, voice, text)
+    # A named, hand-placed recording for one of the fixed replies always wins
+    # and is served as-is - no Markdown stripping, no hashing, no live call.
+    # It is that exact text's audio by construction (that is what "named"
+    # means here), so there is nothing left to process.
+    cache_key = ("named", text)
+    with _cache_lock:
+        if cache_key in _cache:
+            return _cache[cache_key]
+    named_path = named_cache_path(text)
+    if named_path is not None and named_path.exists():
+        audio = named_path.read_bytes()
+        with _cache_lock:
+            _cache[cache_key] = audio
+        return audio
+
+    cache_key = (prov, voice, strip_markdown_for_tts(text))
     with _cache_lock:
         if cache_key in _cache:
             return _cache[cache_key]

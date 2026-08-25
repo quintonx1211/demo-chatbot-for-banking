@@ -23,23 +23,23 @@ from __future__ import annotations
 # -- greetings and small talk ---------------------------------------------
 
 GREETING = (
-    "Xin chào! Mình là Linh, trợ lý ảo của Ngân hàng ABC. Mình có thể "
-    "giúp bạn kiểm tra số dư và giao dịch, khóa thẻ khi bị mất, tra cứu hồ sơ vay, "
+    "Trợ lý ảo ABC Bank hân hạnh được phục vụ quý khách. Tôi có thể hỗ trợ quý khách "
+    "kiểm tra số dư và giao dịch, khóa thẻ khi bị mất, tra cứu hồ sơ vay, "
     "so sánh sản phẩm, xem ưu đãi thẻ, hay điều chỉnh hạn mức. "
-    "Bạn đang cần hỗ trợ gì vậy?"
+    "Quý khách cần hỗ trợ gì ạ?"
 )
 
-SMALLTALK = "Mình đây, mình vẫn đang lắng nghe bạn nè. Bạn cần hỏi thêm gì không?"
+SMALLTALK = "Tôi vẫn đang lắng nghe quý khách đây ạ. Quý khách cần hỏi thêm điều gì không?"
 
-GOODBYE = "Rất vui vì đã giúp được bạn hôm nay. Chúc bạn một ngày thật vui vẻ nhé!"
+GOODBYE = "Cảm ơn quý khách đã sử dụng dịch vụ hôm nay. Kính chúc quý khách một ngày tốt lành!"
 
-HUMAN_AGENT_HANDOFF = "Dạ được, để mình kết nối bạn với chuyên viên ngay đây."
+HUMAN_AGENT_HANDOFF = "Vâng ạ, tôi xin kết nối quý khách với chuyên viên ngay."
 
-LEAVE_NOOP = "Bạn đang trò chuyện với Linh đây ạ. Mình có thể giúp gì cho bạn?"
+LEAVE_NOOP = "Quý khách đang trò chuyện với Trợ lý ảo ABC Bank. Tôi có thể hỗ trợ gì cho quý khách?"
 
 LEFT_AGENT_NO_NAME = (
-    "Bạn đã quay lại với mình rồi nè, mình đưa bạn ra khỏi hàng chờ luôn. "
-    "Mình có thể giúp gì cho bạn tiếp theo?"
+    "Quý khách đã quay lại với trợ lý ảo, tôi xin đưa quý khách ra khỏi hàng chờ. "
+    "Tôi có thể hỗ trợ gì tiếp theo cho quý khách?"
 )
 
 # -- identity verification --------------------------------------------------
@@ -49,104 +49,103 @@ LEFT_AGENT_NO_NAME = (
 # `flows._verify_phone_step` / `_verify_cccd_step`.
 
 VERIFICATION_PROMPT = (
-    "Mình rất sẵn lòng hỗ trợ bạn! Trước tiên mình cần xác minh nhanh "
-    "để chắc chắn đúng là bạn nhé.\n\n"
-    "Bạn cho mình xin **số điện thoại đã đăng ký** (đủ 10 số) được không ạ?"
+    "Tôi rất sẵn lòng hỗ trợ quý khách. Trước tiên, tôi cần xác minh nhanh "
+    "để đảm bảo đúng là quý khách.\n\n"
+    "Quý khách vui lòng cho tôi xin **số điện thoại đã đăng ký** (đủ 10 số)."
 )
 
 VERIFICATION_ASK_CCCD = (
-    "Cảm ơn bạn. Giờ bạn cho mình xin thêm **số CCCD/CMND** (đủ 12 số) "
-    "để hoàn tất xác minh nhé."
+    "Cảm ơn quý khách. Xin quý khách cho tôi thêm **số CCCD/CMND** (đủ 12 số) "
+    "để hoàn tất xác minh."
 )
 
 VERIFICATION_PHONE_FORMAT_RETRY = (
-    "Hình như chưa đúng định dạng rồi bạn ơi - mình cần đúng **10 số** "
-    "điện thoại thôi nhé, không có khoảng trắng hay ký tự khác. "
-    "Ví dụ: `0912345678`."
+    "Thông tin chưa đúng định dạng - tôi cần đúng **10 số** "
+    "điện thoại, không có khoảng trắng hay ký tự khác. "
 )
 
 VERIFICATION_CCCD_FORMAT_RETRY = (
-    "Hình như chưa đúng định dạng rồi bạn ơi - mình cần đúng **12 số** "
-    "CCCD/CMND thôi nhé.\n\n"
-    "Bạn đừng gửi số thẻ đầy đủ hay mã PIN nha - mình không bao giờ cần những thông tin đó đâu."
+    "Thông tin chưa đúng định dạng - tôi cần đúng **12 số** "
+    "CCCD/CMND.\n\n"
+    "Quý khách vui lòng không gửi số thẻ đầy đủ hay mã PIN - tôi không bao giờ cần những thông tin đó."
 )
 
 VERIFICATION_FAILED = (
-    "Mình xin lỗi vì chưa xác minh được thông tin của bạn, "
-    "nên mình không thể thử thêm nữa. Để mình kết nối bạn "
-    "với chuyên viên hỗ trợ trực tiếp nhé."
+    "Tôi xin lỗi vì chưa xác minh được thông tin của quý khách, "
+    "nên không thể tiếp tục thử thêm. Tôi xin kết nối quý khách "
+    "với chuyên viên hỗ trợ trực tiếp."
 )
 
 # -- card actions: the fully-static branches only ----------------------------
 # (the "confirm {type} {mask}" / "done - {mask}" templates stay inline, since
 # they always carry the customer's own card data)
 
-CARD_NONE_LEFT_REPORT_LOST = "Mình kiểm tra rồi, hiện bạn không có thẻ nào để khóa cả."
-CARD_NONE_LEFT_FREEZE = "Bạn hiện không có thẻ nào đang hoạt động để tạm khóa cả."
+CARD_NONE_LEFT_REPORT_LOST = "Tôi đã kiểm tra, hiện quý khách không có thẻ nào để khóa."
+CARD_NONE_LEFT_FREEZE = "Quý khách hiện không có thẻ nào đang hoạt động để tạm khóa."
 CARD_NONE_LEFT_UNFREEZE = (
-    "Hiện không có thẻ nào đang tạm khóa cả bạn ơi. Nếu thẻ đã bị báo mất "
-    "thì sẽ khóa vĩnh viễn, không mở lại được - "
-    "nhưng mình có thể kiểm tra thẻ thay thế giúp bạn."
+    "Hiện không có thẻ nào đang tạm khóa. Nếu thẻ đã được báo mất "
+    "thì đã bị khóa vĩnh viễn, không thể mở lại - "
+    "tôi có thể kiểm tra thẻ thay thế giúp quý khách."
 )
-CARD_ACTION_CANCELLED = "Dạ được, mình giữ nguyên trạng thái thẻ cho bạn nhé."
+CARD_ACTION_CANCELLED = "Vâng ạ, tôi giữ nguyên trạng thái thẻ cho quý khách."
 
-CARD_CLOSE_CANCELLED = "Mình đã huỷ yêu cầu rồi - thẻ của bạn vẫn hoạt động bình thường như cũ nhé."
-CARD_CLOSE_UNCLEAR = "Bạn xác nhận muốn đóng thẻ này chứ? Trả lời giúp mình có hoặc không nhé."
-CARD_CLOSE_NONE = "Mình không tìm thấy thẻ nào trên hồ sơ của bạn cả."
-CARD_CLOSE_ALREADY_CLOSED = "Thẻ này đóng rồi bạn ơi, từ trước đó."
-CARD_CLOSE_CONFIRM_ASK = "Bạn có chắc muốn đóng thẻ này không? Xác nhận giúp mình có hoặc không nhé."
+CARD_CLOSE_CANCELLED = "Tôi đã huỷ yêu cầu - thẻ của quý khách vẫn hoạt động bình thường."
+CARD_CLOSE_UNCLEAR = "Quý khách xác nhận muốn đóng thẻ này không ạ? Vui lòng trả lời có hoặc không."
+CARD_CLOSE_NONE = "Tôi không tìm thấy thẻ nào trên hồ sơ của quý khách."
+CARD_CLOSE_ALREADY_CLOSED = "Thẻ này đã được đóng từ trước đó."
+CARD_CLOSE_CONFIRM_ASK = "Quý khách có chắc muốn đóng thẻ này không? Vui lòng xác nhận có hoặc không."
 
-LIMIT_INVALID = "Mình chưa nhận được số hạn mức hợp lệ, bạn thử gửi lại giúp mình nhé."
-LIMIT_ASK_AMOUNT = "Bạn muốn nâng hạn mức mới lên bao nhiêu ạ?"
+LIMIT_INVALID = "Tôi chưa nhận được số hạn mức hợp lệ, quý khách vui lòng gửi lại giúp tôi."
+LIMIT_ASK_AMOUNT = "Quý khách muốn nâng hạn mức mới lên bao nhiêu ạ?"
 
 # -- account flows: the "nothing to show" branches ---------------------------
 
-OFFERS_NONE = "Bạn hiện chưa có ưu đãi nào để mình gửi hôm nay cả. Bạn cần mình hỗ trợ thêm gì không?"
+OFFERS_NONE = "Quý khách hiện chưa có ưu đãi nào. Tôi có thể hỗ trợ thêm gì cho quý khách không?"
 ACTIVATION_NONE_PENDING = (
-    "Thẻ trong hồ sơ của bạn đều đã được kích hoạt hết rồi đó. Nếu có "
-    "giao dịch nào bị từ chối, chắc là do nguyên nhân khác - "
-    "mình kiểm tra giúp bạn nhé."
+    "Các thẻ trong hồ sơ của quý khách đều đã được kích hoạt. Nếu có "
+    "giao dịch nào bị từ chối, có thể do nguyên nhân khác - "
+    "tôi sẽ kiểm tra giúp quý khách."
 )
 NO_LOAN_ON_FILE = (
-    "Mình không thấy hồ sơ vay nào đang mở trên tài khoản của bạn cả. "
-    "Nếu bạn vừa nộp hồ sơ tại chi nhánh trong 24 giờ qua thì có thể hệ thống "
-    "chưa kịp đồng bộ - mình chuyển bạn qua bộ phận tín dụng kiểm tra lại nhé."
+    "Tôi không thấy hồ sơ vay nào đang mở trên tài khoản của quý khách. "
+    "Nếu quý khách vừa nộp hồ sơ tại chi nhánh trong 24 giờ qua, có thể hệ thống "
+    "chưa kịp đồng bộ - tôi xin chuyển quý khách sang bộ phận tín dụng kiểm tra lại."
 )
-NO_TRANSACTIONS = "Mình không thấy giao dịch gần đây nào trên tài khoản của bạn cả."
+NO_TRANSACTIONS = "Tôi không thấy giao dịch gần đây nào trên tài khoản của quý khách."
 
 CROSS_SELL_ASK_INTEREST_UNVERIFIED = (
-    "Bạn hay mua sắm trên nền tảng nào, hoặc thường chi tiêu nhiều nhất ở đâu vậy?"
+    "Quý khách thường mua sắm trên nền tảng nào, hoặc chi tiêu nhiều nhất ở lĩnh vực nào ạ?"
 )
 
 # -- escalation / handoff (router.py) ----------------------------------------
 
 ESCALATION_MESSAGE = (
-    "Để mình kết nối bạn với một chuyên viên nhé - họ sẽ thấy đầy đủ nội dung cuộc "
-    "trò chuyện này nên bạn không cần giải thích lại đâu.\n\n"
-    "**Bạn đang trong hàng chờ nhân viên hỗ trợ.**"
+    "Tôi xin kết nối quý khách với một chuyên viên - chuyên viên sẽ thấy đầy đủ nội dung cuộc "
+    "trò chuyện này nên quý khách không cần giải thích lại.\n\n"
+    "**Quý khách đang trong hàng chờ nhân viên hỗ trợ.**"
 )
 
 REQUEUED_MESSAGE = (
-    "Câu này cũng nằm ngoài những gì mình trả lời được - mình đã ghi chú lại để "
-    "chuyên viên nắm khi tiếp nhận bạn nhé. **Bạn vẫn đang trong hàng chờ.**"
+    "Câu hỏi này cũng nằm ngoài phạm vi tôi có thể trả lời - tôi đã ghi chú lại để "
+    "chuyên viên nắm khi tiếp nhận quý khách. **Quý khách vẫn đang trong hàng chờ.**"
 )
 
 ESCALATION_OFFER_BODY = (
-    "Thành thật là mình chưa có thông tin chính xác về vấn đề này.\n\n"
-    "**Bạn có muốn mình kết nối với một chuyên viên để hỗ trợ thêm không?** "
-    "Họ sẽ thấy đầy đủ nội dung cuộc trò chuyện này nên bạn không cần giải thích lại đâu. "
-    "Hoặc bạn cứ hỏi mình câu khác cũng được."
+    "Thành thật mà nói, tôi chưa có thông tin chính xác về vấn đề này.\n\n"
+    "**Quý khách có muốn tôi kết nối với một chuyên viên để hỗ trợ thêm không?** "
+    "Chuyên viên sẽ thấy đầy đủ nội dung cuộc trò chuyện này nên quý khách không cần giải thích lại. "
+    "Hoặc quý khách có thể hỏi tôi câu khác."
 )
 
-ESCALATION_DECLINED = "Dạ được, vậy mình tiếp tục hỗ trợ bạn nhé. Bạn cần hỏi thêm gì không?"
+ESCALATION_DECLINED = "Vâng ạ, tôi tiếp tục hỗ trợ quý khách. Quý khách cần hỏi thêm điều gì không?"
 
 # -- compliance guardrail (guardrails.py) ------------------------------------
 
 RESTRICTED_RESPONSE = (
-    "Mình xin phép không tư vấn về đầu tư, thuế hay pháp lý nhé - những vấn đề này "
-    "cần chuyên gia có chứng chỉ hành nghề đưa ra mới chuẩn xác được. Mình có thể "
-    "kết nối bạn với chuyên viên ngân hàng để trao đổi về sản phẩm, hoặc mình trả lời "
-    "giúp bạn các câu hỏi về tài khoản, thẻ hay hồ sơ nhé."
+    "Tôi xin phép không tư vấn về đầu tư, thuế hay pháp lý - những vấn đề này "
+    "cần chuyên gia có chứng chỉ hành nghề mới đưa ra được thông tin chính xác. Tôi có thể "
+    "kết nối quý khách với chuyên viên ngân hàng để trao đổi về sản phẩm, hoặc hỗ trợ "
+    "quý khách các câu hỏi về tài khoản, thẻ hay hồ sơ."
 )
 
 

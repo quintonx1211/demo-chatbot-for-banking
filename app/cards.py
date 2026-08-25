@@ -161,7 +161,7 @@ def close_card(customer_id: str, session_id: str | None = None) -> dict:
         rows = _read_csv(_card_path(), CARD_COLUMNS, numeric={"credit_limit"})
         card = next((r for r in rows if r["customer_id"] == customer_id), None)
         if card is None:
-            raise TransitionError("Tôi không tìm thấy thẻ nào trên hồ sơ của bạn.")
+            raise TransitionError("Tôi không tìm thấy thẻ nào trên hồ sơ của quý khách.")
         if card["status"] == "closed":
             raise TransitionError("Thẻ này đã được đóng trước đó rồi.")
 
@@ -189,7 +189,7 @@ def request_limit_adjustment(customer_id: str, requested_limit: float,
         _ensure()
         card = get_card(customer_id)
         if card is None:
-            raise TransitionError("Tôi không tìm thấy thẻ nào trên hồ sơ của bạn.")
+            raise TransitionError("Tôi không tìm thấy thẻ nào trên hồ sơ của quý khách.")
         if card["status"] != "active":
             raise TransitionError("Thẻ này hiện không ở trạng thái hoạt động nên chưa thể đổi hạn mức.")
 

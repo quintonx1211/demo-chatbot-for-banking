@@ -111,7 +111,7 @@ def main() -> int:
     check(len(stub.calls) == 1, "adapter called exactly once")
     check("cơ sở tri thức" in stub.calls[0].user,
           "adapter received the retrieved passages")
-    check(stub.calls[0].system.startswith("Bạn là Linh"),
+    check(stub.calls[0].system.startswith("Bạn là Trợ lý ảo ABC Bank"),
           "adapter received the answering system prompt")
     check(result.grounding is not None and result.grounding > 0.5,
           f"grounding computed ({result.grounding})")
