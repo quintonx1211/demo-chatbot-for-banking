@@ -175,10 +175,20 @@ def _append(table: str, row: dict) -> None:
 
 
 def _ensure() -> None:
-    """Create and seed the files on first use."""
-    if _path("customers").exists():
+    """Create and seed the files on first use, or re-seed if schema is stale."""
+    if not _path("customers").exists():
+        reset()
         return
-    reset()
+    # Re-seed automatically when the on-disk schema doesn't match the current
+    # COLUMNS definition — happens after a schema change (e.g. phone_last4 →
+    # phone) without deleting the old CSV.
+    try:
+        with _path("customers").open(newline="", encoding="utf-8") as fh:
+            headers = next(csv.reader(fh), [])
+        if headers != COLUMNS["customers"]:
+            reset()
+    except Exception:
+        reset()
 
 
 # -- seeding --------------------------------------------------------------
