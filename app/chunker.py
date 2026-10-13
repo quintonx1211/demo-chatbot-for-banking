@@ -26,10 +26,10 @@ from dataclasses import dataclass, field
 
 # Sizes are in characters, not tokens: the retriever is lexical, so characters
 # are the honest unit and avoid pretending to a precision we don't have.
-TARGET_CHARS = 900     # preferred chunk size
-MAX_CHARS = 1400       # hard ceiling before a chunk is split regardless
-MIN_CHARS = 120        # below this a chunk is merged into its neighbour
-OVERLAP_CHARS = 150    # tail of the previous chunk repeated into the next
+TARGET_CHARS = 900  # preferred chunk size
+MAX_CHARS = 1400  # hard ceiling before a chunk is split regardless
+MIN_CHARS = 120  # below this a chunk is merged into its neighbour
+OVERLAP_CHARS = 150  # tail of the previous chunk repeated into the next
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*$", re.MULTILINE)
 # Markdown table rows and list bullets are kept intact: splitting a table
@@ -40,9 +40,9 @@ _PARA_SPLIT_RE = re.compile(r"\n\s*\n")
 @dataclass
 class Chunk:
     text: str
-    heading: str                       # leaf heading - what gets cited
+    heading: str  # leaf heading - what gets cited
     heading_path: list[str] = field(default_factory=list)
-    index: int = 0                     # position within the document
+    index: int = 0  # position within the document
 
     @property
     def breadcrumb(self) -> str:
@@ -86,8 +86,10 @@ def _sections(text: str) -> list[tuple[list[str], str]]:
             stack.pop()
         stack.append((level, heading))
 
-        end = matches[position + 1].start() if position + 1 < len(matches) else len(text)
-        body = text[match.end():end].strip()
+        end = (
+            matches[position + 1].start() if position + 1 < len(matches) else len(text)
+        )
+        body = text[match.end() : end].strip()
         if body:
             sections.append(([h for _, h in stack], body))
 
@@ -125,9 +127,12 @@ def _split_table(table: str) -> list[str]:
     the second piece readable at all.
     """
     lines = [line for line in table.splitlines() if line.strip()]
-    header = lines[:2] if len(lines) > 2 and set(lines[1].strip()) <= set("|-: ") \
+    header = (
+        lines[:2]
+        if len(lines) > 2 and set(lines[1].strip()) <= set("|-: ")
         else lines[:1]
-    body = lines[len(header):]
+    )
+    body = lines[len(header) :]
 
     pieces: list[str] = []
     current = list(header)
@@ -169,7 +174,7 @@ def _split_oversized(paragraph: str) -> list[str]:
     for piece in pieces:
         while len(piece) > MAX_CHARS:
             output.append(piece[:MAX_CHARS])
-            piece = piece[MAX_CHARS - OVERLAP_CHARS:]
+            piece = piece[MAX_CHARS - OVERLAP_CHARS :]
         if piece:
             output.append(piece)
     return output
@@ -199,10 +204,10 @@ def _pack(paragraphs: list[str]) -> list[str]:
             tail = current[-OVERLAP_CHARS:]
             newline = tail.find("\n")
             if newline != -1:
-                tail = tail[newline + 1:]
+                tail = tail[newline + 1 :]
             else:
                 space = tail.find(" ")
-                tail = tail[space + 1:] if space != -1 else ""
+                tail = tail[space + 1 :] if space != -1 else ""
             # An overlap that is itself a partial table is not worth carrying.
             if tail.lstrip().startswith("|") and not tail.rstrip().endswith("|"):
                 tail = ""
@@ -230,12 +235,14 @@ def chunk_document(text: str) -> list[Chunk]:
     for path, body in _sections(normalised):
         leaf = path[-1] if path else "Introduction"
         for piece in _pack(_paragraphs(body)):
-            chunks.append(Chunk(
-                text=piece,
-                heading=leaf,
-                heading_path=list(path),
-                index=len(chunks),
-            ))
+            chunks.append(
+                Chunk(
+                    text=piece,
+                    heading=leaf,
+                    heading_path=list(path),
+                    index=len(chunks),
+                )
+            )
     return chunks
 
 

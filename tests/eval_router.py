@@ -18,9 +18,10 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import os
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.llm import route                       # noqa: E402
+from app.llm import route  # noqa: E402
 from app.nlu import HIGH_CONFIDENCE, IntentClassifier  # noqa: E402
 
 # (message, intent that should win). "knowledge_query" means the turn belongs
@@ -43,24 +44,23 @@ CASES: list[tuple[str, str]] = [
     ("làm sao để kích hoạt thẻ mới", "activate_card"),
     ("có ưu đãi nào cho tôi không", "card_offers"),
     ("tôi là ai trong hệ thống", "account_summary"),
-
     # --- policy questions that LOOK like actions ---
     ("thẻ của tôi bị mất tối qua giờ phải làm sao", "knowledge_query"),
     ("báo mất thẻ muộn thì tôi chịu trách nhiệm bao nhiêu", "knowledge_query"),
-    ("tôi có phải chịu trách nhiệm giao dịch người khác thực hiện không",
-     "knowledge_query"),
+    (
+        "tôi có phải chịu trách nhiệm giao dịch người khác thực hiện không",
+        "knowledge_query",
+    ),
     ("hồ sơ vay mua nhà bao lâu mới có kết quả", "knowledge_query"),
     ("số dư bình quân ngày được tính thế nào", "knowledge_query"),
     ("tại sao số dư khả dụng thấp hơn số dư tài khoản", "knowledge_query"),
     ("quy trình khoá thẻ mất bao lâu", "knowledge_query"),
     ("thẻ thay thế mất phí bao nhiêu", "knowledge_query"),
     ("điều kiện để được miễn phí thường niên là gì", "knowledge_query"),
-
     # --- plain knowledge ---
     ("phí chuyển tiền quốc tế là bao nhiêu", "knowledge_query"),
     ("chi nhánh mở cửa mấy giờ", "knowledge_query"),
     ("ngân hàng có bao giờ hỏi mã OTP không", "knowledge_query"),
-
     # --- social ---
     ("xin chào", "greeting"),
     ("cảm ơn", "smalltalk"),
@@ -86,6 +86,7 @@ def main(argv: list[str]) -> int:
 
     if use_llm:
         from app.llm import active_provider
+
         if active_provider() is None:
             print("  No provider configured - cannot measure LLM routing.")
             print("  Set a key, or run without --llm for the lexical baseline.")
@@ -108,7 +109,9 @@ def main(argv: list[str]) -> int:
                 llm_right += llm_ok
                 agree += llm_label == lexical
             else:
-                llm_label = f"(lỗi: {verdict.get('error') if verdict else 'no provider'})"
+                llm_label = (
+                    f"(lỗi: {verdict.get('error') if verdict else 'no provider'})"
+                )
 
         rows.append((message, expected, lexical, lex_ok, llm_label, llm_ok))
 
@@ -119,8 +122,10 @@ def main(argv: list[str]) -> int:
     print(f"\n{header}")
     print("  " + "-" * (width + (58 if use_llm else 38)))
     for message, expected, lexical, lex_ok, llm_label, llm_ok in rows:
-        line = (f"  {message:<{width}}  {expected:<18} "
-                f"{('OK ' if lex_ok else 'SAI') + ' ' + lexical:<18}")
+        line = (
+            f"  {message:<{width}}  {expected:<18} "
+            f"{('OK ' if lex_ok else 'SAI') + ' ' + lexical:<18}"
+        )
         if use_llm:
             mark = "" if llm_ok is None else ("OK " if llm_ok else "SAI")
             line += f" {mark + ' ' + str(llm_label):<18}"

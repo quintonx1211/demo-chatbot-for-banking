@@ -43,42 +43,78 @@ SEED = 20260805
 # exercises, so the fixture covers the demo rather than being fifteen copies of
 # the same happy path.
 PEOPLE = [
-    ("Nguyen Van An",    "MASS",     "travel_offer"),
-    ("Tran Thi Bich",    "MASS",     "dormant_card"),
-    ("Le Minh Chau",     "MASS",     "inactive_card"),
-    ("Pham Quoc Dung",   "PRIORITY", "high_balance"),
-    ("Hoang Thi Ha",     "MASS",     "frozen_card"),
-    ("Vu Duc Hieu",      "MASS",     "loan_in_review"),
-    ("Dang Thi Lan",     "MASS",     "overdrawn"),
-    ("Bui Van Long",     "MASS",     "blocked_and_replaced"),
-    ("Do Thi Mai",       "PRIORITY", "multi_card"),
-    ("Ngo Thanh Nam",    "MASS",     "new_customer"),
-    ("Duong Thi Oanh",   "MASS",     "mortgage_approved"),
-    ("Ly Van Phuc",      "MASS",     "dispute_open"),
-    ("Trinh Thi Quyen",  "MASS",     "savings_only"),
-    ("Cao Van Son",      "PRIORITY", "business_owner"),
-    ("Mai Thi Thuy",     "MASS",     "loan_declined"),
+    ("Nguyen Van An", "MASS", "travel_offer"),
+    ("Tran Thi Bich", "MASS", "dormant_card"),
+    ("Le Minh Chau", "MASS", "inactive_card"),
+    ("Pham Quoc Dung", "PRIORITY", "high_balance"),
+    ("Hoang Thi Ha", "MASS", "frozen_card"),
+    ("Vu Duc Hieu", "MASS", "loan_in_review"),
+    ("Dang Thi Lan", "MASS", "overdrawn"),
+    ("Bui Van Long", "MASS", "blocked_and_replaced"),
+    ("Do Thi Mai", "PRIORITY", "multi_card"),
+    ("Ngo Thanh Nam", "MASS", "new_customer"),
+    ("Duong Thi Oanh", "MASS", "mortgage_approved"),
+    ("Ly Van Phuc", "MASS", "dispute_open"),
+    ("Trinh Thi Quyen", "MASS", "savings_only"),
+    ("Cao Van Son", "PRIORITY", "business_owner"),
+    ("Mai Thi Thuy", "MASS", "loan_declined"),
 ]
 
 MERCHANTS = [
-    "VINMART SUPERMARKET", "HIGHLANDS COFFEE", "GRAB TRANSPORT", "SHOPEE PAY",
-    "TIEN DIEN EVN", "PHARMACITY", "CGV CINEMA", "PETROLIMEX FUEL",
-    "THE GIOI DI DONG", "BACH HOA XANH", "NAP TIEN DIEN THOAI", "TIEN NUOC",
+    "VINMART SUPERMARKET",
+    "HIGHLANDS COFFEE",
+    "GRAB TRANSPORT",
+    "SHOPEE PAY",
+    "TIEN DIEN EVN",
+    "PHARMACITY",
+    "CGV CINEMA",
+    "PETROLIMEX FUEL",
+    "THE GIOI DI DONG",
+    "BACH HOA XANH",
+    "NAP TIEN DIEN THOAI",
+    "TIEN NUOC",
 ]
 
 LOAN_PRODUCTS = [
-    ("Vay mua ô tô", 240_000_000), ("Vay mua nhà", 1_800_000_000),
-    ("Vay tiêu dùng", 80_000_000), ("Vay du học", 150_000_000),
+    ("Vay mua ô tô", 240_000_000),
+    ("Vay mua nhà", 1_800_000_000),
+    ("Vay tiêu dùng", 80_000_000),
+    ("Vay du học", 150_000_000),
 ]
 
 # Real Vietnamese mobile prefixes (Viettel/Vinaphone/Mobifone/Vietnamobile),
 # so a generated number at least looks like something a customer could read
 # out over chat rather than an obviously fake 09999... block.
 MOBILE_PREFIXES = [
-    "032", "033", "034", "035", "036", "037", "038", "039",
-    "070", "076", "077", "078", "079",
-    "081", "082", "083", "084", "085", "088",
-    "089", "090", "091", "092", "093", "094", "096", "097", "098", "099",
+    "032",
+    "033",
+    "034",
+    "035",
+    "036",
+    "037",
+    "038",
+    "039",
+    "070",
+    "076",
+    "077",
+    "078",
+    "079",
+    "081",
+    "082",
+    "083",
+    "084",
+    "085",
+    "088",
+    "089",
+    "090",
+    "091",
+    "092",
+    "093",
+    "094",
+    "096",
+    "097",
+    "098",
+    "099",
 ]
 
 
@@ -87,11 +123,38 @@ def _random_phone(rng: random.Random) -> str:
     return rng.choice(MOBILE_PREFIXES) + f"{rng.randint(0, 9_999_999):07d}"
 
 
+# Mã tỉnh CCCD hợp lệ (001-096) để tiền tố nhìn giống CCCD thật.
+_PROVINCE_CODES = [
+    "001",
+    "079",
+    "031",
+    "048",
+    "036",
+    "038",
+    "040",
+    "046",
+    "056",
+    "074",
+    "075",
+    "077",
+    "089",
+    "092",
+    "034",
+    "022",
+]
+
+
 def _random_national_id(rng: random.Random) -> str:
-    """12-digit CCCD. Real ones encode province/century/gender/year in the
-    first digits - not replicated here, since this only has to be a 12-digit
-    string for the demo, not pass a real checksum."""
-    return f"{rng.randint(0, 999_999_999_999):012d}"
+    """12-digit CCCD dạng hợp lệ VN: [mã tỉnh 001-096][giới tính/thế kỷ][2 số năm
+    sinh][6 số định danh]. Chỉ đúng CẤU TRÚC, không checksum thật. Giữ đúng 1 lần
+    bốc rng như bản cũ nên regen không làm lệch SĐT/dữ liệu khác. (Dữ liệu đã commit
+    trong accounts.json được chỉnh tay để mã hoá đúng năm sinh/giới tính từng khách.)"""
+    raw = rng.randint(0, 999_999_999_999)
+    s = f"{raw:012d}"
+    province = _PROVINCE_CODES[raw % len(_PROVINCE_CODES)]
+    gender_century = str((raw // 100) % 2)  # 0 nam / 1 nữ (19xx)
+    yy = f"{(raw // 1000) % 35 + 65:02d}"  # năm sinh 1965-1999
+    return province + gender_century + yy + s[-6:]
 
 
 def build() -> dict:
@@ -129,116 +192,161 @@ def build() -> dict:
                 "new_customer": rng.uniform(500_000, 3_000_000),
                 "business_owner": rng.uniform(200_000_000, 600_000_000),
             }.get(profile, rng.uniform(3_000_000, 60_000_000))
-            accounts.append({
-                "account_id": checking_id,
-                "type": "Tài khoản thanh toán",
-                "mask": f"****{checking_id[-4:]}",
-                "balance": round(balance, 2),
-                # Available trails the balance by any uncleared amount. Equal
-                # values everywhere would hide the funds-availability story the
-                # knowledge base spends a whole document on.
-                "available": round(balance - (rng.choice([0, 0, 100_000, 2_500_000])
-                                              if balance > 0 else 0), 2),
-                "currency": "VND",
-            })
-        if profile in ("savings_only", "high_balance", "business_owner",
-                       "multi_card", "mortgage_approved"):
+            accounts.append(
+                {
+                    "account_id": checking_id,
+                    "type": "Tài khoản thanh toán",
+                    "mask": f"****{checking_id[-4:]}",
+                    "balance": round(balance, 2),
+                    # Available trails the balance by any uncleared amount. Equal
+                    # values everywhere would hide the funds-availability story the
+                    # knowledge base spends a whole document on.
+                    "available": round(
+                        balance
+                        - (
+                            rng.choice([0, 0, 100_000, 2_500_000]) if balance > 0 else 0
+                        ),
+                        2,
+                    ),
+                    "currency": "VND",
+                }
+            )
+        if profile in (
+            "savings_only",
+            "high_balance",
+            "business_owner",
+            "multi_card",
+            "mortgage_approved",
+        ):
             savings = rng.uniform(50_000_000, 800_000_000)
-            accounts.append({
-                "account_id": savings_id,
-                "type": "Tài khoản tiết kiệm",
-                "mask": f"****{savings_id[-4:]}",
-                "balance": round(savings, 2),
-                "available": round(savings, 2),
-                "currency": "VND",
-            })
+            accounts.append(
+                {
+                    "account_id": savings_id,
+                    "type": "Tài khoản tiết kiệm",
+                    "mask": f"****{savings_id[-4:]}",
+                    "balance": round(savings, 2),
+                    "available": round(savings, 2),
+                    "currency": "VND",
+                }
+            )
 
-        cards = _cards_for(profile, stem, rng,
-                           accounts[0]["account_id"] if accounts else None)
+        cards = _cards_for(
+            profile, stem, rng, accounts[0]["account_id"] if accounts else None
+        )
 
         loans = []
         if profile == "loan_in_review":
             product, amount = LOAN_PRODUCTS[0]
-            loans.append({
-                "application_id": f"LN-2026-{rng.randint(10000, 99999)}",
-                "product": product, "amount": amount, "status": "Đang thẩm định",
-                "submitted_on": str(today - timedelta(days=7)),
-                "note": "Hồ sơ đang ở bộ phận thẩm định. Dự kiến có kết quả trong 5 ngày làm việc.",
-            })
+            loans.append(
+                {
+                    "application_id": f"LN-2026-{rng.randint(10000, 99999)}",
+                    "product": product,
+                    "amount": amount,
+                    "status": "Đang thẩm định",
+                    "submitted_on": str(today - timedelta(days=7)),
+                    "note": "Hồ sơ đang ở bộ phận thẩm định. Dự kiến có kết quả trong 5 ngày làm việc.",
+                }
+            )
         elif profile == "mortgage_approved":
             product, amount = LOAN_PRODUCTS[1]
-            loans.append({
-                "application_id": f"LN-2026-{rng.randint(10000, 99999)}",
-                "product": product, "amount": amount, "status": "Đã phê duyệt",
-                "submitted_on": str(today - timedelta(days=34)),
-                "note": "Đã phê duyệt. Chờ khách hàng ký hợp đồng và ấn định ngày giải ngân.",
-            })
+            loans.append(
+                {
+                    "application_id": f"LN-2026-{rng.randint(10000, 99999)}",
+                    "product": product,
+                    "amount": amount,
+                    "status": "Đã phê duyệt",
+                    "submitted_on": str(today - timedelta(days=34)),
+                    "note": "Đã phê duyệt. Chờ khách hàng ký hợp đồng và ấn định ngày giải ngân.",
+                }
+            )
         elif profile == "loan_declined":
             product, amount = LOAN_PRODUCTS[2]
-            loans.append({
-                "application_id": f"LN-2026-{rng.randint(10000, 99999)}",
-                "product": product, "amount": amount, "status": "Không được duyệt",
-                # A declined application is a case for a human, not a scripted
-                # explanation. The note says what the assistant may state and
-                # stops there; reasons for a credit decision are not the
-                # assistant's to give.
-                "note": "Không được duyệt. Trợ lý không giải thích lý do - "
-                        "chuyển khách hàng tới chuyên viên tín dụng.",
-                "submitted_on": str(today - timedelta(days=21)),
-            })
+            loans.append(
+                {
+                    "application_id": f"LN-2026-{rng.randint(10000, 99999)}",
+                    "product": product,
+                    "amount": amount,
+                    "status": "Không được duyệt",
+                    # A declined application is a case for a human, not a scripted
+                    # explanation. The note says what the assistant may state and
+                    # stops there; reasons for a credit decision are not the
+                    # assistant's to give.
+                    "note": "Không được duyệt. Trợ lý không giải thích lý do - "
+                    "chuyển khách hàng tới chuyên viên tín dụng.",
+                    "submitted_on": str(today - timedelta(days=21)),
+                }
+            )
 
         transactions = []
         for day in range(rng.randint(4, 8)):
-            amount = rng.choice([
-                -round(rng.uniform(30_000, 900_000), -3),
-                -round(rng.uniform(1_000_000, 4_000_000), -3),
-                round(rng.uniform(8_000_000, 25_000_000), -3),
-            ])
-            transactions.append({
-                "date": str(today - timedelta(days=day)),
-                "description": ("LUONG THANG" if amount > 0
-                                else rng.choice(MERCHANTS)),
-                "amount": amount,
-            })
+            amount = rng.choice(
+                [
+                    -round(rng.uniform(30_000, 900_000), -3),
+                    -round(rng.uniform(1_000_000, 4_000_000), -3),
+                    round(rng.uniform(8_000_000, 25_000_000), -3),
+                ]
+            )
+            transactions.append(
+                {
+                    "date": str(today - timedelta(days=day)),
+                    "description": (
+                        "LUONG THANG" if amount > 0 else rng.choice(MERCHANTS)
+                    ),
+                    "amount": amount,
+                }
+            )
         if profile == "dispute_open":
-            transactions.insert(0, {
-                "date": str(today - timedelta(days=2)),
-                "description": "GIAO DICH LA - DA MO TRA SOAT",
-                "amount": -2_450_000,
-            })
+            transactions.insert(
+                0,
+                {
+                    "date": str(today - timedelta(days=2)),
+                    "description": "GIAO DICH LA - DA MO TRA SOAT",
+                    "amount": -2_450_000,
+                },
+            )
 
-        customers.append({
-            "customer_id": customer_id,
-            "name": name,
-            # Stored, not derived. Vietnamese names run family-middle-given, so
-            # `name.split()[0]` greets "Nguyen Van An" as "Nguyen" - the family
-            # name, shared with roughly a third of the country. Western names
-            # run the other way. No rule in code gets both right, so the
-            # fixture states which token to use.
-            "given_name": name.split()[-1],
-            "segment": segment,
-            "profile": profile,
-            "dob": str(date(rng.randint(1965, 2001), rng.randint(1, 12),
-                            rng.randint(1, 28))),
-            "phone": phone,
-            "national_id": national,
-            "accounts": accounts,
-            "cards": cards,
-            "loans": loans,
-            "transactions": transactions,
-        })
+        customers.append(
+            {
+                "customer_id": customer_id,
+                "name": name,
+                # Stored, not derived. Vietnamese names run family-middle-given, so
+                # `name.split()[0]` greets "Nguyen Van An" as "Nguyen" - the family
+                # name, shared with roughly a third of the country. Western names
+                # run the other way. No rule in code gets both right, so the
+                # fixture states which token to use.
+                "given_name": name.split()[-1],
+                "segment": segment,
+                "profile": profile,
+                "dob": str(
+                    date(
+                        rng.randint(1965, 2001), rng.randint(1, 12), rng.randint(1, 28)
+                    )
+                ),
+                "phone": phone,
+                "national_id": national,
+                "accounts": accounts,
+                "cards": cards,
+                "loans": loans,
+                "transactions": transactions,
+            }
+        )
 
     return {"customers": customers}
 
 
-def _cards_for(profile: str, stem: str, rng: random.Random,
-               linked: str | None) -> list[dict]:
+def _cards_for(
+    profile: str, stem: str, rng: random.Random, linked: str | None
+) -> list[dict]:
     """Cards whose statuses collectively cover every transition worth showing."""
+
     def card(suffix: str, type_: str, status: str, replaces: str | None = None) -> dict:
         card_id = f"CRD-{suffix}"
         entry = {
-            "card_id": card_id, "type": type_, "mask": f"****{suffix}",
-            "status": status, "linked_account": linked,
+            "card_id": card_id,
+            "type": type_,
+            "mask": f"****{suffix}",
+            "status": status,
+            "linked_account": linked,
         }
         if replaces:
             entry["replaces"] = replaces
@@ -252,8 +360,10 @@ def _cards_for(profile: str, stem: str, rng: random.Random,
     if profile == "frozen_card":
         return [card(a, "ghi nợ", "frozen"), card(b, "tín dụng", "active")]
     if profile == "blocked_and_replaced":
-        return [card(a, "ghi nợ", "blocked"),
-                card(b, "ghi nợ", "inactive", replaces=f"CRD-{a}")]
+        return [
+            card(a, "ghi nợ", "blocked"),
+            card(b, "ghi nợ", "inactive", replaces=f"CRD-{a}"),
+        ]
     if profile in ("multi_card", "high_balance", "business_owner"):
         return [card(a, "ghi nợ", "active"), card(b, "tín dụng", "active")]
     if profile == "new_customer":
@@ -274,7 +384,8 @@ def check(data: dict) -> list[str]:
         if key in seen_credentials:
             problems.append(
                 f"{customer['customer_id']} shares credentials with "
-                f"{seen_credentials[key]} - verification would be ambiguous")
+                f"{seen_credentials[key]} - verification would be ambiguous"
+            )
         seen_credentials[key] = customer["customer_id"]
 
         account_ids = {a["account_id"] for a in customer["accounts"]}
@@ -285,13 +396,15 @@ def check(data: dict) -> list[str]:
             seen_ids.add(item[key_name])
             if item["mask"][-4:] != item[key_name][-4:]:
                 problems.append(
-                    f"{item[key_name]} mask {item['mask']} does not match its id")
+                    f"{item[key_name]} mask {item['mask']} does not match its id"
+                )
 
         for card in customer["cards"]:
             if card["linked_account"] and card["linked_account"] not in account_ids:
                 problems.append(
                     f"{card['card_id']} links to {card['linked_account']}, "
-                    f"which {customer['customer_id']} does not hold")
+                    f"which {customer['customer_id']} does not hold"
+                )
     return problems
 
 
@@ -309,7 +422,8 @@ def main(argv: list[str]) -> int:
 
     if "--check" not in argv:
         OUT_PATH.write_text(
-            json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
         print(f"  Wrote {len(data['customers'])} customers to {OUT_PATH}")
 
     statuses: dict[str, int] = {}

@@ -32,6 +32,13 @@ RESTRICTED_TOPICS: list[tuple[str, re.Pattern, str]] = [
             r"will .* (go up|crash)|best (stock|fund|coin)s?)\b"
             r"|(có nên|nên không|tư vấn)[^?.]{0,40}"
             r"(đầu tư|cổ phiếu|chứng khoán|trái phiếu|quỹ|vàng|bitcoin|tiền ảo|crypto)"
+            # "tôi nên đầu tư cổ phiếu nào", "nên mua quỹ gì" - lời khuyên "nên +
+            # hành động đầu tư + tài sản" mà hai nhánh trên bỏ sót (chỉ bắt "có
+            # nên"). Cũng bắt "cổ phiếu/quỹ/coin nào" (hỏi mã nào để mua).
+            r"|nên (đầu tư|mua|bán|rót|xuống tiền)[^?.]{0,24}"
+            r"(đầu tư|cổ phiếu|chứng khoán|trái phiếu|quỹ|vàng|bitcoin|tiền ảo|crypto|coin)"
+            r"|(cổ phiếu|mã|quỹ|coin|đồng)\s+nào[^?.]{0,16}"
+            r"(mua|đầu tư|tốt|ngon|nên|sinh lời|tiềm năng)"
             r"|(đầu tư|mua|bán)[^?.]{0,24}(cổ phiếu|chứng khoán|bitcoin|tiền ảo|vàng)"
             r"[^?.]{0,24}(có nên|được không|nên không|lời không)"
             r"|(cổ phiếu|mã nào|quỹ nào)[^?.]{0,20}(nên mua|đáng mua|sinh lời)"
@@ -83,7 +90,10 @@ _PII_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\b(?:\d[ -]?){13,19}(?<![ -])\b"), "[CARD_REDACTED]"),
     (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "[SSN_REDACTED]"),
     (re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"), "[EMAIL_REDACTED]"),
-    (re.compile(r"\b(?:\+?\d{1,2}[ -]?)?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{4}\b"), "[PHONE_REDACTED]"),
+    (
+        re.compile(r"\b(?:\+?\d{1,2}[ -]?)?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{4}\b"),
+        "[PHONE_REDACTED]",
+    ),
 ]
 
 

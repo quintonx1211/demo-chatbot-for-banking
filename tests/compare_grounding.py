@@ -33,8 +33,8 @@ import textwrap
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.llm import compare as compare_mod   # noqa: E402
-from app.retriever import KnowledgeBase      # noqa: E402
+from app.llm import compare as compare_mod  # noqa: E402
+from app.retriever import KnowledgeBase  # noqa: E402
 
 WIDTH = 78
 
@@ -47,8 +47,8 @@ def _wrap(text: str, indent: str = "  ") -> str:
     if not text:
         return f"{indent}(empty)"
     return "\n".join(
-        textwrap.fill(line, WIDTH, initial_indent=indent,
-                      subsequent_indent=indent) or indent
+        textwrap.fill(line, WIDTH, initial_indent=indent, subsequent_indent=indent)
+        or indent
         for line in text.strip().splitlines()
     )
 
@@ -87,25 +87,34 @@ def show(result: dict) -> bool:
         print(f"  error: {ungrounded['error']}")
     else:
         print(_wrap(ungrounded["text"]))
-        print(f"\n  sources: none")
-        print(f"  supported by the corpus: "
-              f"{_pct(ungrounded.get('overlap_with_corpus'))}")
-        print(f"  checked before shipping: no")
+        print("\n  sources: none")
+        print(
+            f"  supported by the corpus: "
+            f"{_pct(ungrounded.get('overlap_with_corpus'))}"
+        )
+        print("  checked before shipping: no")
 
     grounded = result["grounded"]
     print("\n  GROUNDED - the production path")
     print(f"  {'-' * (WIDTH - 2)}")
     print(_wrap(grounded["text"]))
-    print(f"\n  answered by: "
-          + ("the model" if grounded["generated"]
-             else "extractive fallback - THE MODEL DID NOT RUN"))
+    print(
+        "\n  answered by: "
+        + (
+            "the model"
+            if grounded["generated"]
+            else "extractive fallback - THE MODEL DID NOT RUN"
+        )
+    )
     for source in grounded["sources"]:
         print(f"  source: {source['breadcrumb']}")
     if not grounded["sources"]:
         print("  source: none - nothing cleared the relevance floor")
     if grounded["grounding"] is not None:
-        print(f"  grounding score: {grounded['grounding']:.2f}"
-              f"  ({'passed' if grounded['passed_gate'] else 'FAILED - would escalate'})")
+        print(
+            f"  grounding score: {grounded['grounding']:.2f}"
+            f"  ({'passed' if grounded['passed_gate'] else 'FAILED - would escalate'})"
+        )
 
     return result["comparable"]
 

@@ -1,7 +1,8 @@
-"""Multi-provider TTS - gTTS & Vbee AI.
+"""Multi-provider TTS - gTTS & ElevenLabs.
 
 Provider switch happens at runtime, no restart needed.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -10,6 +11,7 @@ import json
 import logging
 import os
 import re
+import struct
 import threading
 import urllib.error
 import urllib.request
@@ -79,6 +81,7 @@ def strip_markdown_for_tts(text: str) -> str:
     text = _CCCD_RE.sub("căn cước công dân", text)
     return text.strip()
 
+
 # Pre-generated audio for the fixed replies in app/canned_responses.py - see
 # pregenerate_voice.py. Checked before any live provider call: the goal is
 # that the *first* time a canned reply is spoken in a freshly started
@@ -88,79 +91,62 @@ VOICE_CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "voice_cache
 
 # --- runtime state ---
 _lock = threading.Lock()
-_provider: str    = "vbee"
-_vbee_key: str    = os.environ.get("VBEE_TTS_KEY", "")
-_vbee_app_id: str = os.environ.get("VBEE_APP_ID", "")
-# Giọng nữ Sài Gòn, "Mềm mại" - giọng miền Nam nhẹ nhàng theo yêu cầu.
-_vbee_voice: str  = "sg_female_thaotrinh_full_44k-phg"
+_provider: str = os.environ.get("TTS_PROVIDER", "VieNeu")
+_eleven_key: str = os.environ.get("ELEVENLABS_API_KEY", "")
+# Mặc định VieNeu (Voice 1, local, tự bật cùng server). Nếu service chưa lên,
+# synthesize() tự rớt về backup. Đổi qua Cấu hình → Giọng nói hoặc env TTS_PROVIDER.
+_voice: str = os.environ.get("TTS_VOICE", "")
+# eleven_multilingual_v2 đọc tiếng Việt tốt; đổi qua ELEVENLABS_MODEL nếu cần.
+_eleven_model: str = os.environ.get("ELEVENLABS_MODEL", "eleven_multilingual_v2")
 
-# --- Vbee callback state ---
-_callback_url: str = ""          # set by server after ngrok is established
-_cb_lock = threading.Lock()
-_pending: dict[str, threading.Event] = {}   # request_id → event
-_results: dict[str, str] = {}              # request_id → audio_link
+# --- VieNeu-TTS (local, offline, tiếng Việt, chạy trên Mac M4) ---
+# VieNeu chạy như một service HTTP tương thích OpenAI ở env `uv` riêng
+# (`uv run python -m apps.openai_speech`). Đặt provider = "VieNeu" ở màn hình
+# Cấu hình → Giọng nói để bot gọi service này sinh giọng. _voice là tên giọng
+# preset (vd "Minh Quân Pro") hoặc giọng đã clone. URL trỏ tới cổng của service
+# (mặc định 8080 để không đụng cổng 8000 của chatbot); đổi qua env nếu chạy cổng khác.
+_vieneu_url: str = os.environ.get("VIENEU_URL", "http://127.0.0.1:8080/v1/audio/speech")
+_vieneu_model: str = os.environ.get("VIENEU_MODEL", "vieneu-v3-turbo")
 
 # cache keyed by (provider, voice, text)
 _cache: dict[tuple, bytes] = {}
 _cache_lock = threading.Lock()
 
-VBEE_VOICES = {
-    "hn_female_ngochuyen_full_48k-fhg": "Nữ Hà Nội – Tự nhiên",
-    "hn_female_hermer_stor_48k-fhg":    "Nữ Hà Nội – Chuyên nghiệp",
-    "hn_female_lenka_stor_48k-phg":     "Nữ Hà Nội – Trẻ trung",
-    "hn_male_minhquan_yt-stable":       "Nam Hà Nội – Ấm",
-    "hn_male_manhdung_news_48k-fhg":    "Nam Hà Nội – Rõ ràng",
-    "sg_female_tuongvy_call_44k-fhg":   "Nữ Sài Gòn – Năng động",
-    "sg_female_thaotrinh_full_44k-phg": "Nữ Sài Gòn – Mềm mại",
-    "sg_male_chidat_ebook_48k-phg":     "Nam Sài Gòn – Trầm ấm",
-}
-
 
 # ---------- public API ----------
 
-def set_callback_url(url: str) -> None:
-    """Called once by server after ngrok public URL is known."""
-    global _callback_url
-    _callback_url = url
-    logger.info("Vbee callback URL: %s", url)
 
-
-def receive_callback(raw: dict) -> None:
-    """Called by server when Vbee POSTs to /api/vbee-callback."""
-    result = raw.get("result") or raw
-    request_id = result.get("request_id") or raw.get("request_id")
-    audio_link = result.get("audio_link") or raw.get("audio_link")
-    logger.info("Vbee callback: request_id=%s  audio_link=%s  keys=%s",
-                request_id, bool(audio_link), list(raw.keys()))
-    if not request_id:
-        return
-    with _cb_lock:
-        if audio_link:
-            _results[request_id] = audio_link
-        ev = _pending.get(request_id)
-    if ev:
-        ev.set()
-
-
-def configure(provider: str | None = None,
-              vbee_voice: str | None = None) -> None:
-    global _provider, _vbee_voice
+def configure(provider: str | None = None, voice: str | None = None) -> None:
+    global _provider, _voice
     with _lock:
         if provider:
             _provider = provider
-        if vbee_voice:
-            _vbee_voice = vbee_voice
+        if voice:
+            _voice = voice
 
 
 def status() -> dict:
     with _lock:
-        return {
-            "provider": _provider,
-            "vbee_voice": _vbee_voice,
-            "gtts_available": _gtts_available(),
-            "vbee_available": bool(_vbee_key and _vbee_app_id),
-            "voices": VBEE_VOICES,
-        }
+        prov = _provider
+        voice = _voice
+        elkey = _eleven_key
+        vurl = _vieneu_url
+    # Dropdown giọng: ElevenLabs lấy từ tài khoản, VieNeu lấy từ service local;
+    # gTTS không có giọng để chọn.
+    if prov == "ElevenLabs" and elkey:
+        voices = _list_eleven_voices(elkey)
+    elif prov == "VieNeu":
+        voices = _list_vieneu_voices(vurl)
+    else:
+        voices = {}
+    return {
+        "provider": prov,
+        "voice": voice,
+        "gtts_available": _gtts_available(),
+        "elevenlabs_available": bool(elkey),
+        "vieneu_available": bool(prov == "VieNeu" and voices),
+        "voices": voices,
+    }
 
 
 _canned_text_to_name_cache: dict[str, str] | None = None
@@ -179,6 +165,7 @@ def _canned_text_to_name() -> dict[str, str]:
     global _canned_text_to_name_cache
     if _canned_text_to_name_cache is None:
         from . import canned_responses
+
         _canned_text_to_name_cache = {
             text: name for name, text in canned_responses.all_responses().items()
         }
@@ -205,7 +192,9 @@ def named_cache_path(text: str) -> Path | None:
     return VOICE_CACHE_DIR / f"{name}.mp3"
 
 
-def cache_path_for(text: str, provider: str | None = None, voice: str | None = None) -> Path:
+def cache_path_for(
+    text: str, provider: str | None = None, voice: str | None = None
+) -> Path:
     """Where the pre-generated file for `text` would live, under the
     currently configured provider/voice unless overridden.
 
@@ -218,7 +207,7 @@ def cache_path_for(text: str, provider: str | None = None, voice: str | None = N
     """
     with _lock:
         prov = provider or _provider
-        vox = voice or _vbee_voice
+        vox = voice or _voice
     clean = strip_markdown_for_tts(text)
     digest = hashlib.sha256(f"{prov}|{vox}|{clean}".encode("utf-8")).hexdigest()[:24]
     return VOICE_CACHE_DIR / f"{digest}.mp3"
@@ -231,28 +220,27 @@ def synthesize_live(text: str) -> bytes:
     place; `synthesize()` below is what everything else should call.
     """
     with _lock:
-        prov   = _provider
-        vkey   = _vbee_key
-        app_id = _vbee_app_id
-        voice  = _vbee_voice
+        prov = _provider
+        voice = _voice
+        elkey = _eleven_key
+        elmodel = _eleven_model
+        vurl = _vieneu_url
+        vmodel = _vieneu_model
 
     clean = strip_markdown_for_tts(text)
-    if prov == "vbee":
-        if not vkey or not app_id:
-            raise RuntimeError("Vbee API key và App ID chưa được đặt")
-        return _call_vbee(clean, vkey, app_id, voice)
+    if prov == "VieNeu":
+        # Raise on failure (do NOT silently fall to gTTS here): synthesize()
+        # catches it and uses the hand-recorded backup, then gTTS. That is the
+        # "generator first, recording backup" order the deployment asked for.
+        return _call_vieneu(clean, voice, vurl, vmodel)
+    if prov == "ElevenLabs" and elkey:
+        return _call_elevenlabs(clean, elkey, voice, elmodel)
     return _call_gtts(clean)
 
 
-def synthesize(text: str) -> bytes:
-    with _lock:
-        prov   = _provider
-        voice  = _vbee_voice
-
-    # A named, hand-placed recording for one of the fixed replies always wins
-    # and is served as-is - no Markdown stripping, no hashing, no live call.
-    # It is that exact text's audio by construction (that is what "named"
-    # means here), so there is nothing left to process.
+def _named_backup(text: str) -> bytes | None:
+    """A hand-placed recording (`data/voice_cache/<CONSTANT>.mp3`) for this exact
+    fixed reply, served as-is, or None if there is no recording for it."""
     cache_key = ("named", text)
     with _cache_lock:
         if cache_key in _cache:
@@ -263,6 +251,25 @@ def synthesize(text: str) -> bytes:
         with _cache_lock:
             _cache[cache_key] = audio
         return audio
+    return None
+
+
+def synthesize(text: str) -> bytes:
+    with _lock:
+        prov = _provider
+        voice = _voice
+
+    # Order of precedence differs by provider:
+    #   VieNeu  -> the live generator is primary; a hand recording is only a
+    #              backup used when the VieNeu service is unreachable (the
+    #              "generator first, recording backup" setup requested).
+    #   others  -> a hand-placed named recording wins outright, since for gTTS/
+    #              ElevenLabs the curated recording is the better audio.
+    generator_first = prov == "VieNeu"
+    if not generator_first:
+        named = _named_backup(text)
+        if named is not None:
+            return named
 
     cache_key = (prov, voice, strip_markdown_for_tts(text))
     with _cache_lock:
@@ -276,7 +283,17 @@ def synthesize(text: str) -> bytes:
             _cache[cache_key] = audio
         return audio
 
-    audio = synthesize_live(text)
+    try:
+        audio = synthesize_live(text)
+    except Exception as exc:
+        # Live generator failed (VieNeu service down, network, etc.). Fall back
+        # to a hand-recorded backup for this exact reply if present, otherwise
+        # gTTS - the bot must always have a voice.
+        logger.warning("TTS live thất bại (%s) - dùng backup", exc)
+        named = _named_backup(text)
+        if named is not None:
+            return named
+        audio = _call_gtts(strip_markdown_for_tts(text))
 
     with _cache_lock:
         _cache[cache_key] = audio
@@ -284,11 +301,7 @@ def synthesize(text: str) -> bytes:
 
 
 def available() -> bool:
-    with _lock:
-        prov = _provider
-        vkey = _vbee_key
-    if prov == "vbee":
-        return bool(vkey)
+    # ElevenLabs rơi về gTTS khi thiếu key, nên chỉ cần một trong hai khả dụng.
     return _gtts_available()
 
 
@@ -303,9 +316,11 @@ def warmup() -> bool:
 
 # ---------- gTTS ----------
 
+
 def _gtts_available() -> bool:
     try:
         import gtts  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -321,84 +336,170 @@ def _call_gtts(text: str) -> bytes:
     return buf.getvalue()
 
 
-# ---------- Vbee ----------
-
-_VBEE_TTS_URL = "https://vbee.vn/api/v1/tts"
+# ---------- VieNeu-TTS (local, OpenAI-compatible) ----------
 
 
-def _call_vbee(text: str, api_key: str, app_id: str, voice: str) -> bytes:
-    cb_url = _callback_url or "https://httpbin.org/post"
+def _vieneu_base(url: str) -> str:
+    """The `/v1` base of the VieNeu service, derived from the speech URL, so the
+    voices endpoint can be reached without a second env var."""
+    return url.rsplit("/audio/speech", 1)[0]
 
-    body = json.dumps({
-        "input_text":  text,
-        "voice_code":  voice,
-        "audio_type":  "mp3",
-        "speed_rate":  1,
-        "appId":       app_id,
-        "callbackUrl": cb_url,
-    }).encode("utf-8")
 
+def _fix_wav_header(b: bytes) -> bytes:
+    """VieNeu trả WAV kiểu streaming: trường kích thước trong header là số
+    placeholder khổng lồ (báo file dài ~44739 giây thay vì ~2 giây). Trình duyệt
+    (nhất là Edge) đọc header đó -> renderer rối -> KHÔNG ra tiếng dù timeline
+    chạy. Sửa lại RIFF-size và data-size cho đúng độ dài thật -> WAV hợp lệ, phát
+    được ở mọi trình duyệt."""
+    if len(b) < 44 or b[:4] != b"RIFF" or b[8:12] != b"WAVE":
+        return b
+    out = bytearray(b)
+    struct.pack_into("<I", out, 4, len(out) - 8)  # RIFF chunk size
+    i = out.find(b"data", 12)
+    if i != -1 and i + 8 <= len(out):
+        struct.pack_into("<I", out, i + 4, len(out) - (i + 8))  # data chunk size
+    return bytes(out)
+
+
+def _call_vieneu(text: str, voice: str, url: str, model: str) -> bytes:
+    """Synthesize via a local VieNeu-TTS service (OpenAI-compatible endpoint).
+
+    POSTs to `/v1/audio/speech` and returns mp3 bytes. Runs fully offline on the
+    box; the only failure modes are the service not being up yet or a bad voice
+    name, both of which raise so synthesize() can fall back to a recording.
+    """
+    # VieNeu chỉ hỗ trợ 'wav'/'pcm', KHÔNG có 'mp3'. Dùng wav: trình duyệt phát
+    # được qua thẻ <audio> (sniff header RIFF), chỉ tốn dung lượng hơn mp3.
+    body = json.dumps(
+        {
+            "model": model,
+            "voice": voice or "Ngọc Huyền",
+            "input": text,
+            "response_format": "wav",
+        }
+    ).encode("utf-8")
     headers = {
-        "Content-Type":  "application/json",
-        "Authorization": f"Bearer {api_key}",
-        "app-id":        app_id,
+        "Content-Type": "application/json",
+        "Accept": "audio/wav",
+        "Authorization": "Bearer local",  # bỏ qua bởi service local, gửi cho đủ
     }
-    req = urllib.request.Request(_VBEE_TTS_URL, data=body, method="POST", headers=headers)
+    req = urllib.request.Request(url, data=body, method="POST", headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            payload = json.loads(resp.read())
+        # timeout rộng: lần gọi đầu tiên còn nạp model vào bộ nhớ.
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return _fix_wav_header(resp.read())
     except urllib.error.HTTPError as exc:
-        raise RuntimeError(f"Vbee HTTP {exc.code}: {exc.reason}")
+        detail = exc.read().decode("utf-8", "replace")[:300]
+        raise RuntimeError(f"VieNeu HTTP {exc.code}: {exc.reason} - {detail}")
 
-    logger.info("Vbee submit response: %s", payload)
-    result = payload.get("result") or {}
 
-    # Some plans return audio immediately
-    audio_link = result.get("audio_link")
-    if audio_link:
-        logger.info("Vbee: audio ready in submit response")
-        with urllib.request.urlopen(audio_link, timeout=15) as ar:
-            return ar.read()
+def _list_vieneu_voices(url: str) -> dict[str, str]:
+    """{voice_name: nhãn hiển thị} lấy từ service VieNeu (GET /v1/voices).
 
-    request_id = result.get("request_id")
-    if not request_id:
-        raise RuntimeError(f"Vbee không trả về request_id: {payload}")
-
-    if not _callback_url:
-        raise RuntimeError(
-            "Vbee cần callback URL — ngrok chưa sẵn sàng hoặc không kết nối được"
-        )
-
-    # Atomically register the event AND check if the callback already arrived.
-    # Vbee can fire the callback in the tiny window between when the HTTP submit
-    # returns and here. If it does, receive_callback() stores audio_link in
-    # _results but finds no entry in _pending, so ev.set() is never called.
-    # By holding _cb_lock across both operations we close that race window.
-    event = threading.Event()
-    early_link = None
-    with _cb_lock:
-        if request_id in _results:
-            early_link = _results.pop(request_id)
-        else:
-            _pending[request_id] = event
-
-    if early_link:
-        logger.info("Vbee: callback nhận trước khi chờ, request_id=%s", request_id)
-        with urllib.request.urlopen(early_link, timeout=15) as ar:
-            return ar.read()
-
-    logger.info("Vbee request_id=%s  chờ callback tại %s", request_id, cb_url)
+    Trả về {} nếu service chưa chạy - màn hình Cấu hình để dropdown trống thay
+    vì hỏng. KHÔNG cache: giọng clone được thêm vào lúc chạy, mà đây là gọi
+    local nên rẻ - cache lại sẽ giấu mất giọng vừa clone.
+    """
     try:
-        if event.wait(timeout=30):
-            with _cb_lock:
-                link = _results.pop(request_id, None)
-            if link:
-                with urllib.request.urlopen(link, timeout=15) as ar:
-                    return ar.read()
-            raise RuntimeError("Vbee: callback nhận được nhưng không có audio_link")
-    finally:
-        with _cb_lock:
-            _pending.pop(request_id, None)
-            _results.pop(request_id, None)
+        req = urllib.request.Request(_vieneu_base(url) + "/voices")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+    except (urllib.error.URLError, ValueError, OSError) as exc:
+        logger.warning("Không lấy được danh sách giọng VieNeu: %s", exc)
+        return {}
+    # OpenAI-style {"data": [{"id"/"name": ...}]} hoặc list phẳng.
+    rows = data.get("data") if isinstance(data, dict) else data
+    result: dict[str, str] = {}
+    for v in rows or []:
+        name = v.get("name") or v.get("id") if isinstance(v, dict) else str(v)
+        if name:
+            result[name] = name
+    return result
 
-    raise RuntimeError("Vbee: timeout chờ callback (30s)")
+
+# ---------- ElevenLabs ----------
+
+_ELEVEN_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+_ELEVEN_VOICES_URL = "https://api.elevenlabs.io/v1/voices"
+
+# Danh sách giọng lấy từ tài khoản chỉ đổi khi bạn thêm/xoá giọng trên
+# ElevenLabs, nên cache lại thay vì gọi API mỗi lần mở màn hình Settings.
+_eleven_voices_cache: dict[str, str] | None = None
+
+
+def _voice_speaks_vietnamese(v: dict) -> bool:
+    """Giọng có đọc được tiếng Việt không.
+
+    ElevenLabs khai báo ngôn ngữ đã kiểm định trong verified_languages; giọng
+    multilingual (eleven_multilingual_v2) vẫn đọc được tiếng Việt kể cả khi
+    không liệt kê, nên đây chỉ dùng để *ưu tiên*, không phải để loại bỏ.
+    """
+    for lang in v.get("verified_languages") or []:
+        code = (lang.get("language") or "").lower()
+        if code in ("vi", "vie", "vietnamese"):
+            return True
+    labels = v.get("labels") or {}
+    return "viet" in " ".join(str(x).lower() for x in labels.values())
+
+
+def _list_eleven_voices(api_key: str) -> dict[str, str]:
+    """{voice_id: tên hiển thị} từ tài khoản ElevenLabs, giọng tiếng Việt lên đầu.
+
+    Trả về {} nếu không gọi được API - status() để dropdown giọng trống.
+    """
+    global _eleven_voices_cache
+    if _eleven_voices_cache is not None:
+        return _eleven_voices_cache
+    try:
+        req = urllib.request.Request(
+            _ELEVEN_VOICES_URL, headers={"xi-api-key": api_key}
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+    except (urllib.error.URLError, ValueError) as exc:
+        logger.warning("Không lấy được danh sách giọng ElevenLabs: %s", exc)
+        return {}
+
+    voices = data.get("voices") or []
+    # Giọng tiếng Việt trước, trong mỗi nhóm giữ nguyên thứ tự tài khoản trả về.
+    voices.sort(key=lambda v: not _voice_speaks_vietnamese(v))
+    result: dict[str, str] = {}
+    for v in voices:
+        vid = v.get("voice_id")
+        if not vid:
+            continue
+        name = v.get("name") or vid
+        if _voice_speaks_vietnamese(v):
+            name = f"{name} (Tiếng Việt)"
+        result[vid] = name
+    if result:
+        _eleven_voices_cache = result
+    return result
+
+
+def _call_elevenlabs(text: str, api_key: str, voice: str, model: str) -> bytes:
+    """Synchronous ElevenLabs TTS - returns mp3 bytes directly.
+
+    A plain request/response with no callback, so it needs no public URL. The
+    endpoint streams audio/mpeg back in the response body.
+    """
+    body = json.dumps(
+        {
+            "text": text,
+            "model_id": model,
+            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+        }
+    ).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": AUDIO_CONTENT_TYPE,
+        "xi-api-key": api_key,
+    }
+    url = _ELEVEN_TTS_URL.format(voice_id=voice)
+    req = urllib.request.Request(url, data=body, method="POST", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")[:500]
+        raise RuntimeError(f"ElevenLabs HTTP {exc.code}: {exc.reason} - {detail}")

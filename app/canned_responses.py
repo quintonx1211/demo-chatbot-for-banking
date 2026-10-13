@@ -23,15 +23,26 @@ from __future__ import annotations
 # -- greetings and small talk ---------------------------------------------
 
 GREETING = (
-    "Trợ lý ảo ABC Bank hân hạnh được phục vụ quý khách. Tôi có thể hỗ trợ quý khách "
-    "kiểm tra số dư và giao dịch, khóa thẻ khi bị mất, tra cứu hồ sơ vay, "
-    "so sánh sản phẩm, xem ưu đãi thẻ, hay điều chỉnh hạn mức. "
+    "**Trợ lý ảo ABC Bank** hân hạnh được phục vụ quý khách. Tôi có thể hỗ trợ "
+    "quý khách kiểm tra số dư và giao dịch, khóa hoặc mở khóa thẻ, tra cứu hồ sơ "
+    "vay, và giải đáp về sản phẩm, biểu phí của ngân hàng.\n\n"
     "Quý khách cần hỗ trợ gì ạ?"
 )
 
-SMALLTALK = "Tôi vẫn đang lắng nghe quý khách đây ạ. Quý khách cần hỏi thêm điều gì không?"
+SMALLTALK = (
+    "Tôi vẫn đang lắng nghe quý khách đây ạ. Quý khách cần hỏi thêm điều gì không?"
+)
 
-GOODBYE = "Cảm ơn quý khách đã sử dụng dịch vụ hôm nay. Kính chúc quý khách một ngày tốt lành!"
+GOODBYE = (
+    "Cảm ơn quý khách đã sử dụng dịch vụ hôm nay. Chúc quý khách một ngày tốt lành!"
+)
+
+# Khách từ chối / đang bận (TH3). Không nài ép: cảm ơn, để ngỏ cho lần sau.
+DECLINE_GRACEFUL = (
+    "Dạ vâng, tôi không làm phiền quý khách thêm ạ. Khi nào cần tìm hiểu về thẻ "
+    "hay cần hỗ trợ tài khoản, quý khách cứ nhắn tôi bất cứ lúc nào nhé. "
+    "Chúc quý khách một ngày tốt lành!"
+)
 
 HUMAN_AGENT_HANDOFF = "Vâng ạ, tôi xin kết nối quý khách với chuyên viên ngay."
 
@@ -51,12 +62,12 @@ LEFT_AGENT_NO_NAME = (
 VERIFICATION_PROMPT = (
     "Tôi rất sẵn lòng hỗ trợ quý khách. Trước tiên, tôi cần xác minh nhanh "
     "để đảm bảo đúng là quý khách.\n\n"
-    "Quý khách vui lòng cho tôi xin **số điện thoại đã đăng ký** (đủ 10 số)."
+    "Quý khách vui lòng cho tôi **số điện thoại đã đăng ký** (đủ 10 số) nhé."
 )
 
 VERIFICATION_ASK_CCCD = (
-    "Cảm ơn quý khách. Xin quý khách cho tôi thêm **số CCCD/CMND** (đủ 12 số) "
-    "để hoàn tất xác minh."
+    "Cảm ơn quý khách. Quý khách cho tôi thêm **số CCCD/CMND** (đủ 12 số) "
+    "để hoàn tất xác minh nhé."
 )
 
 VERIFICATION_PHONE_FORMAT_RETRY = (
@@ -89,18 +100,28 @@ CARD_NONE_LEFT_UNFREEZE = (
 )
 CARD_ACTION_CANCELLED = "Vâng ạ, tôi giữ nguyên trạng thái thẻ cho quý khách."
 
-CARD_CLOSE_CANCELLED = "Tôi đã huỷ yêu cầu - thẻ của quý khách vẫn hoạt động bình thường."
-CARD_CLOSE_UNCLEAR = "Quý khách xác nhận muốn đóng thẻ này không ạ? Vui lòng trả lời có hoặc không."
+CARD_CLOSE_CANCELLED = (
+    "Tôi đã huỷ yêu cầu - thẻ của quý khách vẫn hoạt động bình thường."
+)
+CARD_CLOSE_UNCLEAR = (
+    "Quý khách xác nhận muốn đóng thẻ này không ạ? Vui lòng trả lời có hoặc không."
+)
 CARD_CLOSE_NONE = "Tôi không tìm thấy thẻ nào trên hồ sơ của quý khách."
 CARD_CLOSE_ALREADY_CLOSED = "Thẻ này đã được đóng từ trước đó."
-CARD_CLOSE_CONFIRM_ASK = "Quý khách có chắc muốn đóng thẻ này không? Vui lòng xác nhận có hoặc không."
+CARD_CLOSE_CONFIRM_ASK = (
+    "Quý khách có chắc muốn đóng thẻ này không? Vui lòng xác nhận có hoặc không."
+)
 
-LIMIT_INVALID = "Tôi chưa nhận được số hạn mức hợp lệ, quý khách vui lòng gửi lại giúp tôi."
+LIMIT_INVALID = (
+    "Tôi chưa nhận được số hạn mức hợp lệ, quý khách vui lòng gửi lại giúp tôi nhé."
+)
 LIMIT_ASK_AMOUNT = "Quý khách muốn nâng hạn mức mới lên bao nhiêu ạ?"
 
 # -- account flows: the "nothing to show" branches ---------------------------
 
-OFFERS_NONE = "Quý khách hiện chưa có ưu đãi nào. Tôi có thể hỗ trợ thêm gì cho quý khách không?"
+OFFERS_NONE = (
+    "Quý khách hiện chưa có ưu đãi nào. Tôi có thể hỗ trợ thêm gì cho quý khách không?"
+)
 ACTIVATION_NONE_PENDING = (
     "Các thẻ trong hồ sơ của quý khách đều đã được kích hoạt. Nếu có "
     "giao dịch nào bị từ chối, có thể do nguyên nhân khác - "
@@ -113,8 +134,31 @@ NO_LOAN_ON_FILE = (
 )
 NO_TRANSACTIONS = "Tôi không thấy giao dịch gần đây nào trên tài khoản của quý khách."
 
-CROSS_SELL_ASK_INTEREST_UNVERIFIED = (
-    "Quý khách thường mua sắm trên nền tảng nào, hoặc chi tiêu nhiều nhất ở lĩnh vực nào ạ?"
+CROSS_SELL_ASK_INTEREST_UNVERIFIED = "Quý khách thường mua sắm trên nền tảng nào, hoặc chi tiêu nhiều nhất ở lĩnh vực nào ạ?"
+
+# Consultative discovery: shown once when a customer opens the cross-sell topic,
+# before any card is pitched. Understand the need first, then recommend on the
+# next turn - a customer who just said "tôi hay chơi golf" should not be told to
+# open a card before we know anything else about how they spend.
+CROSS_SELL_DISCOVER = (
+    "Dạ, cảm ơn quý khách đã chia sẻ. Để gợi ý thẻ phù hợp nhất, "
+    "cho tôi hỏi thêm một chút ạ:\n\n"
+    "- Hằng ngày quý khách chi tiêu nhiều nhất cho khoản nào "
+    "(ăn uống, mua sắm online, di chuyển, du lịch...)?\n"
+    "- Quý khách ưu tiên **hoàn tiền cho chi tiêu hằng ngày**, hay các "
+    "**đặc quyền du lịch – cao cấp** (dặm bay, golf, phòng chờ sân bay) ạ?"
+)
+
+# Shown when the customer's stated interest matches no card's reward lines
+# strongly enough to single one out. Point at the full line-up and ask for a bit
+# more, instead of re-asking the same generic question.
+CROSS_SELL_NO_OPEN_MATCH = (
+    "Với nhu cầu quý khách vừa chia sẻ, tôi chưa khoanh được đúng một dòng thẻ. "
+    "Ngân hàng có 4 dòng: **Classic** (mua sắm online, chi tiêu hằng ngày), "
+    "**Platinum** (ăn uống, giải trí, di chuyển), **Signature** (tự chọn hoàn tiền, "
+    "du lịch) và **Infinite** (du lịch cao cấp, dặm bay, golf).\n\n"
+    "Quý khách quan tâm dòng nào, hay cho tôi biết thêm quý khách hay chi tiêu cho "
+    "khoản gì để tôi tư vấn đúng ạ?"
 )
 
 # -- escalation / handoff (router.py) ----------------------------------------
@@ -137,7 +181,9 @@ ESCALATION_OFFER_BODY = (
     "Hoặc quý khách có thể hỏi tôi câu khác."
 )
 
-ESCALATION_DECLINED = "Vâng ạ, tôi tiếp tục hỗ trợ quý khách. Quý khách cần hỏi thêm điều gì không?"
+ESCALATION_DECLINED = (
+    "Vâng ạ, tôi tiếp tục hỗ trợ quý khách. Quý khách cần hỏi thêm điều gì không?"
+)
 
 # -- compliance guardrail (guardrails.py) ------------------------------------
 
@@ -160,6 +206,7 @@ def all_responses() -> dict[str, str]:
     static.
     """
     return {
-        name: value for name, value in globals().items()
+        name: value
+        for name, value in globals().items()
         if name.isupper() and isinstance(value, str)
     }

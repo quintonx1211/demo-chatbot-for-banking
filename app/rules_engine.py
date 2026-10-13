@@ -37,11 +37,18 @@ PRODUCTS_PATH = DATA_DIR / "products.json"
 # reward line that happens to score highest among worse options.
 MATCH_FLOOR = 0.08
 
+# Segments the unverified catalogue recommender may pitch. Per the demo
+# cross-sell script (demo_tutorial.md), the bot pivots across ALL FOUR tiers by
+# the spending a customer names - "du lịch/golf/dặm bay" should surface Infinite,
+# "tự chọn danh mục" Signature - so every segment is open here. (Set back to
+# {"MASS","MASS_AFFLUENT"} to re-restrict Signature/Infinite to invite-only.)
+OPEN_SEGMENTS = frozenset({"MASS", "MASS_AFFLUENT", "AFFLUENT", "PRIVATE"})
+
 
 @dataclass
 class MatchedLine:
     text: str
-    source: str        # "welcome_offers" | "reward_scheme" | "value_proposition"
+    source: str  # "welcome_offers" | "reward_scheme" | "value_proposition"
     score: float
 
 
@@ -54,22 +61,28 @@ class CardMatch:
 
     def to_dict(self) -> dict:
         return {
-            "product_id": self.product_id, "product_name": self.product_name,
+            "product_id": self.product_id,
+            "product_name": self.product_name,
             "matched_lines": [m.text for m in self.matched_lines],
             "disclaimer": self.disclaimer,
         }
 
 
 class RulesEngine:
-    def __init__(self, disclaimers_path: Path | None = None,
-                 products_path: Path | None = None) -> None:
+    def __init__(
+        self, disclaimers_path: Path | None = None, products_path: Path | None = None
+    ) -> None:
         self.disclaimers_path = disclaimers_path or DISCLAIMERS_PATH
         self.products_path = products_path or PRODUCTS_PATH
         self.reload()
 
     def reload(self) -> None:
-        self.disclaimers = json.loads(self.disclaimers_path.read_text(encoding="utf-8"))["disclaimers"]
-        products = json.loads(self.products_path.read_text(encoding="utf-8"))["products"]
+        self.disclaimers = json.loads(
+            self.disclaimers_path.read_text(encoding="utf-8")
+        )["disclaimers"]
+        products = json.loads(self.products_path.read_text(encoding="utf-8"))[
+            "products"
+        ]
         self.products = products
         self.products_by_id = {p["id"]: p for p in products}
         self.product_by_segment = {p["segment"]: p for p in products}
@@ -83,7 +96,9 @@ class RulesEngine:
         entry = self.disclaimers.get("credit", self.disclaimers.get("generic", {}))
         return entry.get("text", "")
 
-    def explain_fit(self, product: dict, interest_text: str, top_k: int = 2) -> CardMatch:
+    def explain_fit(
+        self, product: dict, interest_text: str, top_k: int = 2
+    ) -> CardMatch:
         """The lines in `product`'s welcome offers / reward scheme that best
         match what the customer just said, ranked by similarity.
 
@@ -91,16 +106,18 @@ class RulesEngine:
         already decided which card, so this step cannot second-guess that
         choice, only explain it.
         """
-        lines: list[tuple[str, str]] = (
-            [(line, "welcome_offers") for line in product.get("welcome_offers", [])]
-            + [(line, "reward_scheme") for line in product.get("reward_scheme", [])]
-        )
+        lines: list[tuple[str, str]] = [
+            (line, "welcome_offers") for line in product.get("welcome_offers", [])
+        ] + [(line, "reward_scheme") for line in product.get("reward_scheme", [])]
         disclaimer = self._disclaimer_for(product)
 
         if not interest_text or not tokenize(interest_text) or not lines:
             return CardMatch(
-                product_id=product["id"], product_name=product["name"],
-                matched_lines=[MatchedLine(product["value_proposition"], "value_proposition", 0.0)],
+                product_id=product["id"],
+                product_name=product["name"],
+                matched_lines=[
+                    MatchedLine(product["value_proposition"], "value_proposition", 0.0)
+                ],
                 disclaimer=disclaimer,
             )
 
@@ -108,13 +125,22 @@ class RulesEngine:
         scores = index.similarities(interest_text)
         ranked = sorted(zip(lines, scores), key=lambda pair: -pair[1])
 
-        matched = [MatchedLine(text=line, source=source, score=round(score, 3))
-                  for (line, source), score in ranked[:top_k] if score >= MATCH_FLOOR]
+        matched = [
+            MatchedLine(text=line, source=source, score=round(score, 3))
+            for (line, source), score in ranked[:top_k]
+            if score >= MATCH_FLOOR
+        ]
         if not matched:
-            matched = [MatchedLine(product["value_proposition"], "value_proposition", 0.0)]
+            matched = [
+                MatchedLine(product["value_proposition"], "value_proposition", 0.0)
+            ]
 
-        return CardMatch(product_id=product["id"], product_name=product["name"],
-                         matched_lines=matched, disclaimer=disclaimer)
+        return CardMatch(
+            product_id=product["id"],
+            product_name=product["name"],
+            matched_lines=matched,
+            disclaimer=disclaimer,
+        )
 
     # Every product name here starts with "Thẻ " - a customer saying
     # "Premier" or "thẻ Premier" is naming the same card either way, so
@@ -124,7 +150,7 @@ class RulesEngine:
     def _distinguishing(self, name: str) -> str:
         for prefix in self._GENERIC_PREFIXES:
             if name.startswith(prefix):
-                return name[len(prefix):].strip()
+                return name[len(prefix) :].strip()
         return name
 
     def mentions(self, text: str) -> list[dict]:
@@ -141,7 +167,8 @@ class RulesEngine:
             name = product["name"]
             distinguishing = self._distinguishing(name)
             if name.lower() in lowered or (
-                len(distinguishing) >= 3 and distinguishing.lower() in lowered):
+                len(distinguishing) >= 3 and distinguishing.lower() in lowered
+            ):
                 found.append(product)
         return found
 
@@ -174,6 +201,8 @@ class RulesEngine:
         best_match = None
         best_score = -1.0
         for product in self.products:
+            if product.get("segment") not in OPEN_SEGMENTS:
+                continue  # invite-only tier: never pitched to an unverified customer
             match = self.explain_fit(product, interest_text)
             score = max((m.score for m in match.matched_lines), default=0.0)
             if score > best_score:

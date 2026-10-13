@@ -39,7 +39,7 @@ class Passage:
     doc_id: str
     source: str
     title: str
-    heading: str                       # leaf heading - what gets cited
+    heading: str  # leaf heading - what gets cited
     text: str
     heading_path: list[str] = field(default_factory=list)
     chunk_index: int = 0
@@ -137,11 +137,11 @@ def issuers_mentioned(query: str) -> set[str]:
 @dataclass
 class RetrievedPassage:
     passage: Passage
-    score: float              # coverage - the relevance gate
-    similarity: float = 0.0   # cosine
-    bm25: float = 0.0         # Okapi BM25
-    fusion: float = 0.0       # RRF of the three - decides the ordering
-    rerank: float | None = None   # LLM relevance score, when reranking is on
+    score: float  # coverage - the relevance gate
+    similarity: float = 0.0  # cosine
+    bm25: float = 0.0  # Okapi BM25
+    fusion: float = 0.0  # RRF of the three - decides the ordering
+    rerank: float | None = None  # LLM relevance score, when reranking is on
 
 
 def parse_text(raw: str, source: str, stem: str, chunk_fn=None) -> list[Passage]:
@@ -180,6 +180,7 @@ def _parse_document(path: Path, chunk_fn=None) -> list[Passage]:
         # UnsupportedDocument `reload()` already skips over.
         from .ingest import clean as _ingest_clean
         from .ingest import extract as _ingest_extract
+
         raw = _ingest_clean.clean_text(_ingest_extract.extract_pdf(path.read_bytes()))
     else:
         raw = loaders.read_document(path)
@@ -224,13 +225,20 @@ class KnowledgeBase:
                     # down on reload - skip it and keep serving the rest.
                     continue
             self.passages = passages
-            # Index heading + body: headings carry a lot of signal in a small corpus.
-            self._index = TfidfIndex(
-                [f"{p.title} {p.heading} {p.text}" for p in passages]
-            ) if passages else None
+            # Index FULL heading path (breadcrumb) + body, not just the leaf heading.
+            # Leaf-only was ambiguous: every card's fee lives under a "### Phí thường
+            # niên" leaf, so "phí thường niên thẻ Infinite" couldn't tell them apart
+            # and matched the wrong card. The breadcrumb carries the parent card name
+            # ("… › Thẻ Infinite › Phí thường niên") so the query disambiguates.
+            self._index = (
+                TfidfIndex([f"{p.title} {p.breadcrumb} {p.text}" for p in passages])
+                if passages
+                else None
+            )
 
-    def search(self, query: str, top_k: int = 3,
-               gate: float | None = None) -> list[RetrievedPassage]:
+    def search(
+        self, query: str, top_k: int = 3, gate: float | None = None
+    ) -> list[RetrievedPassage]:
         """Retrieve passages for `query`.
 
         `gate` overrides the rejection threshold. The reranking path lowers it
@@ -243,8 +251,9 @@ class KnowledgeBase:
         with self._lock:
             return self._search_locked(query, top_k, gate)
 
-    def _search_locked(self, query: str, top_k: int,
-                       gate: float | None) -> list[RetrievedPassage]:
+    def _search_locked(
+        self, query: str, top_k: int, gate: float | None
+    ) -> list[RetrievedPassage]:
         if self._index is None:
             return []
 
@@ -289,9 +298,13 @@ class KnowledgeBase:
         if best_coverage < threshold:
             return []
 
-        fused = reciprocal_rank_fusion({
-            "coverage": coverages, "cosine": similarities, "bm25": bm25,
-        })
+        fused = reciprocal_rank_fusion(
+            {
+                "coverage": coverages,
+                "cosine": similarities,
+                "bm25": bm25,
+            }
+        )
 
         # Ordered by coverage, not by the fusion score. Fusion was measured
         # against this baseline on the labelled set and did not beat it - see
@@ -320,7 +333,8 @@ class KnowledgeBase:
     def document_paths(self) -> list[Path]:
         """Every readable document in the knowledge-base directory, sorted."""
         return sorted(
-            p for p in self.kb_dir.iterdir()
+            p
+            for p in self.kb_dir.iterdir()
             if p.is_file() and p.suffix.lower() in (*loaders.SUPPORTED, ".pdf")
         )
 

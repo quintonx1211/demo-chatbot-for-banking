@@ -18,7 +18,7 @@
   "customers": [
     {
       "customer_id": "CUS-100301",
-      "name": "Nguyen Van An",
+      "name": "Nguyễn Văn An",
       "given_name": "An",
       "phone_last4": "9411",
       "national_id_last4": "3147",
@@ -30,8 +30,8 @@
     },
     {
       "customer_id": "CUS-100308",
-      "name": "Tran Thi Bich",
-      "given_name": "Bich",
+      "name": "Trần Thị Bích",
+      "given_name": "Bích",
       "phone_last4": "3728",
       "national_id_last4": "9926",
       "segment": "MASS",
@@ -40,8 +40,8 @@
     },
     {
       "customer_id": "CUS-100315",
-      "name": "Le Minh Chau",
-      "given_name": "Chau",
+      "name": "Lê Minh Châu",
+      "given_name": "Châu",
       "phone_last4": "8386",
       "national_id_last4": "5738",
       "segment": "MASS_AFFLUENT",
@@ -53,8 +53,8 @@
     },
     {
       "customer_id": "CUS-100322",
-      "name": "Pham Quoc Dung",
-      "given_name": "Dung",
+      "name": "Phạm Quốc Dũng",
+      "given_name": "Dũng",
       "phone_last4": "3826",
       "national_id_last4": "2134",
       "segment": "MASS_AFFLUENT",
@@ -63,8 +63,8 @@
     },
     {
       "customer_id": "CUS-100329",
-      "name": "Hoang Thi Ha",
-      "given_name": "Ha",
+      "name": "Hoàng Thị Hà",
+      "given_name": "Hà",
       "phone_last4": "8318",
       "national_id_last4": "7062",
       "segment": "AFFLUENT",
@@ -75,8 +75,8 @@
     },
     {
       "customer_id": "CUS-100336",
-      "name": "Vu Duc Hieu",
-      "given_name": "Hieu",
+      "name": "Vũ Đức Hiếu",
+      "given_name": "Hiếu",
       "phone_last4": "7539",
       "national_id_last4": "1860",
       "segment": "AFFLUENT",
@@ -85,7 +85,7 @@
     },
     {
       "customer_id": "CUS-100343",
-      "name": "Dang Thi Lan",
+      "name": "Đặng Thị Lan",
       "given_name": "Lan",
       "phone_last4": "1434",
       "national_id_last4": "6488",
@@ -98,7 +98,7 @@
     },
     {
       "customer_id": "CUS-100350",
-      "name": "Bui Van Long",
+      "name": "Bùi Văn Long",
       "given_name": "Long",
       "phone_last4": "6167",
       "national_id_last4": "3423",

@@ -36,15 +36,19 @@ _FALLBACK = {"min_grounding": 0.55, "min_relevance": 0.28, "high_confidence": 0.
 @dataclass
 class Policy:
     strictness: str
-    min_grounding: float      # answer must be this well supported by its sources
-    min_relevance: float      # a passage must clear this to count as evidence
-    high_confidence: float    # intent confidence needed to run a scripted flow
-    source: str               # where each value came from, for the console
+    min_grounding: float  # answer must be this well supported by its sources
+    min_relevance: float  # a passage must clear this to count as evidence
+    high_confidence: float  # intent confidence needed to run a scripted flow
+    source: str  # where each value came from, for the console
     # Which classifier decides the route. Deliberately NOT part of a strictness
     # preset: it changes which component is in charge, not how cautious that
     # component is, and bundling it into "strict"/"relaxed" would hide a
     # architectural switch behind a safety dial.
     router_mode: str = "nlu"
+    # When True, a question with no knowledge-base match is answered from the
+    # model's general knowledge (persona + safety rails kept) before falling
+    # back to a human. Off by default: the safe, grounded-only behaviour.
+    general_fallback: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -54,6 +58,7 @@ class Policy:
             "high_confidence": self.high_confidence,
             "source": self.source,
             "router_mode": self.router_mode,
+            "general_fallback": self.general_fallback,
             "config_path": str(CONFIG_PATH),
         }
 
@@ -63,8 +68,11 @@ def load(path: Path | None = None) -> Policy:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        return Policy(strictness="balanced", source=f"defaults ({exc.__class__.__name__})",
-                      **_FALLBACK)
+        return Policy(
+            strictness="balanced",
+            source=f"defaults ({exc.__class__.__name__})",
+            **_FALLBACK,
+        )
 
     presets = raw.get("presets", {})
     name = str(raw.get("strictness", "balanced")).lower()
@@ -93,7 +101,15 @@ def load(path: Path | None = None) -> Policy:
         mode = "nlu"
         source += " + router_mode(invalid, using nlu)"
 
-    return Policy(strictness=name, source=source, router_mode=mode, **values)
+    general_fallback = bool(raw.get("general_fallback", False))
+
+    return Policy(
+        strictness=name,
+        source=source,
+        router_mode=mode,
+        general_fallback=general_fallback,
+        **values,
+    )
 
 
 # Loaded once at import and refreshed through reload(); modules read the live

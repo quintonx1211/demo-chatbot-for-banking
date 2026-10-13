@@ -71,6 +71,7 @@ _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
 def mode() -> str:
     """Active router mode, from config with an env override for one-off runs."""
     from .. import policy
+
     override = (os.environ.get("LLM_ROUTER_MODE") or "").strip().lower()
     if override in ("nlu", "shadow", "llm"):
         return override
@@ -80,14 +81,15 @@ def mode() -> str:
 def build_request(message: str, intents: dict, history: str = "") -> LLMRequest:
     """One request describing the available intents and the customer's turn."""
     catalogue = "\n".join(
-        f"- {name}: {spec['utterances'][0]}"
-        for name, spec in intents.items()
+        f"- {name}: {spec['utterances'][0]}" for name, spec in intents.items()
     )
     history_block = f"Hội thoại trước đó:\n{history}\n\n" if history.strip() else ""
     return LLMRequest(
         system=SYSTEM_PROMPT,
-        user=(f"{history_block}Intents:\n{catalogue}\n- unknown: none of these\n\n"
-              f"Tin nhắn của khách: {message}"),
+        user=(
+            f"{history_block}Intents:\n{catalogue}\n- unknown: none of these\n\n"
+            f"Tin nhắn của khách: {message}"
+        ),
         max_tokens=MAX_TOKENS,
         # Classification is not a creative task, and a router that changes its
         # mind between identical turns cannot be audited.
@@ -103,7 +105,7 @@ def classify(message: str, intents: dict, history: str = "") -> dict | None:
     when the provider is down, would take the assistant offline for a reason
     the customer cannot see.
     """
-    from . import active_provider, _effort
+    from . import _effort, active_provider
 
     provider = active_provider()
     if provider is None:

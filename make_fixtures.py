@@ -36,12 +36,16 @@ W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 def _para(text: str, style: str | None = None) -> str:
     props = f'<w:pPr><w:pStyle w:val="{style}"/></w:pPr>' if style else ""
-    return f"<w:p>{props}<w:r><w:t xml:space=\"preserve\">{escape(text)}</w:t></w:r></w:p>"
+    return (
+        f'<w:p>{props}<w:r><w:t xml:space="preserve">{escape(text)}</w:t></w:r></w:p>'
+    )
 
 
 def _bullet(text: str) -> str:
     props = '<w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>'
-    return f"<w:p>{props}<w:r><w:t xml:space=\"preserve\">{escape(text)}</w:t></w:r></w:p>"
+    return (
+        f'<w:p>{props}<w:r><w:t xml:space="preserve">{escape(text)}</w:t></w:r></w:p>'
+    )
 
 
 def _table(rows: list[list[str]]) -> str:
@@ -73,7 +77,6 @@ def build_docx(blocks: list[str]) -> bytes:
 BLOCKS = [
     _para("Business Banking Service Schedule", "Heading1"),
     _para("Effective 1 July 2026. Supersedes the schedule dated 3 March 2025."),
-
     _para("Merchant services", "Heading2"),
     _para("Card acceptance pricing", "Heading3"),
     _para(
@@ -82,18 +85,19 @@ BLOCKS = [
         "which varies by card type and is set by the card networks rather than "
         "by the bank."
     ),
-    _table([
-        ["Transaction type", "Margin", "Per-item fee", "Settlement"],
-        ["Consumer debit, in person", "0.35%", "$0.08", "Next business day"],
-        ["Consumer credit, in person", "0.60%", "$0.08", "Next business day"],
-        ["Card not present", "0.95%", "$0.14", "Two business days"],
-        ["International card", "1.40%", "$0.20", "Three business days"],
-    ]),
+    _table(
+        [
+            ["Transaction type", "Margin", "Per-item fee", "Settlement"],
+            ["Consumer debit, in person", "0.35%", "$0.08", "Next business day"],
+            ["Consumer credit, in person", "0.60%", "$0.08", "Next business day"],
+            ["Card not present", "0.95%", "$0.14", "Two business days"],
+            ["International card", "1.40%", "$0.20", "Three business days"],
+        ]
+    ),
     _para(
         "Settlement timing is measured from the daily cut-off of 5:00 PM ET. "
         "A batch closed after the cut-off settles on the following cycle."
     ),
-
     _para("Chargebacks and representment", "Heading3"),
     _para(
         "A chargeback raised against a merchant carries a $25 administration "
@@ -108,7 +112,6 @@ BLOCKS = [
         "The exact percentage is set case by case by the risk team and is "
         "reviewed every 90 days."
     ),
-
     _para("Payroll and mass payments", "Heading2"),
     _para("File submission windows", "Heading3"),
     _para(
@@ -121,7 +124,6 @@ BLOCKS = [
     _bullet("Standard payroll: two business days' notice"),
     _bullet("Same-day payroll: available at $75 per file, cut-off 10:00 AM ET"),
     _bullet("Cross-border payroll: five business days, priced per corridor"),
-
     _para("Failed and returned payments", "Heading3"),
     _para(
         "A payment returned for an invalid account number is re-presented once "
@@ -129,7 +131,6 @@ BLOCKS = [
         "item. Returns caused by insufficient funds in the originating account "
         "are charged at $30 per item and are not re-presented automatically."
     ),
-
     _para("Account maintenance", "Heading2"),
     _para("Dormancy", "Heading3"),
     _para(

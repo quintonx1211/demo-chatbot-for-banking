@@ -28,8 +28,14 @@ from .base import TONES
 
 # Settings the console may change. Anything not in here cannot be written
 # through the API - the handler is not a general environment editor.
-_WRITABLE = ("LLM_PROVIDER", "LLM_MODEL", "LLM_EFFORT", "OPENAI_BASE_URL",
-             "LLM_TONE", "LLM_TEMPERATURE")
+_WRITABLE = (
+    "LLM_PROVIDER",
+    "LLM_MODEL",
+    "LLM_EFFORT",
+    "OPENAI_BASE_URL",
+    "LLM_TONE",
+    "LLM_TEMPERATURE",
+)
 
 VALID_EFFORTS = ("low", "medium", "high")
 
@@ -55,18 +61,20 @@ def describe_providers() -> list[dict]:
         # Report whichever accepted variable actually holds a value, so a key
         # supplied as GOOGLE_API_KEY isn't shown as "not set" for Gemini.
         present = next((k for k in provider.ENV_KEYS if os.environ.get(k)), None)
-        catalogue.append({
-            "name": provider.NAME,
-            "package": provider.PACKAGE,
-            "env_key": key_var,
-            "accepts": list(provider.ENV_KEYS),
-            "default_model": provider.DEFAULT_MODEL,
-            "sdk_installed": _sdk_installed(provider),
-            "key_set": present is not None,
-            "key_source": present,
-            "key_masked": mask(os.environ.get(present)) if present else None,
-            "available": provider.available(),
-        })
+        catalogue.append(
+            {
+                "name": provider.NAME,
+                "package": provider.PACKAGE,
+                "env_key": key_var,
+                "accepts": list(provider.ENV_KEYS),
+                "default_model": provider.DEFAULT_MODEL,
+                "sdk_installed": _sdk_installed(provider),
+                "key_set": present is not None,
+                "key_source": present,
+                "key_masked": mask(os.environ.get(present)) if present else None,
+                "available": provider.available(),
+            }
+        )
     return catalogue
 
 
@@ -114,8 +122,7 @@ def configure(
     if effort is not None:
         level = effort.strip().lower()
         if level and level not in VALID_EFFORTS:
-            raise ConfigError(
-                f"Effort must be one of: {', '.join(VALID_EFFORTS)}")
+            raise ConfigError(f"Effort must be one of: {', '.join(VALID_EFFORTS)}")
         _set("LLM_EFFORT", level)
 
     if tone is not None:
@@ -125,8 +132,7 @@ def configure(
         # this value is concatenated into the system prompt, and "the UI would
         # never send that" is not a control.
         if name and name not in TONES:
-            raise ConfigError(
-                f"Tone must be one of: {', '.join(TONES)}")
+            raise ConfigError(f"Tone must be one of: {', '.join(TONES)}")
         _set("LLM_TONE", name)
 
     if temperature is not None:
@@ -136,7 +142,8 @@ def configure(
                 value = float(raw)
             except ValueError:
                 raise ConfigError(
-                    "Temperature must be a number between 0 and 2.") from None
+                    "Temperature must be a number between 0 and 2."
+                ) from None
             if not 0.0 <= value <= 2.0:
                 raise ConfigError("Temperature must be between 0 and 2.")
             _set("LLM_TEMPERATURE", f"{value:g}")

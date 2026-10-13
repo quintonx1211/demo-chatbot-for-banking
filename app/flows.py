@@ -12,10 +12,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from . import cards, memory
 from . import canned_responses as R
+from . import cards, db, memory
 from .campaigns import CampaignBook
-from . import db
 from .nlu import PERSONAL_INTENTS
 from .rules_engine import ENGINE
 from .session import Session
@@ -40,6 +39,11 @@ def _first_name(customer: dict) -> str:
     return customer.get("given_name") or customer["name"].split()[-1]
 
 
+def _full_name(customer: dict) -> str:
+    """The customer's full name as written on the record (họ tên đầy đủ)."""
+    return customer["name"]
+
+
 def _money(amount: float, currency: str = "VND") -> str:
     """Format money the way the currency is actually written.
 
@@ -53,6 +57,7 @@ def _money(amount: float, currency: str = "VND") -> str:
 
 
 # -- verification ---------------------------------------------------------
+
 
 def _verification_prompt(session: Session, intent: str) -> FlowResult:
     """Start the identity check before a protected flow runs: full phone
@@ -95,7 +100,9 @@ def _verify_phone_step(session: Session, text: str) -> FlowResult:
     # through.
     digits = _digits_only(text)
     if len(digits) != 10:
-        return FlowResult(text=R.VERIFICATION_PHONE_FORMAT_RETRY, note="verification_retry")
+        return FlowResult(
+            text=R.VERIFICATION_PHONE_FORMAT_RETRY, note="verification_retry"
+        )
 
     match = db.find_by_phone(digits)
     if not match:
@@ -109,7 +116,9 @@ def _verify_phone_step(session: Session, text: str) -> FlowResult:
 def _verify_cccd_step(session: Session, text: str) -> FlowResult:
     digits = _digits_only(text)
     if len(digits) != 12:
-        return FlowResult(text=R.VERIFICATION_CCCD_FORMAT_RETRY, note="verification_retry")
+        return FlowResult(
+            text=R.VERIFICATION_CCCD_FORMAT_RETRY, note="verification_retry"
+        )
 
     candidate_id = session.slots.get("verify_candidate_id")
     if not candidate_id or not db.check_national_id(candidate_id, digits):
@@ -128,7 +137,9 @@ def _verify_cccd_step(session: Session, text: str) -> FlowResult:
     # Cross-session recall lands here and nowhere earlier: before this line the
     # session has no verified customer, so there is nobody to remember.
     recalled = memory.store.summary(match["customer_id"])
-    greeting = f"Cảm ơn quý khách {_first_name(match)}, quý khách đã xác minh thành công. "
+    greeting = (
+        f"Cảm ơn quý khách {_full_name(match)}, quý khách đã xác minh thành công. "
+    )
     if recalled:
         greeting += recalled + " "
 
@@ -140,14 +151,20 @@ def _verify_cccd_step(session: Session, text: str) -> FlowResult:
         follow_up = handle(session, target, "")
         proactive = proactive_offer(session)
         proactive_text = proactive.text if proactive else ""
-        return FlowResult(text=greeting + follow_up.text + proactive_text,
-                          escalate=follow_up.escalate,
-                          escalation_reason=follow_up.escalation_reason,
-                          note="verified_then_" + target)
+        return FlowResult(
+            text=greeting + follow_up.text + proactive_text,
+            escalate=follow_up.escalate,
+            escalation_reason=follow_up.escalation_reason,
+            note="verified_then_" + target,
+        )
     proactive = proactive_offer(session)
     proactive_text = proactive.text if proactive else ""
-    return FlowResult(text=greeting + "Tôi có thể hỗ trợ gì tiếp theo cho quý khách?" + proactive_text,
-                      note="verified")
+    return FlowResult(
+        text=greeting
+        + "Tôi có thể hỗ trợ gì tiếp theo cho quý khách?"
+        + proactive_text,
+        note="verified",
+    )
 
 
 def _verification_retry_or_fail(session: Session) -> FlowResult:
@@ -165,17 +182,22 @@ def _verification_retry_or_fail(session: Session) -> FlowResult:
             note="verification_failed",
         )
     return FlowResult(
-        text=(f"Thông tin chưa khớp với hồ sơ (lần thử {attempts}/3) - "
-              "quý khách vui lòng thử lại."),
+        text=(
+            f"Thông tin chưa khớp với hồ sơ (lần thử {attempts}/3) - "
+            "quý khách vui lòng thử lại."
+        ),
         note="verification_retry",
     )
 
 
 # -- account flows --------------------------------------------------------
 
+
 def _balance(session: Session) -> FlowResult:
     customer = session.customer
-    lines = [f"Đây là số dư tài khoản của quý khách tính đến hôm nay, {_first_name(customer)}:"]
+    lines = [
+        f"Đây là số dư tài khoản của quý khách tính đến hôm nay, {_first_name(customer)}:"
+    ]
     for account in customer["accounts"]:
         lines.append(
             f"- **{account['type']}** {account['mask']} - "
@@ -204,8 +226,10 @@ def _account_summary(session: Session) -> FlowResult:
         state = "" if card["status"] == "active" else f" - {card['status']}"
         lines.append(f"- **Thẻ {card['type']}** {card['mask']}{state}")
     for loan in customer.get("loans", []):
-        lines.append(f"- **{loan['product']}** hồ sơ {loan['application_id']} "
-                     f"- {loan['status']}")
+        lines.append(
+            f"- **{loan['product']}** hồ sơ {loan['application_id']} "
+            f"- {loan['status']}"
+        )
     lines.append("")
     lines.append("Tôi có thể xem chi tiết về bất kỳ mục nào ở trên cho quý khách.")
     return FlowResult(text="\n".join(lines), note="account_summary_from_core")
@@ -242,7 +266,9 @@ def _activate_card(session: Session) -> FlowResult:
         )
 
     if not inactive:
-        return FlowResult(text=R.ACTIVATION_NONE_PENDING, note="activation_none_pending")
+        return FlowResult(
+            text=R.ACTIVATION_NONE_PENDING, note="activation_none_pending"
+        )
 
     card = inactive[0]
     return FlowResult(
@@ -281,7 +307,8 @@ def _card_offers(session: Session) -> FlowResult:
         lines.append("")
     lines.append(
         f"_Được hệ thống chiến dịch của ngân hàng chọn, cập nhật lần cuối "
-        f"{CAMPAIGNS.age_hours:.0f} giờ trước._" if CAMPAIGNS.age_hours is not None
+        f"{CAMPAIGNS.age_hours:.0f} giờ trước._"
+        if CAMPAIGNS.age_hours is not None
         else ""
     )
     return FlowResult(
@@ -301,16 +328,21 @@ def proactive_offer(session: Session) -> FlowResult | None:
     """
     if session.slots.get("campaign_offered"):
         return None
-    offers = [o for o in CAMPAIGNS.offers_for(session.customer_id)
-              if o.type in ("activation", "reactivation", "cross_sell")]
+    offers = [
+        o
+        for o in CAMPAIGNS.offers_for(session.customer_id)
+        if o.type in ("activation", "reactivation", "cross_sell")
+    ]
     if not offers:
         return None
 
     session.slots["campaign_offered"] = "1"
     offer = offers[0]
     return FlowResult(
-        text=(f"\n\n**Nhân tiện:** **{offer.name}** – {offer.hook}\n\n"
-              f"→ {offer.cta}: {offer.deeplink}"),
+        text=(
+            f"\n\n**Nhân tiện:** **{offer.name}** – {offer.hook}\n\n"
+            f"→ {offer.cta}: {offer.deeplink}"
+        ),
         note=f"proactive:{offer.campaign_id}",
     )
 
@@ -355,27 +387,33 @@ CARD_ACTIONS: dict[str, dict] = {
         "verb": "báo mất và khóa",
         "from": ("active", "frozen", "dormant", "inactive"),
         "reversible": False,
-        "confirm": ("Xác nhận lại: báo mất và khóa **thẻ {type} {mask}** của quý khách?\n\n"
-                    "Thao tác này không thể hoàn tác - thẻ đã khóa sẽ không mở lại được, "
-                    "vì vậy tôi sẽ đặt thẻ thay thế cho quý khách cùng lúc. Nếu quý khách chỉ thất lạc "
-                    "tạm thời và nghĩ sẽ tìm lại được, quý khách có thể nói **tạm khóa** để có thể mở khóa sau."),
+        "confirm": (
+            "Xác nhận lại: báo mất và khóa **thẻ {type} {mask}** của quý khách?\n\n"
+            "Thao tác này không thể hoàn tác - thẻ đã khóa sẽ không mở lại được, "
+            "vì vậy tôi sẽ đặt thẻ thay thế cho quý khách cùng lúc. Nếu quý khách chỉ thất lạc "
+            "tạm thời và nghĩ sẽ tìm lại được, quý khách có thể nói **tạm khóa** để có thể mở khóa sau."
+        ),
         "none_left": R.CARD_NONE_LEFT_REPORT_LOST,
     },
     "freeze": {
         "verb": "tạm khóa",
         "from": ("active",),
         "reversible": True,
-        "confirm": ("Tôi có thể tạm khóa **thẻ {type} {mask}** của quý khách ngay. "
-                    "Mọi giao dịch sẽ bị từ chối cho đến khi mở khóa lại, "
-                    "quý khách có thể thực hiện việc này bất cứ lúc nào tại đây.\n\nQuý khách vui lòng trả lời **có** để tạm khóa."),
+        "confirm": (
+            "Tôi có thể tạm khóa **thẻ {type} {mask}** của quý khách ngay. "
+            "Mọi giao dịch sẽ bị từ chối cho đến khi mở khóa lại, "
+            "quý khách có thể thực hiện việc này bất cứ lúc nào tại đây.\n\nQuý khách vui lòng trả lời **có** để tạm khóa."
+        ),
         "none_left": R.CARD_NONE_LEFT_FREEZE,
     },
     "unfreeze": {
         "verb": "mở khóa",
         "from": ("frozen",),
         "reversible": True,
-        "confirm": ("Tôi có thể mở khóa **thẻ {type} {mask}** của quý khách ngay - thẻ sẽ hoạt động "
-                    "lại ngay lập tức.\n\nQuý khách vui lòng trả lời **có** để xác nhận."),
+        "confirm": (
+            "Tôi có thể mở khóa **thẻ {type} {mask}** của quý khách ngay - thẻ sẽ hoạt động "
+            "lại ngay lập tức.\n\nQuý khách vui lòng trả lời **có** để xác nhận."
+        ),
         "none_left": R.CARD_NONE_LEFT_UNFREEZE,
     },
 }
@@ -387,13 +425,74 @@ CARD_ACTIONS: dict[str, dict] = {
 # vấn đề"), so an unanchored match would read a confirmation out of a sentence
 # that was not answering the question. English "yes"/"no" as whole words are
 # far less ambiguous mid-sentence.
+# A message naming a concrete spending / lifestyle interest. Its only job is to
+# decide "does the customer already have an interest we can recommend against?"
+# so the unverified cross-sell path never re-asks someone who just told us. Kept
+# broad on purpose - it includes interests no open card covers (golf, du lịch
+# nước ngoài); those still count as "stated", they just resolve to the open
+# catalogue reply rather than a re-prompt.
+_STATED_INTEREST_RE = re.compile(
+    r"(mua sắm|mua hàng|online|thương mại điện tử|tmđt|shopee|lazada|tiki|"
+    r"ăn uống|nhà hàng|ăn nhà hàng|quán ăn|cà ?phê|cafe|coffee|"
+    r"du lịch|nước ngoài|đi nước ngoài|khách sạn|vé máy bay|máy bay|"
+    r"di chuyển|gọi xe|grab|be\b|xanh sm|taxi|xăng|"
+    r"giải trí|rạp|phim|xem phim|xem ca nhạc|"
+    r"golf|thể thao|gym|tập gym|"
+    r"thời trang|quần áo|mỹ phẩm|siêu thị|tạp hóa|"
+    r"chi tiêu|thanh toán|quẹt thẻ|cà thẻ|cà the|cavet)",
+    re.IGNORECASE,
+)
+
+# Reward preference, the second half of a discovery answer ("ưu tiên hoàn
+# tiền", "tích điểm"). On its own this classifies as reward_inquiry, which would
+# knock the customer out of the cross-sell flow mid-question - see
+# is_cross_sell_answer.
+_REWARD_PREF_RE = re.compile(
+    r"(hoàn tiền|tích điểm|điểm thưởng|ưu đãi|ưu tiên|cashback|points?|dặm|miles)",
+    re.IGNORECASE,
+)
+
+
+# Câu từ chối lọt vào cross-sell (TH3, không nài ép): "không muốn/cần/quan tâm",
+# "không có nhu cầu", "thôi...không", "bận họp/rồi", "để sau". KHÔNG bắt "bận rộn".
+_NO_INTEREST_RE = re.compile(
+    r"(không|đừng|chẳng|chả|chưa)\s*(muốn|cần|thích|quan tâm)"
+    r"|không\s+có\s+nhu\s+cầu"
+    r"|không\s+(mở|đăng\s*ký)"
+    r"|\bthôi\b[^.]*\b(không|khỏi)\b"
+    r"|bận\s+(họp|rồi|lắm|quá)|đang\s+bận"
+    r"|để\s+(sau|dịp\s+khác|lúc\s+khác|hôm\s+khác|khi\s+khác)",
+    re.IGNORECASE,
+)
+
+# Câu hỏi thủ tục/điều kiện mở thẻ (TH1) - lọt vào cross-sell vì có "mở thẻ", nên
+# bắt tại đây để trả lời thủ tục thay vì hỏi lại thói quen chi tiêu.
+_APPLICATION_RE = re.compile(
+    r"(giấy tờ|hồ sơ|điều kiện|thủ tục|chứng minh thu nhập|cần chứng minh|"
+    r"làm sao (để )?mở|làm thế nào (để )?mở|cách (để )?mở)",
+    re.IGNORECASE,
+)
+
+
+def is_cross_sell_answer(text: str) -> bool:
+    """True if `text` reads as an answer to the cross-sell discovery question - a
+    spending interest or a reward preference. The router uses this to keep the
+    pending cross_sell_interest flow instead of re-routing the answer to
+    reward_inquiry or the knowledge base."""
+    return bool(_STATED_INTEREST_RE.search(text) or _REWARD_PREF_RE.search(text))
+
+
 _YES_RE = re.compile(
     r"(\b(yes|yeah|yep|confirm|correct|do it|go ahead)\b"
-    r"|^\s*(có|dạ|vâng|ừ|ok|đồng ý|xác nhận|đúng rồi|làm đi|thực hiện)\b)", re.I)
+    r"|^\s*(có|dạ|vâng|ừ|ok|đồng ý|xác nhận|đúng rồi|làm đi|thực hiện)\b)",
+    re.I,
+)
 _NO_RE = re.compile(
     r"(\b(nope|cancel|stop|don't|dont|wait)\b"
     r"|\bno\b(?! thanks to)"
-    r"|^\s*(không|khỏi|thôi|huỷ|hủy|dừng|đừng|chờ đã)\b)", re.I)
+    r"|^\s*(không|khỏi|thôi|huỷ|hủy|dừng|đừng|chờ đã)\b)",
+    re.I,
+)
 
 
 def _card_action(session: Session, action: str, text: str) -> FlowResult:
@@ -417,16 +516,17 @@ def _card_action(session: Session, action: str, text: str) -> FlowResult:
     if stage == "confirm":
         if _NO_RE.search(text) and not _YES_RE.search(text):
             session.reset_flow()
-            return FlowResult(text=R.CARD_ACTION_CANCELLED,
-                              note=f"{action}_cancelled")
+            return FlowResult(text=R.CARD_ACTION_CANCELLED, note=f"{action}_cancelled")
         if not _YES_RE.search(text):
             return FlowResult(
-                text=f"Bạn trả lời **có** để {spec['verb']} thẻ, hoặc **không** để giữ nguyên nhé.",
-                note=f"{action}_confirm_retry")
+                text=f"Quý khách trả lời **có** để {spec['verb']} thẻ, hoặc **không** để giữ nguyên nhé.",
+                note=f"{action}_confirm_retry",
+            )
 
         try:
-            card = db.set_card_status(session.slots["card_id"], action,
-                                      session_id=session.session_id)
+            card = db.set_card_status(
+                session.slots["card_id"], action, session_id=session.session_id
+            )
         except db.TransitionError as exc:
             # The status changed under us - another session, or the customer
             # doing it in the app while talking to us. Report what the record
@@ -435,59 +535,75 @@ def _card_action(session: Session, action: str, text: str) -> FlowResult:
             return FlowResult(text=str(exc), note=f"{action}_refused")
 
         session.reset_flow()
-        return FlowResult(text=_confirmation(action, card), note=f"{action}:{card['card_id']}")
+        return FlowResult(
+            text=_confirmation(action, card), note=f"{action}:{card['card_id']}"
+        )
 
     if stage == "select":
         chosen = _match_card(eligible, text)
         if not chosen:
-            return FlowResult(text=_card_choice_prompt(eligible, spec["verb"]),
-                              note=f"{action}_select_retry")
+            return FlowResult(
+                text=_card_choice_prompt(eligible, spec["verb"]),
+                note=f"{action}_select_retry",
+            )
         session.slots["card_id"] = chosen["card_id"]
         session.slots["card_stage"] = "confirm"
-        return FlowResult(text=spec["confirm"].format(**chosen),
-                          note=f"{action}_confirm_prompt")
+        return FlowResult(
+            text=spec["confirm"].format(**chosen), note=f"{action}_confirm_prompt"
+        )
 
     session.pending_flow = action
     session.slots["card_action"] = action
     if len(eligible) == 1:
         session.slots["card_id"] = eligible[0]["card_id"]
         session.slots["card_stage"] = "confirm"
-        return FlowResult(text=spec["confirm"].format(**eligible[0]),
-                          note=f"{action}_confirm_prompt")
+        return FlowResult(
+            text=spec["confirm"].format(**eligible[0]), note=f"{action}_confirm_prompt"
+        )
     session.slots["card_stage"] = "select"
-    return FlowResult(text=_card_choice_prompt(eligible, spec["verb"]),
-                      note=f"{action}_select_prompt")
+    return FlowResult(
+        text=_card_choice_prompt(eligible, spec["verb"]), note=f"{action}_select_prompt"
+    )
 
 
 def _confirmation(action: str, card: dict) -> str:
     """What the customer is told after the record actually changed."""
     reference = card["reference"]
     if action == "freeze":
-        return (f"Đã tạm khóa **thẻ {card['type']} {card['mask']}** của quý khách "
-                f"ngay bây giờ. Mã tham chiếu **{reference}**.\n\n"
-                "Mọi giao dịch sẽ bị từ chối, kể cả thanh toán định kỳ. "
-                "Quý khách chỉ cần nói **mở khóa thẻ** khi muốn dùng lại.")
+        return (
+            f"Đã tạm khóa **thẻ {card['type']} {card['mask']}** của quý khách "
+            f"ngay bây giờ. Mã tham chiếu **{reference}**.\n\n"
+            "Mọi giao dịch sẽ bị từ chối, kể cả thanh toán định kỳ. "
+            "Quý khách chỉ cần nói **mở khóa thẻ** khi muốn dùng lại."
+        )
     if action == "unfreeze":
-        return (f"**Thẻ {card['type']} {card['mask']}** của quý khách đã được kích hoạt trở lại - "
-                f"mã tham chiếu **{reference}**. Quý khách có thể sử dụng ngay bây giờ.\n\n"
-                "Nếu có giao dịch nào bị từ chối trong thời gian tạm khóa, "
-                "đơn vị thụ hưởng sẽ cần thực hiện lại giao dịch đó.")
+        return (
+            f"**Thẻ {card['type']} {card['mask']}** của quý khách đã được kích hoạt trở lại - "
+            f"mã tham chiếu **{reference}**. Quý khách có thể sử dụng ngay bây giờ.\n\n"
+            "Nếu có giao dịch nào bị từ chối trong thời gian tạm khóa, "
+            "đơn vị thụ hưởng sẽ cần thực hiện lại giao dịch đó."
+        )
     replacement = card.get("replacement") or {}
-    return (f"Đã khóa **thẻ {card['type']} {card['mask']}** của quý khách, "
-            f"có hiệu lực ngay lập tức. Mã tham chiếu **{reference}**.\n\n"
-            f"Tôi đã đặt thẻ thay thế: **{replacement.get('mask', 'thẻ mới')}**, "
-            "sẽ đến trong 5-7 ngày làm việc, miễn phí. Quý khách cần kích hoạt thẻ khi nhận được, "
-            "và do số thẻ thay đổi, quý khách vui lòng cập nhật các thanh toán định kỳ liên kết với thẻ cũ.\n\n"
-            "Quý khách có muốn hỏi thêm về thẻ cũ không?")
+    return (
+        f"Đã khóa **thẻ {card['type']} {card['mask']}** của quý khách, "
+        f"có hiệu lực ngay lập tức. Mã tham chiếu **{reference}**.\n\n"
+        f"Tôi đã đặt thẻ thay thế: **{replacement.get('mask', 'thẻ mới')}**, "
+        "sẽ đến trong 5-7 ngày làm việc, miễn phí. Quý khách cần kích hoạt thẻ khi nhận được, "
+        "và do số thẻ thay đổi, quý khách vui lòng cập nhật các thanh toán định kỳ liên kết với thẻ cũ.\n\n"
+        "Quý khách có muốn hỏi thêm về thẻ cũ không?"
+    )
 
 
 def _card_choice_prompt(cards: list[dict], verb: str) -> str:
     options = "\n".join(
         f"- Thẻ {c['type']} {c['mask']}"
         + ("" if c["status"] == "active" else f" ({c['status']})")
-        for c in cards)
-    return (f"Quý khách muốn {verb} thẻ nào ạ?\n{options}\n\n"
-            "Quý khách vui lòng trả lời bằng 4 số cuối hoặc loại thẻ.")
+        for c in cards
+    )
+    return (
+        f"Quý khách muốn {verb} thẻ nào ạ?\n{options}\n\n"
+        "Quý khách vui lòng trả lời bằng 4 số cuối hoặc loại thẻ."
+    )
 
 
 def _match_card(cards: list[dict], text: str) -> dict | None:
@@ -535,12 +651,133 @@ def _product_comparison(text: str) -> FlowResult:
         fee = product.get("annual_fee", {})
         lines.append(f"**{product['name']}**")
         lines.append(f"- {product['value_proposition']}")
-        lines.append(f"- Phí thường niên: {fee.get('amount', '')} ({fee.get('waiver_condition', '')})")
+        lines.append(
+            f"- Phí thường niên: {fee.get('amount', '')} ({fee.get('waiver_condition', '')})"
+        )
         lines.append("")
     return FlowResult(text="\n".join(lines).strip(), note="product_comparison")
 
 
+def _card_catalogue(text: str = "") -> FlowResult:
+    """Card enquiries, progressive disclosure:
+
+      * one card named ("thẻ Platinum có gì") -> full detail of that card
+      * otherwise ("ngân hàng có những loại thẻ nào") -> a compact one-line
+        summary of all four, then invite the customer to dig into one.
+
+    Authoritative from products.json, so it never mis-retrieves a dispute doc or
+    lets the LLM answer generically with "thẻ ATM, thẻ tín dụng"."""
+    mentioned = ENGINE.mentions(text)
+    if len(mentioned) == 1:
+        return _card_detail(mentioned[0])
+
+    lines = ["Ngân hàng ABC hiện phát hành các dòng thẻ sau:", ""]
+    for product in ENGINE.products:
+        # Mệnh đề đầu của value_proposition cho gọn một dòng (tóm tắt).
+        vp = (
+            (product.get("value_proposition") or "")
+            .split(" - ")[0]
+            .split(".")[0]
+            .strip()
+        )
+        lines.append(
+            f"- **{product['name']}** – {vp}" if vp else f"- **{product['name']}**"
+        )
+    lines.append("")
+    lines.append(
+        "Quý khách muốn tìm hiểu kỹ thẻ nào, hay để tôi gợi ý thẻ phù hợp "
+        "với chi tiêu của quý khách ạ?"
+    )
+    return FlowResult(text="\n".join(lines), note="card_catalogue")
+
+
+def outbound_greeting(title: str, name: str, card_id: str) -> str:
+    """Lời chào mở đầu cho cuộc gọi cross-sell mô phỏng (demo). Ghép danh xưng +
+    tên khách admin nhập với đúng dòng thẻ được chọn (dữ liệu thật từ
+    products.json). Theo văn phong pitch của demo_tutorial.md."""
+    card = (
+        next((p for p in ENGINE.products if p["id"] == card_id), None)
+        or ENGINE.products[0]
+    )
+    hook = (card.get("welcome_offers") or card.get("reward_scheme") or [""])[0]
+    who = (
+        " ".join(part for part in (title.strip(), name.strip()) if part) or "quý khách"
+    )
+    return (
+        f"Dạ em chào {who}, em là trợ lý ảo của Ngân hàng ABC ạ. Bên em thấy "
+        f"{who} là khách hàng thân thiết nên đã ưu tiên duyệt trước **{card['name']}** "
+        f"cho mình. Thẻ đang có ưu đãi: {hook}. Không biết {who} có muốn em tư vấn "
+        "nhanh để nhận thẻ luôn không ạ?"
+    )
+
+
+def _card_detail(card: dict) -> FlowResult:
+    """The full 'table row' for one card - ưu đãi chào mừng, quyền lợi/hoàn tiền,
+    phí thường niên & miễn phí năm 2 - all straight from products.json. This is
+    the 'khách hỏi thêm thì giới thiệu thêm' step after the compact catalogue."""
+    lines = [f"**{card['name']}** – {card.get('value_proposition', '')}", ""]
+    welcome = card.get("welcome_offers") or []
+    if welcome:
+        lines.append("**Ưu đãi chào mừng:**")
+        lines += [f"- {w}" for w in welcome]
+        lines.append("")
+    rewards = card.get("reward_scheme") or []
+    if rewards:
+        lines.append("**Quyền lợi & hoàn tiền:**")
+        lines += [f"- {r}" for r in rewards]
+        lines.append("")
+    fee = card.get("annual_fee") or {}
+    if fee.get("amount"):
+        cond = fee.get("waiver_condition", "")
+        lines.append(
+            f"**Phí thường niên:** {fee['amount']}" + (f" — {cond}" if cond else "")
+        )
+        lines.append("")
+    lines.append("Quý khách muốn mở thẻ này, hay so sánh với dòng thẻ khác ạ?")
+    return FlowResult(text="\n".join(lines).strip(), note="card_detail:" + card["id"])
+
+
+def _card_application(session: Session) -> FlowResult:
+    """TH1: thủ tục/điều kiện mở thẻ. 'Kết hợp': thủ tục chung cho mọi khách, và
+    nếu khách ĐÃ xác minh + nằm trong danh sách target cross-sell thì thêm dòng
+    'đã được duyệt trước' (đúng ngữ cảnh demo_tutorial, không nói bừa với khách
+    vãng lai)."""
+    preapproved = ""
+    if session.verified and session.customer_id:
+        offers = [
+            o
+            for o in CAMPAIGNS.offers_for(session.customer_id)
+            if o.type == "cross_sell"
+        ]
+        if offers:
+            preapproved = (
+                f"Tin vui: quý khách nằm trong danh sách **được duyệt trước** cho "
+                f"{offers[0].name} — không cần bổ sung giấy tờ, chỉ cần xác nhận là "
+                "mở được ngay ạ.\n\n"
+            )
+    body = (
+        "Thủ tục mở thẻ tín dụng thông thường:\n\n"
+        "- **Giấy tờ:** CMND/CCCD còn hiệu lực.\n"
+        "- **Chứng minh thu nhập:** tùy hạng thẻ (hạng cao yêu cầu cao hơn); có thể "
+        "được miễn nếu quý khách đã có lịch sử giao dịch với ngân hàng.\n"
+        "- **Cách đăng ký:** trực tuyến qua ứng dụng/website, hoặc tại chi nhánh.\n\n"
+        "Quý khách muốn tôi tư vấn thẻ phù hợp, hay hướng dẫn các bước mở thẻ ạ?"
+    )
+    return FlowResult(text=preapproved + body, note="card_application")
+
+
 def _cross_sell_interest(session: Session, text: str) -> FlowResult:
+    # "tôi không muốn mở thẻ" phân loại vào đây vì "mở thẻ" lấn át phần phủ định.
+    # Đó là lời từ chối - rút lui lịch sự, không chào thẻ (TH3).
+    if _NO_INTEREST_RE.search(text):
+        session.reset_flow()
+        return FlowResult(text=R.DECLINE_GRACEFUL, note="decline")
+
+    # TH1: câu hỏi thủ tục/điều kiện mở thẻ -> trả lời thủ tục, không hỏi chi tiêu.
+    if _APPLICATION_RE.search(text):
+        session.reset_flow()
+        return _card_application(session)
+
     # Two modes depending on whether identity has been verified:
     #
     # Verified  → segment-locked: the bank already assigned a card tier to this
@@ -561,42 +798,51 @@ def _cross_sell_interest(session: Session, text: str) -> FlowResult:
         interest_text = text.strip() or " ".join(profile.get("stated_interests") or [])
         if interest_text:
             match = ENGINE.explain_fit(card, interest_text)
-            specific = any(line.source != "value_proposition" for line in match.matched_lines)
-            if specific or already_asked or profile.get("stated_interests") or interest_text:
+            specific = any(
+                line.source != "value_proposition" for line in match.matched_lines
+            )
+            if (
+                specific
+                or already_asked
+                or profile.get("stated_interests")
+                or interest_text
+            ):
                 session.reset_flow()
                 return _render_match(card, match)
         session.pending_flow = "cross_sell_interest"
         session.slots["cross_sell_asked"] = "1"
         return FlowResult(
-            text=(f"{_first_name(profile)} hay mua hàng trên nền tảng nào, "
-                  "hay thường chi tiêu nhiều ở đâu nhất?"),
+            text=(
+                f"{_first_name(profile)} hay mua hàng trên nền tảng nào, "
+                "hay thường chi tiêu nhiều ở đâu nhất?"
+            ),
             note="cross_sell_ask_interest_verified",
         )
 
-    # Unverified path — ask first then recommend, UNLESS the message is already
-    # a direct recommendation request ("thẻ nào / thẻ gì / nên dùng thẻ...").
-    _DIRECT_Q = re.compile(r"thẻ nào|thẻ gì|nên dùng thẻ|gợi ý thẻ", re.IGNORECASE)
+    # Unverified path — consultative, not pushy. On the FIRST message we do not
+    # pitch a card: we acknowledge and ask one discovery question to understand
+    # the need, keeping whatever interest was already named. On the SECOND we
+    # recommend, combining both messages. already_asked closes the loop, so the
+    # discovery question is asked exactly once and the turn always resolves.
     interest_text = text.strip()
 
-    if interest_text and (_DIRECT_Q.search(interest_text) or already_asked):
-        best = ENGINE.recommend_all(interest_text)
-        if best is not None:
-            session.reset_flow()
-            return _render_match(best["card"], best["match"])
-        if already_asked:
-            session.reset_flow()
-            return FlowResult(
-                text="Tôi chưa tìm được sản phẩm thẻ phù hợp nhất với thông tin quý khách cung cấp. "
-                     "Quý khách có thể mô tả thêm về thói quen chi tiêu không?",
-                note="cross_sell_no_match",
-            )
+    if not already_asked:
+        if _STATED_INTEREST_RE.search(interest_text):
+            session.slots["xsell_interest"] = interest_text
+        session.pending_flow = "cross_sell_interest"
+        session.slots["cross_sell_asked"] = "1"
+        return FlowResult(text=R.CROSS_SELL_DISCOVER, note="cross_sell_discover")
 
-    session.pending_flow = "cross_sell_interest"
-    session.slots["cross_sell_asked"] = "1"
-    return FlowResult(
-        text=R.CROSS_SELL_ASK_INTEREST_UNVERIFIED,
-        note="cross_sell_ask_interest_unverified",
-    )
+    combined = " ".join(
+        part for part in (session.slots.get("xsell_interest"), interest_text) if part
+    ).strip()
+    best = ENGINE.recommend_all(combined)
+    session.reset_flow()
+    if best is not None:
+        return _render_match(best["card"], best["match"])
+    # Even after discovery, nothing an openly-marketed card specifically covers
+    # (e.g. golf, du lịch nước ngoài). Show the open catalogue rather than loop.
+    return FlowResult(text=R.CROSS_SELL_NO_OPEN_MATCH, note="cross_sell_no_open_match")
 
 
 def _reward_inquiry(session: Session) -> FlowResult:
@@ -625,13 +871,17 @@ def _card_close(session: Session, text: str) -> FlowResult:
             result = cards.close_card(session.customer_id, session.session_id)
         except cards.TransitionError as exc:
             return FlowResult(text=str(exc), note="card_close_error")
-        return FlowResult(text=f"Đã đóng thẻ của quý khách (mã tham chiếu {result['reference']}).",
-                          note="card_close_done")
+        return FlowResult(
+            text=f"Đã đóng thẻ của quý khách (mã tham chiếu {result['reference']}).",
+            note="card_close_done",
+        )
     card = cards.get_card(session.customer_id)
     if not card:
         return FlowResult(text=R.CARD_CLOSE_NONE, note="card_close_none")
     if card["status"] == "closed":
-        return FlowResult(text=R.CARD_CLOSE_ALREADY_CLOSED, note="card_close_already_closed")
+        return FlowResult(
+            text=R.CARD_CLOSE_ALREADY_CLOSED, note="card_close_already_closed"
+        )
     if card["status"] != "active":
         return FlowResult(text=R.CARD_CLOSE_NONE, note="card_close_none")
     session.pending_flow = "card_close"
@@ -643,13 +893,17 @@ def _submit_limit_request(session: Session, amount: float | None) -> FlowResult:
     if amount is None:
         return FlowResult(text=R.LIMIT_INVALID, note="card_limit_invalid")
     try:
-        result = cards.request_limit_adjustment(session.customer_id, amount, session.session_id)
+        result = cards.request_limit_adjustment(
+            session.customer_id, amount, session.session_id
+        )
     except cards.TransitionError as exc:
         return FlowResult(text=str(exc), note="card_limit_error")
     return FlowResult(
-        text=(f"Mình đã ghi nhận yêu cầu điều chỉnh hạn mức lên {_money(amount)} "
-              f"(mã tham chiếu {result['reference']}) rồi nhé. Đây là yêu cầu chờ duyệt - "
-              "hạn mức hiện tại chưa thay đổi cho tới khi có kết quả xét duyệt."),
+        text=(
+            f"Tôi đã ghi nhận yêu cầu điều chỉnh hạn mức lên {_money(amount)} "
+            f"(mã tham chiếu {result['reference']}) rồi nhé. Đây là yêu cầu chờ duyệt - "
+            "hạn mức hiện tại chưa thay đổi cho tới khi có kết quả xét duyệt."
+        ),
         note="card_limit_requested",
     )
 
@@ -669,6 +923,7 @@ def _card_limit_adjust(session: Session, text: str) -> FlowResult:
 
 
 # -- dispatch -------------------------------------------------------------
+
 
 def handle(session: Session, intent: str, text: str) -> FlowResult:
     """Run the scripted flow for `intent`, gating protected ones on verification."""
@@ -691,6 +946,8 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
         return _card_action(session, "unfreeze", text)
     if intent == "product_comparison":
         return _product_comparison(text)
+    if intent == "card_catalogue":
+        return _card_catalogue(text)
     if intent == "cross_sell_interest":
         return _cross_sell_interest(session, text)
     if intent == "reward_inquiry":
@@ -712,6 +969,9 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
         return FlowResult(text=R.SMALLTALK, note="smalltalk")
     if intent == "goodbye":
         return FlowResult(text=R.GOODBYE, note="goodbye")
+    if intent == "decline":
+        # TH3: khách từ chối/bận - lịch sự rút lui, không nài, không đẩy chuyên viên.
+        return FlowResult(text=R.DECLINE_GRACEFUL, note="decline")
     if intent == "human_agent":
         return FlowResult(
             text=R.HUMAN_AGENT_HANDOFF,

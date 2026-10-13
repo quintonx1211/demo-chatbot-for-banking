@@ -18,31 +18,62 @@ import re
 import time
 from dataclasses import dataclass, field
 
+from . import agents, demo_script, flows, guardrails, llm, playbook, policy
 from . import canned_responses as R
-from . import demo_script
-from . import flows, guardrails, llm, policy
-from .llm import rerank, route
-from .nlu import (HIGH_CONFIDENCE, LOW_CONFIDENCE, IntentClassifier,
-                  IntentPrediction)
-from .retriever import MIN_RELEVANCE, KnowledgeBase
-from .trace import Trace
 from . import memory as memory_mod
-from .textmodel import tokenize
+from .llm import rerank, route
+from .nlu import HIGH_CONFIDENCE, LOW_CONFIDENCE, IntentClassifier, IntentPrediction
+from .retriever import MARKET_DOC_PREFIX, MIN_RELEVANCE, KnowledgeBase
 from .session import Session, SessionStore
+from .textmodel import tokenize
+from .trace import Trace
 
 # Two consecutive turns we couldn't confidently handle means the assistant is
 # not converging - hand off rather than let the customer keep rephrasing.
 MAX_LOW_CONFIDENCE_STREAK = 2
 
+# Ngưỡng grounding nới cho tài liệu thị trường (KB-MKT-*): nguồn là bảng nên trùng
+# chữ ít, ngưỡng ngân hàng mình (0.55) loại oan. Không đụng ngưỡng tài liệu mình.
+MARKET_MIN_GROUNDING = 0.35
+
+# Disclaimer tự chèn nếu model quên (câu trả lời về sản phẩm ngân hàng khác).
+_MARKET_DISCLAIMER = (
+    "\n\n_Lưu ý: thông tin trên tham khảo từ nguồn công khai về sản phẩm của ngân "
+    "hàng khác, chưa được ABC Bank xác minh - quý khách vui lòng xác nhận lại với "
+    "ngân hàng phát hành._"
+)
+
+
+def _ensure_market_disclaimer(text: str) -> str:
+    """Chèn disclaimer 'chưa xác minh' nếu model chưa tự nêu (tránh chèn đúp)."""
+    low = text.lower()
+    if any(
+        k in low
+        for k in (
+            "chưa được xác minh",
+            "chưa xác minh",
+            "chưa xác nhận",
+            "ngân hàng phát hành",
+            "xác nhận lại với",
+            "tham khảo thị trường",
+            "tham khảo từ nguồn",
+        )
+    ):
+        return text
+    return text.rstrip() + _MARKET_DISCLAIMER
+
+
 # Addressing. "@agent hello" reaches a human; "@bot ..." pulls the assistant
 # back in while a human has the conversation. Anything else is routed normally.
-_MENTION_RE = re.compile(r"^\s*@(agent|human|staff|bot|assistant|ai)(?=[\s:,]|$)[:,]?\s*",
-                         re.IGNORECASE)
+_MENTION_RE = re.compile(
+    r"^\s*@(agent|human|staff|bot|assistant|ai)(?=[\s:,]|$)[:,]?\s*", re.IGNORECASE
+)
 _AGENT_MENTIONS = {"agent", "human", "staff"}
 
 # Leaving a conversation a human has taken over.
-_LEAVE_RE = re.compile(r"^\s*(/leave|/bot|/back|end chat|leave chat)\s*$",
-                       re.IGNORECASE)
+_LEAVE_RE = re.compile(
+    r"^\s*(/leave|/bot|/back|end chat|leave chat)\s*$", re.IGNORECASE
+)
 
 # Accepting or declining the offer of a human agent, in both languages.
 # "không" is checked before "có" by the caller, because "không" is the more
@@ -51,10 +82,24 @@ _LEAVE_RE = re.compile(r"^\s*(/leave|/bot|/back|end chat|leave chat)\s*$",
 _AFFIRM_RE = re.compile(
     r"^\s*(yes|yeah|yep|yup|ok(ay)?|sure|please|go ahead|do it|connect me|"
     r"put me through|transfer me|i do|"
-    r"có|được|đồng ý|kết nối|vâng|ừ|oke|ok)(?=[\s.!,]|$)", re.IGNORECASE)
+    r"có|được|đồng ý|kết nối|vâng|ừ|oke|ok)(?=[\s.!,]|$)",
+    re.IGNORECASE,
+)
 _DECLINE_RE = re.compile(
     r"^\s*(no|nope|not now|no thanks|nah|don'?t|cancel|"
-    r"không|thôi|không cần|không muốn|tiếp tục)(?=[\s.!,]|$)", re.IGNORECASE)
+    r"không|thôi|không cần|không muốn|tiếp tục)(?=[\s.!,]|$)",
+    re.IGNORECASE,
+)
+
+# Câu trả lời của bot tự ĐỀ NGHỊ kết nối/chuyển sang người thật (thường ở nhánh
+# llm_general/rag). Bắt để hiện nút "Kết nối chuyên viên?" và cho lượt "có" kế
+# tiếp thực sự chuyển. Cố ý KHÔNG khớp "chuyên viên sẽ gọi lại" (đã tạo ticket).
+_HANDOFF_OFFER_RE = re.compile(
+    r"kết nối[^.]{0,40}(chuyên viên|nhân viên|tư vấn viên)"
+    r"|chuyển[^.]{0,40}(chuyên viên|bộ phận chăm sóc|nhân viên hỗ trợ|tư vấn viên)"
+    r"|gặp[^.]{0,20}(chuyên viên|nhân viên|tư vấn viên)",
+    re.IGNORECASE,
+)
 
 
 def split_mention(text: str) -> tuple[str | None, str]:
@@ -64,7 +109,8 @@ def split_mention(text: str) -> tuple[str | None, str]:
         return None, text
     target = match.group(1).lower()
     who = "agent" if target in _AGENT_MENTIONS else "bot"
-    return who, text[match.end():].strip()
+    return who, text[match.end() :].strip()
+
 
 _FLOW_LABELS = {
     "verify": "xác minh danh tính",
@@ -99,9 +145,9 @@ class TurnResult:
     escalated: bool = False
     escalation_reason: str | None = None
     latency_ms: int = 0
-    offer_escalation: bool = False   # UI should show the yes/no handoff prompt
-    with_agent: bool = False         # a human currently owns this conversation
-    trace: list = field(default_factory=list)   # why this route was taken
+    offer_escalation: bool = False  # UI should show the yes/no handoff prompt
+    with_agent: bool = False  # a human currently owns this conversation
+    trace: list = field(default_factory=list)  # why this route was taken
     debug: dict = field(default_factory=dict)
 
 
@@ -130,8 +176,10 @@ class Router:
             step = demo_script.next_reply(session)
             if step is not None:
                 self.trace.decide(
-                    "demo_script", f"scripted reply ({script_name})",
-                    "routing, guardrails, retrieval and the model were all bypassed")
+                    "demo_script",
+                    f"scripted reply ({script_name})",
+                    "routing, guardrails, retrieval and the model were all bypassed",
+                )
                 result = TurnResult(
                     text=step.get("reply", ""),
                     route=step.get("route", "scripted"),
@@ -139,25 +187,34 @@ class Router:
                     confidence=1.0,
                     sources=step.get("sources", []),
                     generated=False,
-                    debug={"note": f"scripted step {session.script_step}/"
-                                   f"{demo_script.step_count(script_name)} "
-                                   f"({script_name})"},
+                    debug={
+                        "note": f"scripted step {session.script_step}/"
+                        f"{demo_script.step_count(script_name)} "
+                        f"({script_name})"
+                    },
                 )
                 result.latency_ms = int((time.perf_counter() - started) * 1000)
                 result.trace = self.trace.to_list()
                 session.add_message("assistant", result.text)
                 session.record(
-                    utterance=text, route=result.route, intent=result.intent,
-                    confidence=1.0, generated=False,
-                    latency_ms=result.latency_ms, note=result.debug["note"],
+                    utterance=text,
+                    route=result.route,
+                    intent=result.intent,
+                    confidence=1.0,
+                    generated=False,
+                    latency_ms=result.latency_ms,
+                    note=result.debug["note"],
                 )
                 return result
             # The script just ran out on this turn - no reply was staged, so
             # this turn is real. Fall through to normal routing, but leave a
             # trace entry so an operator watching the inspector sees why the
             # answer suddenly stopped being scripted.
-            self.trace.add("demo_script", f"'{script_name}' script ended",
-                           "falling back to normal routing for this turn")
+            self.trace.add(
+                "demo_script",
+                f"'{script_name}' script ended",
+                "falling back to normal routing for this turn",
+            )
 
         # Demo lever, checked before anything else the router does. Everyone
         # below this line - guardrails, NLU, flows, retrieval, grounding -
@@ -170,8 +227,11 @@ class Router:
             result.trace = self.trace.to_list()
             session.add_message("assistant", result.text)
             session.record(
-                utterance=text, route=result.route, intent=result.intent,
-                confidence=result.confidence, generated=result.generated,
+                utterance=text,
+                route=result.route,
+                intent=result.intent,
+                confidence=result.confidence,
+                generated=result.generated,
                 latency_ms=result.latency_ms,
                 note="raw mode: no routing, guardrails, retrieval or grounding check",
             )
@@ -190,17 +250,27 @@ class Router:
             session.escalation_reason = None
             session.pending_escalation = None
             session.record(
-                utterance=text, route="deterministic", intent="left_agent",
+                utterance=text,
+                route="deterministic",
+                intent="left_agent",
                 confidence=1.0,
-                note=(f"customer left the chat with {agent_name}" if agent_name
-                      else "customer left the handoff queue before it was claimed"),
+                note=(
+                    f"customer left the chat with {agent_name}"
+                    if agent_name
+                    else "customer left the handoff queue before it was claimed"
+                ),
             )
-            reply = (f"Quý khách đã quay lại với trợ lý ảo - {agent_name} đã kết thúc cuộc trò chuyện này. "
-                     "Tôi có thể hỗ trợ gì tiếp theo cho quý khách?"
-                     if agent_name else R.LEFT_AGENT_NO_NAME)
+            reply = (
+                f"Quý khách đã quay lại với trợ lý ảo - {agent_name} đã kết thúc cuộc trò chuyện này. "
+                "Tôi có thể hỗ trợ gì tiếp theo cho quý khách?"
+                if agent_name
+                else R.LEFT_AGENT_NO_NAME
+            )
             session.add_message("assistant", reply)
             return TurnResult(
-                text=reply, route="deterministic", intent="left_agent",
+                text=reply,
+                route="deterministic",
+                intent="left_agent",
                 confidence=1.0,
                 latency_ms=int((time.perf_counter() - started) * 1000),
                 debug={"note": "customer ended the agent conversation"},
@@ -212,11 +282,17 @@ class Router:
         if _LEAVE_RE.match(text):
             reply = R.LEAVE_NOOP
             session.add_message("assistant", reply)
-            session.record(utterance=text, route="deterministic",
-                           intent="left_agent", confidence=1.0,
-                           note="/leave with no agent attached")
+            session.record(
+                utterance=text,
+                route="deterministic",
+                intent="left_agent",
+                confidence=1.0,
+                note="/leave with no agent attached",
+            )
             return TurnResult(
-                text=reply, route="deterministic", intent="left_agent",
+                text=reply,
+                route="deterministic",
+                intent="left_agent",
                 confidence=1.0,
                 latency_ms=int((time.perf_counter() - started) * 1000),
                 debug={"note": "no agent was attached"},
@@ -238,12 +314,19 @@ class Router:
         if (session.handled_by or session.escalated) and mention != "bot":
             waiting_for = session.handled_by or "the next available agent"
             session.record(
-                utterance=text, route="agent", intent="awaiting_agent",
-                confidence=1.0, note=f"queued for {waiting_for}",
+                utterance=text,
+                route="agent",
+                intent="awaiting_agent",
+                confidence=1.0,
+                note=f"queued for {waiting_for}",
             )
             return TurnResult(
-                text="", route="agent", intent="awaiting_agent", confidence=1.0,
-                with_agent=True, escalated=session.escalated,
+                text="",
+                route="agent",
+                intent="awaiting_agent",
+                confidence=1.0,
+                with_agent=True,
+                escalated=session.escalated,
                 latency_ms=int((time.perf_counter() - started) * 1000),
                 debug={"note": f"assistant stood down; queued for {waiting_for}"},
             )
@@ -252,14 +335,19 @@ class Router:
         # customer about whether they want one.
         if mention == "agent" and not session.handled_by:
             result = self._escalate(
-                session, "Customer addressed a human agent directly",
-                intent="human_agent", confidence=1.0,
+                session,
+                "Customer addressed a human agent directly",
+                intent="human_agent",
+                confidence=1.0,
             )
             result.latency_ms = int((time.perf_counter() - started) * 1000)
             session.add_message("assistant", result.text)
             session.record(
-                utterance=text, route=result.route, intent=result.intent,
-                confidence=1.0, latency_ms=result.latency_ms,
+                utterance=text,
+                route=result.route,
+                intent=result.intent,
+                confidence=1.0,
+                latency_ms=result.latency_ms,
                 note=result.debug.get("note", ""),
             )
             return result
@@ -267,6 +355,16 @@ class Router:
         result = self._route(session, body if mention else text)
 
         result.latency_ms = int((time.perf_counter() - started) * 1000)
+        # Bot tự đề nghị kết nối chuyên viên trong câu trả lời (nhánh llm_general/
+        # rag/deterministic) nhưng router chưa đánh dấu -> đánh dấu để hiện nút
+        # Có/Không và để lượt "có" kế tiếp thực sự chuyển chuyên viên.
+        if (
+            not session.pending_escalation
+            and not session.handled_by
+            and result.route not in ("escalation", "agent", "escalation_offered")
+            and _HANDOFF_OFFER_RE.search(result.text or "")
+        ):
+            session.pending_escalation = "Trợ lý đề nghị kết nối chuyên viên"
         result.offer_escalation = bool(session.pending_escalation)
         result.with_agent = bool(session.handled_by)
         result.trace = self.trace.to_list()
@@ -281,8 +379,9 @@ class Router:
             grounding=result.grounding,
             generated=result.generated,
             latency_ms=result.latency_ms,
-            note=" · ".join(filter(None, [self.trace.summary,
-                                          result.debug.get("note", "")])),
+            note=" · ".join(
+                filter(None, [self.trace.summary, result.debug.get("note", "")])
+            ),
         )
         return result
 
@@ -299,7 +398,8 @@ class Router:
         history = session.transcript(limit=12)
         result = llm.raw_chat(text, history=history)
         self.trace.decide(
-            "raw_mode", "architecture disabled for this conversation",
+            "raw_mode",
+            "architecture disabled for this conversation",
             "sent directly to the model with conversation history as the only "
             "context - no guardrail, retrieval, or grounding check ran",
         )
@@ -328,14 +428,25 @@ class Router:
             return
         topic = " ".join(dict.fromkeys(tokenize(text)))[:60].strip()
         if result.route in ("escalation", "escalation_offered"):
-            memory_mod.store.remember(session.customer_id, "outcome", "unresolved",
-                                      detail=topic or "chủ đề chưa xác định")
+            memory_mod.store.remember(
+                session.customer_id,
+                "outcome",
+                "unresolved",
+                detail=topic or "chủ đề chưa xác định",
+            )
         elif result.route == "rag" and result.sources:
-            memory_mod.store.remember(session.customer_id, "topic",
-                                      result.sources[0]["heading"].lower(),
-                                      detail=result.sources[0]["citation"])
+            memory_mod.store.remember(
+                session.customer_id,
+                "topic",
+                result.sources[0]["heading"].lower(),
+                detail=result.sources[0]["citation"],
+            )
         elif result.route == "deterministic" and result.intent in (
-                "card_offers", "activate_card", "cross_sell_interest", "reward_inquiry"):
+            "card_offers",
+            "activate_card",
+            "cross_sell_interest",
+            "reward_inquiry",
+        ):
             memory_mod.store.remember(session.customer_id, "campaign", result.intent)
 
     # -- routing ----------------------------------------------------------
@@ -347,21 +458,29 @@ class Router:
         if session.pending_escalation:
             reason = session.pending_escalation
             session.pending_escalation = None
-            self.trace.add("handoff_offer", "an offer was outstanding",
-                           f"offered because: {reason}")
+            self.trace.add(
+                "handoff_offer",
+                "an offer was outstanding",
+                f"offered because: {reason}",
+            )
 
             if _AFFIRM_RE.match(text):
-                self.trace.decide("handoff_offer", "customer accepted",
-                                  "handing off to a human")
-                return self._escalate(session, reason, intent="escalation_accepted",
-                                      confidence=1.0)
+                self.trace.decide(
+                    "handoff_offer", "customer accepted", "handing off to a human"
+                )
+                return self._escalate(
+                    session, reason, intent="escalation_accepted", confidence=1.0
+                )
             if _DECLINE_RE.match(text):
-                self.trace.decide("handoff_offer", "customer declined",
-                                  "assistant continues")
+                self.trace.decide(
+                    "handoff_offer", "customer declined", "assistant continues"
+                )
                 return TurnResult(
                     text=R.ESCALATION_DECLINED,
-                    route="deterministic", intent="escalation_declined",
-                    confidence=1.0, debug={"note": "customer declined the handoff"},
+                    route="deterministic",
+                    intent="escalation_declined",
+                    confidence=1.0,
+                    debug={"note": "customer declined the handoff"},
                 )
             # Anything else is a new question. Dropping the offer and answering
             # it is the right reading: they moved on.
@@ -383,8 +502,13 @@ class Router:
                 # silently forgotten.
                 result = self._route_fresh(session, text)
                 result.debug["note"] = " · ".join(
-                    filter(None, [f"abandoned:{flow_name}({abandon})",
-                                  result.debug.get("note", "")])
+                    filter(
+                        None,
+                        [
+                            f"abandoned:{flow_name}({abandon})",
+                            result.debug.get("note", ""),
+                        ],
+                    )
                 )
                 return result
 
@@ -399,18 +523,22 @@ class Router:
                 session.flow_misses = 0
 
             if pending.escalate:
-                return self._escalate(session, pending.escalation_reason,
-                                      prefix=pending.text)
+                return self._escalate(
+                    session, pending.escalation_reason, prefix=pending.text
+                )
             return TurnResult(
-                text=pending.text, route="deterministic",
+                text=pending.text,
+                route="deterministic",
                 intent=f"flow:{session.pending_flow or 'resumed'}",
-                confidence=1.0, debug={"note": pending.note},
+                confidence=1.0,
+                debug={"note": pending.note},
             )
 
         return self._route_fresh(session, text)
 
-    def _apply_llm_router(self, session: Session, text: str,
-                          lexical: IntentPrediction) -> IntentPrediction:
+    def _apply_llm_router(
+        self, session: Session, text: str, lexical: IntentPrediction
+    ) -> IntentPrediction:
         """Optionally let a model propose the intent instead.
 
         Returns the prediction the router acts on. In every mode the result is
@@ -436,14 +564,17 @@ class Router:
             # No provider configured. Falling back silently is right - the
             # customer should not learn our model configuration from a
             # degraded reply - but the trace records it for the operator.
-            self.trace.add("router", "lexical (không có provider cho LLM routing)",
-                           f"mode={mode}")
+            self.trace.add(
+                "router", "lexical (không có provider cho LLM routing)", f"mode={mode}"
+            )
             return lexical
 
         if verdict.get("error"):
-            self.trace.add("router",
-                           f"lexical (LLM routing lỗi: {verdict['error']})",
-                           f"mode={mode}")
+            self.trace.add(
+                "router",
+                f"lexical (LLM routing lỗi: {verdict['error']})",
+                f"mode={mode}",
+            )
             return lexical
 
         agreed = verdict["intent"] == lexical.intent
@@ -451,21 +582,24 @@ class Router:
         if agreed:
             session.router_agreements += 1
         else:
-            session.router_disagreements.append({
-                "text": safe_text[:80],
-                "lexical": lexical.intent,
-                "lexical_confidence": round(lexical.confidence, 2),
-                "llm": verdict["intent"],
-                "llm_confidence": round(verdict["confidence"], 2),
-                "why": verdict.get("why", ""),
-                "used": "llm" if mode == "llm" else "lexical",
-            })
+            session.router_disagreements.append(
+                {
+                    "text": safe_text[:80],
+                    "lexical": lexical.intent,
+                    "lexical_confidence": round(lexical.confidence, 2),
+                    "llm": verdict["intent"],
+                    "llm_confidence": round(verdict["confidence"], 2),
+                    "why": verdict.get("why", ""),
+                    "used": "llm" if mode == "llm" else "lexical",
+                }
+            )
 
         self.trace.add(
             "router",
             f"LLM chọn {verdict['intent']} @ {verdict['confidence']:.2f}"
             + ("" if agreed else f" (lexical: {lexical.intent})"),
-            f"mode={mode}; " + ("đang dùng" if mode == "llm" else "chỉ ghi nhận"))
+            f"mode={mode}; " + ("đang dùng" if mode == "llm" else "chỉ ghi nhận"),
+        )
 
         if mode == "shadow":
             return lexical
@@ -503,6 +637,16 @@ class Router:
         if session.pending_flow in flows.CARD_ACTIONS:
             return None
 
+        # Cross-sell discovery answer: a spending interest or reward preference
+        # ("ưu tiên hoàn tiền", "hay đi grab") classifies as reward_inquiry or
+        # cross_sell_interest itself, so keep the flow instead of re-routing the
+        # customer's own answer out of the question we just asked them.
+        if (
+            session.pending_flow == "cross_sell_interest"
+            and flows.is_cross_sell_answer(text)
+        ):
+            return None
+
         if session.flow_misses >= flows.MAX_FLOW_MISSES:
             return f"no-progress-after-{session.flow_misses}"
 
@@ -512,8 +656,10 @@ class Router:
         # they are safe from this; anything that looks like a different request
         # at all is better served by dropping the flow than by re-prompting.
         prediction = self.classifier.predict(text)
-        if (prediction.confidence >= LOW_CONFIDENCE
-                and prediction.intent not in ("unknown", session.pending_flow)):
+        if prediction.confidence >= LOW_CONFIDENCE and prediction.intent not in (
+            "unknown",
+            session.pending_flow,
+        ):
             return f"new-intent:{prediction.intent}@{prediction.confidence:.2f}"
         return None
 
@@ -524,11 +670,15 @@ class Router:
         verdict = guardrails.check_input(text)
         if not verdict.allowed:
             session.low_confidence_streak = 0
-            self.trace.decide("guardrail", f"blocked: {verdict.topic}",
-                              f"{verdict.reason} - no model was called")
+            self.trace.decide(
+                "guardrail",
+                f"blocked: {verdict.topic}",
+                f"{verdict.reason} - no model was called",
+            )
             return TurnResult(
                 text=guardrails.RESTRICTED_RESPONSE,
-                route="guardrail", intent=verdict.topic or "restricted",
+                route="guardrail",
+                intent=verdict.topic or "restricted",
                 confidence=1.0,
                 debug={"note": f"blocked:{verdict.topic} - {verdict.reason}"},
             )
@@ -542,26 +692,74 @@ class Router:
         prediction = self.classifier.predict(text)
         prediction = self._apply_llm_router(session, text, prediction)
         self.trace.add(
-            "nlu", f"intent {prediction.intent} @ {prediction.confidence:.2f}",
+            "nlu",
+            f"intent {prediction.intent} @ {prediction.confidence:.2f}",
             f"threshold {HIGH_CONFIDENCE} for a scripted flow"
-            + (f"; runner-up {prediction.runner_up} @ "
-               f"{prediction.runner_up_confidence:.2f}" if prediction.runner_up else ""))
+            + (
+                f"; runner-up {prediction.runner_up} @ "
+                f"{prediction.runner_up_confidence:.2f}"
+                if prediction.runner_up
+                else ""
+            ),
+        )
 
-        if prediction.is_high_confidence and prediction.intent not in ("knowledge_query", "product_faq"):
+        # Workforce routing. Only a confidently recognised *skill* is subject to
+        # it - a weak or unknown guess is left to the KB fallback below, so a
+        # low-confidence misfire can never wrongly transfer or block. The agent
+        # that owns the skill takes over (announced as a transfer if it differs
+        # from whoever was serving), and if every owner has the skill switched
+        # off it is unsupported bank-wide and we hand to a human.
+        if prediction.is_high_confidence and prediction.intent in agents.SKILL_CATALOG:
+            agent = agents.store.agent_for_intent(
+                prediction.intent, session.current_agent_id
+            )
+            if agent is None:
+                self.trace.decide(
+                    "workforce",
+                    f"{prediction.intent} đang tắt",
+                    "không agent nào đảm nhiệm nghiệp vụ này",
+                )
+                return self._escalate(
+                    session,
+                    f"skill '{prediction.intent}' disabled by admin",
+                    intent=prediction.intent,
+                    confidence=prediction.confidence,
+                    prefix="Rất tiếc, nghiệp vụ này hiện chưa được hỗ trợ.",
+                )
+            if agent.id != session.current_agent_id:
+                self.trace.add(
+                    "workforce",
+                    f"chuyển sang {agent.name}",
+                    f"trước: {session.current_agent_id or 'chưa có'}; "
+                    f"skill {prediction.intent}",
+                )
+                session.current_agent_id = agent.id
+
+        if prediction.is_high_confidence and prediction.intent not in (
+            "knowledge_query",
+            "product_faq",
+        ):
             flow = flows.handle(session, prediction.intent, text)
             if flow.handled:
                 self.trace.decide(
-                    "nlu", "above threshold - scripted flow",
-                    "answer assembled from the customer record; no model involved")
+                    "nlu",
+                    "above threshold - scripted flow",
+                    "answer assembled from the customer record; no model involved",
+                )
                 session.low_confidence_streak = 0
                 if flow.escalate:
-                    return self._escalate(session, flow.escalation_reason,
-                                          intent=prediction.intent,
-                                          confidence=prediction.confidence,
-                                          prefix=flow.text)
+                    return self._escalate(
+                        session,
+                        flow.escalation_reason,
+                        intent=prediction.intent,
+                        confidence=prediction.confidence,
+                        prefix=flow.text,
+                    )
                 return TurnResult(
-                    text=flow.text, route="deterministic",
-                    intent=prediction.intent, confidence=prediction.confidence,
+                    text=flow.text,
+                    route="deterministic",
+                    intent=prediction.intent,
+                    confidence=prediction.confidence,
                     debug={"note": flow.note, "scores": prediction.scores},
                 )
 
@@ -572,6 +770,13 @@ class Router:
         """Retrieve passages, optionally through the LLM reranking stage."""
         if not rerank.enabled():
             return self.kb.search(text, top_k=3), ""
+        # With a semantic judge downstream, stage one runs for recall: a looser
+        # lexical gate and a wider pool, because the judge - not the threshold -
+        # is what decides relevance on this path.
+        candidates = self.kb.search(
+            text, top_k=rerank.CANDIDATE_POOL, gate=rerank.RECALL_GATE
+        )
+        return rerank.rerank(text, candidates, top_k=3)
 
     # Vietnamese patterns that signal a follow-up question with no standalone
     # retrieval signal: "còn", "thế còn", "cái đó", etc.
@@ -596,7 +801,8 @@ class Router:
 
         # Find the most recent substantive customer message (not the current one)
         prev = [
-            m.text for m in session.messages[-8:-1]
+            m.text
+            for m in session.messages[-8:-1]
             if m.role == "customer" and len(m.text.split()) >= 3
         ]
         if not prev:
@@ -615,20 +821,18 @@ class Router:
         session.handled_by = staff.display_name
         session.add_message("agent", text, author=staff.display_name)
         session.record(
-            utterance=text, route="agent", intent="agent_reply",
-            confidence=1.0, actor=staff.username,
+            utterance=text,
+            route="agent",
+            intent="agent_reply",
+            confidence=1.0,
+            actor=staff.username,
             note=f"reply sent by {staff.username} ({staff.role})",
         )
 
-        # With a semantic judge downstream, stage one runs for recall: a looser
-        # lexical gate and a wider pool, because the judge - not the threshold -
-        # is what decides relevance on this path.
-        candidates = self.kb.search(
-            text, top_k=rerank.CANDIDATE_POOL, gate=rerank.RECALL_GATE
-        )
-        return rerank.rerank(text, candidates, top_k=3)
-
     def _answer_from_kb(self, session: Session, text: str, prediction) -> TurnResult:
+        # Chỉ chèn playbook bán thẻ ở lượt chuyên thẻ (tránh rò sang fraud/vay...).
+        cross_sell = playbook.is_cross_sell_context(prediction.intent)
+
         # Redact before retrieval and before the model sees anything. Two
         # separate reasons, both load-bearing:
         #
@@ -641,24 +845,34 @@ class Router:
         #   score collapses and a legitimate dispute question retrieves nothing.
         safe_text = guardrails.redact(text)
         if safe_text != text:
-            self.trace.add("privacy", "sensitive data masked",
-                           "redacted before retrieval and before the model")
+            self.trace.add(
+                "privacy",
+                "sensitive data masked",
+                "redacted before retrieval and before the model",
+            )
 
         # Expand short follow-up questions before retrieval so the TF-IDF index
         # gets enough signal. "còn Classic?" retrieves nothing without context;
         # "phí thường niên thẻ Classic" retrieves correctly.
         retrieval_text = self._expand_followup(safe_text, session)
         if retrieval_text != safe_text:
-            self.trace.add("query_expansion", f"'{safe_text}' → '{retrieval_text}'",
-                           "short follow-up expanded with recent context")
+            self.trace.add(
+                "query_expansion",
+                f"'{safe_text}' → '{retrieval_text}'",
+                "short follow-up expanded with recent context",
+            )
 
         passages, rerank_note = self._retrieve(retrieval_text)
         self.trace.add(
             "retrieval",
-            f"{len(passages)} passage(s) above the floor" if passages
-            else "nothing cleared the relevance floor",
+            (
+                f"{len(passages)} passage(s) above the floor"
+                if passages
+                else "nothing cleared the relevance floor"
+            ),
             "; ".join(f"{p.passage.citation} (cov {p.score:.2f})" for p in passages[:3])
-            or f"floor {MIN_RELEVANCE}")
+            or f"floor {MIN_RELEVANCE}",
+        )
 
         if not passages:
             # No verified source covers this. Guessing here is exactly the
@@ -669,8 +883,51 @@ class Router:
                 # words": a model read the candidates and judged none of them
                 # to answer the question.
                 reason = "Reranker judged no retrieved passage relevant"
-            self.trace.decide("retrieval", "no verified source",
-                              "offering a human rather than answering")
+            self.trace.decide(
+                "retrieval",
+                "no verified source",
+                "offering a human rather than answering",
+            )
+
+            # Controlled open-knowledge fallback before a human hand-off: answer
+            # from the model's general knowledge with the bank persona and safety
+            # rails kept (llm.GENERAL_SYSTEM_PROMPT). Off unless
+            # config.general_fallback is true. Compliance topics never reach here
+            # - guardrails.check_input refuses them upstream - and a refusal or
+            # empty reply falls through to the hand-off below, so this path can
+            # only ever add an answer, never weaken a guard.
+            if policy.current.general_fallback:
+                gen_history = [
+                    {
+                        "role": "user" if m.role == "customer" else "assistant",
+                        "content": guardrails.redact(m.text),
+                    }
+                    for m in session.messages[-10:]
+                    if m.role in ("customer", "assistant")
+                ]
+                if gen_history and gen_history[-1]["role"] == "user":
+                    gen_history = gen_history[:-1]
+                gen = llm.answer_general(
+                    safe_text,
+                    history_messages=gen_history or None,
+                    cross_sell=cross_sell,
+                )
+                if gen.text.strip() and not gen.refused:
+                    self.trace.decide(
+                        "generation",
+                        "general-knowledge answer (no KB source)",
+                        "answered from model general knowledge; persona + safety rails kept",
+                    )
+                    session.low_confidence_streak = 0
+                    return TurnResult(
+                        text=gen.text,
+                        route="llm_general",
+                        intent=prediction.intent,
+                        confidence=prediction.confidence,
+                        generated=gen.generated,
+                        debug={"note": "general_fallback (no KB match)"},
+                    )
+
             # Counted here, where the assistant genuinely failed to resolve the
             # turn, rather than on low classifier confidence. Two unanswerable
             # questions running is the signal the rule was always meant to
@@ -678,35 +935,42 @@ class Router:
             # is not.
             session.low_confidence_streak += 1
             if session.low_confidence_streak >= MAX_LOW_CONFIDENCE_STREAK:
-                reason = ("Assistant could not resolve two consecutive "
-                          "questions")
+                reason = "Assistant could not resolve two consecutive " "questions"
             return self._offer_escalation(
-                session, reason, confidence=prediction.confidence,
+                session,
+                reason,
+                confidence=prediction.confidence,
             )
 
         # Build structured conversation history (10 messages = 5 exchanges).
         # Exclude the current customer question — it becomes the final user turn
         # inside build_answer_request, paired with the retrieved KB passages.
         history_msgs = [
-            {"role": "user" if m.role == "customer" else "assistant",
-             "content": guardrails.redact(m.text)}
+            {
+                "role": "user" if m.role == "customer" else "assistant",
+                "content": guardrails.redact(m.text),
+            }
             for m in session.messages
             if m.role in ("customer", "assistant")
         ]
         # Drop the last entry: that is the current question already in safe_text.
         if history_msgs and history_msgs[-1]["role"] == "user":
             history_msgs = history_msgs[:-1]
-        history_msgs = history_msgs[-10:]     # keep last 5 exchanges
+        history_msgs = history_msgs[-10:]  # keep last 5 exchanges
 
         result = llm.answer_from_kb(
-            safe_text, passages,
+            safe_text,
+            passages,
             history_messages=history_msgs or None,
+            cross_sell=cross_sell,
         )
 
         if not result.text.strip():
             return self._escalate(
-                session, "Generative layer returned no usable answer",
-                intent=prediction.intent, confidence=prediction.confidence,
+                session,
+                "Generative layer returned no usable answer",
+                intent=prediction.intent,
+                confidence=prediction.confidence,
             )
 
         # A provider safety system declining is a signal in its own right, not
@@ -725,21 +989,37 @@ class Router:
         context = " ".join(p.passage.text for p in passages)
         grounding = round(guardrails.grounding_score(result.text, context), 3)
 
+        # Câu chỉ dựa trên tài liệu đối thủ (KB-MKT-*) dùng ngưỡng grounding nới.
+        market_only = bool(passages) and all(
+            p.passage.doc_id.startswith(MARKET_DOC_PREFIX) for p in passages
+        )
+        floor = MARKET_MIN_GROUNDING if market_only else policy.current.min_grounding
+
         self.trace.add(
             "generation",
-            "answer written by the model" if result.generated
-            else "extractive fallback (no model)",
-            f"grounding {grounding:.2f} against a {guardrails.MIN_GROUNDING} floor")
+            (
+                "answer written by the model"
+                if result.generated
+                else "extractive fallback (no model)"
+            ),
+            f"grounding {grounding:.2f} against a {floor} floor"
+            + (" (tài liệu thị trường - ngưỡng nới)" if market_only else ""),
+        )
 
-        if result.generated and grounding < policy.current.min_grounding:
-            self.trace.decide("generation", "failed the grounding check",
-                              "answer discarded; offering a human")
+        if result.generated and grounding < floor:
+            self.trace.decide(
+                "generation",
+                "failed the grounding check",
+                "answer discarded; offering a human",
+            )
             return self._offer_escalation(
                 session,
-                f"Answer failed the grounding check ({grounding:.2f} < "
-                f"{policy.current.min_grounding})",
+                f"Answer failed the grounding check ({grounding:.2f} < {floor})",
                 confidence=prediction.confidence,
             )
+
+        if market_only:  # kèm disclaimer chưa xác minh
+            result.text = _ensure_market_disclaimer(result.text)
 
         # The low-confidence streak counts turns the assistant could not
         # RESOLVE, not turns the classifier was unsure about.
@@ -759,31 +1039,41 @@ class Router:
         # convergence, whatever the intent classifier thought.
         session.low_confidence_streak = 0
 
-        self.trace.decide("generation", "grounded answer served",
-                          f"cited {len(passages)} passage(s)")
+        self.trace.decide(
+            "generation", "grounded answer served", f"cited {len(passages)} passage(s)"
+        )
         return TurnResult(
             text=result.text,
             route="rag",
             intent=prediction.intent,
             confidence=prediction.confidence,
-            sources=[{
-                "citation": p.passage.citation,
-                "title": p.passage.title,
-                "heading": p.passage.heading,
-                "source": p.passage.source,
-                "score": p.score,
-                "bm25": p.bm25,
-                "fusion": p.fusion,
-                "rerank": p.rerank,
-                "breadcrumb": p.passage.breadcrumb,
-            } for p in passages],
+            sources=[
+                {
+                    "citation": p.passage.citation,
+                    "title": p.passage.title,
+                    "heading": p.passage.heading,
+                    "source": p.passage.source,
+                    "score": p.score,
+                    "bm25": p.bm25,
+                    "fusion": p.fusion,
+                    "rerank": p.rerank,
+                    "breadcrumb": p.passage.breadcrumb,
+                }
+                for p in passages
+            ],
             generated=result.generated,
             grounding=grounding,
             debug={
-                "note": " · ".join(filter(None, [
-                    rerank_note,
-                    result.error or ("llm" if result.generated else "extractive"),
-                ])),
+                "note": " · ".join(
+                    filter(
+                        None,
+                        [
+                            rerank_note,
+                            result.error
+                            or ("llm" if result.generated else "extractive"),
+                        ],
+                    )
+                ),
                 "scores": prediction.scores,
                 "tokens": {"in": result.input_tokens, "out": result.output_tokens},
             },
@@ -813,8 +1103,11 @@ class Router:
         body = R.ESCALATION_OFFER_BODY
         message = f"{prefix.strip()}\n\n{body}" if prefix.strip() else body
         return TurnResult(
-            text=message, route="escalation_offered", intent=intent,
-            confidence=confidence, escalation_reason=reason,
+            text=message,
+            route="escalation_offered",
+            intent=intent,
+            confidence=confidence,
+            escalation_reason=reason,
             debug={"note": f"offered handoff: {reason}"},
         )
 
@@ -842,11 +1135,17 @@ class Router:
         session.escalation_summary = self.build_summary(session).text
 
         announcement = REQUEUED_MESSAGE if already_queued else ESCALATION_MESSAGE
-        message = (f"{prefix.strip()}\n\n{announcement}" if prefix.strip()
-                   else announcement)
+        message = (
+            f"{prefix.strip()}\n\n{announcement}" if prefix.strip() else announcement
+        )
         return TurnResult(
-            text=message, route="escalation", intent=intent, confidence=confidence,
-            escalated=True, escalation_reason=reason, grounding=grounding,
+            text=message,
+            route="escalation",
+            intent=intent,
+            confidence=confidence,
+            escalated=True,
+            escalation_reason=reason,
+            grounding=grounding,
             debug={"note": f"escalated: {reason}"},
         )
 
@@ -855,8 +1154,11 @@ class Router:
         context_lines = [
             f"Session ID: {session.session_id}",
             f"Identity verified: {'yes' if session.verified else 'no'}",
-            f"Customer: {customer['name']} ({customer['customer_id']})"
-            if customer else "Customer: not identified",
+            (
+                f"Customer: {customer['name']} ({customer['customer_id']})"
+                if customer
+                else "Customer: not identified"
+            ),
             f"Escalation trigger: {session.escalation_reason or 'n/a'}",
             # Counted from the transcript, not the audit log: the brief is built
             # mid-turn, before the current turn's audit row has been written.

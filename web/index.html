@@ -1,951 +1,1892 @@
 <!doctype html>
 <html lang="vi">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ABC Bank - Trợ lý ảo</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- Instrument Sans ships a `vietnamese` subset, so the diacritics the whole
-       interface is written in render in the design's typeface rather than
-       falling back per-glyph to the system font. -->
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap"
-        rel="stylesheet" />
-  <link rel="stylesheet" href="/styles.css" />
-  <style>
-    .waveform-bar {
-      display: flex; align-items: center; gap: 10px;
-      padding: 6px 14px; background: #eff6ff;
-      border-top: 1px solid #dbeafe;
-    }
-    .waveform-bar.hidden { display: none; }
-    #waveform-canvas { flex: 1; height: 36px; border-radius: 4px; }
-    .rec-dot {
-      width: 10px; height: 10px; border-radius: 50%;
-      background: #ef4444; flex-shrink: 0;
-      animation: recpulse 1s ease infinite;
-    }
-    @keyframes recpulse { 0%,100%{opacity:1} 50%{opacity:.2} }
-    .stt-status { font-size: 12px; color: #6b7280; white-space: nowrap; min-width: 70px; text-align: right; }
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+    <title>ABC Bank - Trợ lý ảo</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Inter carries a full Vietnamese subset, so every diacritic (ề, ộ, ữ, ẳ…)
+       renders in one typeface instead of falling back per-glyph to the system
+       font - what made accented letters look mismatched/oversized before. -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css?v=5" />
+    <style>
+      .waveform-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 14px;
+        background: #eff6ff;
+        border-top: 1px solid #dbeafe;
+      }
+      .waveform-bar.hidden {
+        display: none;
+      }
+      #waveform-canvas {
+        flex: 1;
+        height: 36px;
+        border-radius: 4px;
+      }
+      .rec-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #ef4444;
+        flex-shrink: 0;
+        animation: recpulse 1s ease infinite;
+      }
+      @keyframes recpulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.2;
+        }
+      }
+      .stt-status {
+        font-size: 12px;
+        color: #6b7280;
+        white-space: nowrap;
+        min-width: 70px;
+        text-align: right;
+      }
 
-    /* ===================== VOICE SESSION MODE ===================== */
-    .call-overlay {
-      position: fixed; inset: 0; z-index: 9000;
-      background: linear-gradient(160deg, #061612 0%, #0c2420 55%, #071410 100%);
-      display: flex; align-items: stretch; justify-content: stretch;
-      animation: vsIn .45s cubic-bezier(.16,1,.3,1) both;
-      will-change: opacity, transform;
-    }
-    .call-overlay.hidden { display: none; }
-    .call-overlay::before {
-      content: ''; position: absolute; inset: 0; pointer-events: none;
-      background:
-        radial-gradient(ellipse 65% 48% at 22% 32%, rgba(14,75,69,.42) 0%, transparent 62%),
-        radial-gradient(ellipse 52% 40% at 80% 68%, rgba(46,139,111,.22) 0%, transparent 58%);
-      animation: vsBg 14s ease-in-out infinite alternate;
-      will-change: transform;
-    }
-    @keyframes vsIn {
-      from { opacity: 0; transform: translateY(14px) scale(.985); }
-      to   { opacity: 1; transform: none; }
-    }
-    @keyframes vsBg {
-      from { transform: scale(1) translate(0, 0); }
-      to   { transform: scale(1.07) translate(3px, -2px); }
-    }
+      /* ============================================================
+       VOICE SESSION — hội thoại giọng nói kiểu "voice mode".
+       Hero là MỘT khối cầu lỏng (liquid orb) morph ở giữa, phản ứng
+       theo --vs-level (0..1, JS đặt trên #call-avatar-wrap). Màu lấy từ
+       token thương hiệu: --accent #0E4B45, --positive #2E8B6F.
+       Trạng thái sống trong data-state trên .vs-session.
+       ============================================================ */
+      .call-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9000;
+        background: radial-gradient(125% 95% at 50% 6%, #ffffff 0%, #f4f7f5 44%, #e9f1ed 100%);
+        display: flex;
+        align-items: stretch;
+        animation: vsIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      .call-overlay.hidden {
+        display: none;
+      }
+      .call-overlay.closing {
+        animation: vsOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      }
+      @keyframes vsIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes vsOut {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+        }
+      }
 
-    /* Full-height session wrapper — data-state lives here */
-    .vs-session {
-      flex: 1; display: flex; flex-direction: column;
-      align-items: center; justify-content: space-between;
-      position: relative; z-index: 1; user-select: none;
-    }
+      .vs-session {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        position: relative;
+        z-index: 1;
+        user-select: none;
+        --vs-level: 0;
+        --teal-a: #0e4b45;
+        --teal-b: #2e8b6f;
+        --teal-c: #7fddc6;
+        --aqua: #2fe0c4;
+        --cyan: #35c4e8;
+        --siri-blue: #4a7fe0;
+      }
 
-    /* ── Top bar ── */
-    .vs-topbar {
-      width: 100%; padding: 22px 28px 0;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .vs-brand {
-      font-size: 11px; font-weight: 700; letter-spacing: 2px;
-      color: rgba(255,255,255,.28); text-transform: uppercase;
-    }
-    .vs-timer {
-      font-size: 13px; color: rgba(255,255,255,.28);
-      font-variant-numeric: tabular-nums; letter-spacing: 1.5px;
-    }
+      /* ── Top bar: brand trái, timer phải — cả hai đều nhẹ ── */
+      .vs-topbar {
+        width: 100%;
+        max-width: 560px;
+        padding: 26px 26px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .vs-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.1px;
+        color: var(--text);
+      }
+      .vs-brand .vs-brand-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--teal-b);
+      }
+      .vs-timer {
+        font-size: 13px;
+        letter-spacing: 1px;
+        color: var(--text-subtle);
+        font-variant-numeric: tabular-nums;
+      }
 
-    /* State badge */
-    .vs-badge {
-      display: inline-flex; align-items: center; gap: 7px;
-      padding: 5px 14px; border-radius: 20px; font-size: 12px;
-      font-weight: 500; letter-spacing: .3px;
-      transition: background .3s cubic-bezier(.4,0,.2,1),
-                  color .3s cubic-bezier(.4,0,.2,1);
-    }
-    .vs-badge::before {
-      content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-      transition: background .3s cubic-bezier(.4,0,.2,1);
-    }
-    [data-state="connecting"] .vs-badge,
-    [data-state="idle"]       .vs-badge {
-      background: rgba(255,255,255,.07); color: rgba(255,255,255,.38);
-    }
-    [data-state="connecting"] .vs-badge::before,
-    [data-state="idle"]       .vs-badge::before {
-      background: rgba(255,255,255,.3); animation: vsDotBlink 1.2s ease infinite;
-    }
-    [data-state="listening"] .vs-badge {
-      background: rgba(94,234,212,.13); color: #5eead4;
-    }
-    [data-state="listening"] .vs-badge::before {
-      background: #5eead4; animation: vsDotBlink .7s ease infinite;
-    }
-    [data-state="processing"] .vs-badge {
-      background: rgba(251,191,36,.11); color: #fcd34d;
-    }
-    [data-state="processing"] .vs-badge::before {
-      background: #fbbf24; border-radius: 2px; animation: vsDotSpin .9s linear infinite;
-    }
-    [data-state="speaking"] .vs-badge {
-      background: rgba(74,222,128,.13); color: #86efac;
-    }
-    [data-state="speaking"] .vs-badge::before {
-      background: #4ade80; animation: vsDotPulse .55s ease infinite alternate;
-    }
-    @keyframes vsDotBlink  { 0%,100%{opacity:1} 50%{opacity:.15} }
-    @keyframes vsDotSpin   { from{transform:rotate(0)} to{transform:rotate(360deg)} }
-    @keyframes vsDotPulse  { from{transform:scale(.6)} to{transform:scale(1.4)} }
+      /* ── Main: khối cầu là nhân vật chính ── */
+      .vs-main {
+        flex: 1;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 0 26px;
+      }
+      .vs-orb-wrap {
+        position: relative;
+        width: 224px;
+        height: 224px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 34px;
+      }
 
-    /* ── Avatar ── */
-    .vs-main {
-      flex: 1; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 0; padding: 0 24px;
-    }
-    .vs-avatar-wrap {
-      position: relative; width: 148px; height: 148px;
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 24px;
-    }
+      /* --- Kiểu gọi điện thoại (data-mode="phone"): ẩn orb, hiện avatar+tên+số --- */
+      .vs-callee {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 30px;
+        text-align: center;
+      }
+      [data-mode="phone"] .vs-orb-wrap {
+        display: none;
+      }
+      [data-mode="phone"] .vs-callee {
+        display: flex;
+      }
+      .vs-callee-avatar {
+        width: 128px;
+        height: 128px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #35c4e8, var(--teal-b) 55%, var(--teal-a));
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 52px;
+        font-weight: 600;
+        box-shadow: 0 14px 44px rgba(14, 75, 69, 0.32);
+        animation: vsCalleePulse 2.2s ease-in-out infinite;
+      }
+      .vs-callee-name {
+        font-size: 25px;
+        font-weight: 700;
+        color: var(--text, #14201d);
+      }
+      .vs-callee-phone {
+        font-size: 15px;
+        color: var(--text-muted, #6b7a76);
+        letter-spacing: 0.6px;
+      }
+      /* Đổ chuông: vòng sáng nhấp nháy quanh avatar khi đang gọi/nói */
+      @keyframes vsCalleePulse {
+        0%,
+        100% {
+          box-shadow:
+            0 14px 44px rgba(14, 75, 69, 0.3),
+            0 0 0 0 rgba(53, 196, 232, 0.45);
+        }
+        50% {
+          box-shadow:
+            0 14px 54px rgba(46, 139, 111, 0.4),
+            0 0 0 16px rgba(53, 196, 232, 0);
+        }
+      }
+      /* Khi đã kết nối (đang nghe/nói) thì avatar bớt "đổ chuông", dịu lại */
+      [data-state="listening"] .vs-callee-avatar,
+      [data-state="speaking"] .vs-callee-avatar {
+        animation-duration: 3.4s;
+      }
 
-    /* Glow halo */
-    .vs-glow {
-      position: absolute; inset: -22px; border-radius: 50%;
-      opacity: 0; transition: opacity .6s cubic-bezier(.4,0,.2,1);
-      will-change: transform, opacity;
-    }
-    [data-state="listening"]  .vs-glow {
-      background: radial-gradient(circle, rgba(14,75,69,.6) 0%, rgba(94,234,212,.14) 42%, transparent 68%);
-      opacity: 1; animation: vsGlow 2.4s ease-in-out infinite;
-    }
-    [data-state="speaking"]   .vs-glow {
-      background: radial-gradient(circle, rgba(46,139,111,.5) 0%, rgba(74,222,128,.12) 44%, transparent 68%);
-      opacity: 1; animation: vsGlow 1.4s ease-in-out infinite;
-    }
-    [data-state="processing"] .vs-glow {
-      background: radial-gradient(circle, rgba(251,191,36,.22) 0%, transparent 68%);
-      opacity: .7;
-    }
-    @keyframes vsGlow {
-      0%,100% { transform: scale(1);    opacity: .9; }
-      50%     { transform: scale(1.13); opacity: .28; }
-    }
+      /* Màn hình gọi điện thoại: KHÔNG hiện chữ bot đang nói - chỉ hội thoại giọng nói. */
+      .call-overlay.phone .vs-last-msg {
+        display: none !important;
+      }
 
-    /* Spinner ring for processing */
-    .vs-spinner {
-      position: absolute; inset: -6px; border-radius: 50%;
-      border: 2px solid transparent;
-      border-top-color: rgba(251,191,36,.85);
-      border-right-color: rgba(251,191,36,.3);
-      opacity: 0; transition: opacity .35s cubic-bezier(.4,0,.2,1);
-    }
-    [data-state="processing"] .vs-spinner {
-      opacity: 1; animation: vsSpin 1s linear infinite;
-    }
-    @keyframes vsSpin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+      /* Nút Nghe / Từ chối - chỉ hiện khi đổ chuông (data-state="ringing") */
+      .vs-incoming {
+        display: none;
+        width: 100%;
+        justify-content: center;
+        gap: 90px;
+        padding: 0 0 clamp(40px, 8vh, 64px);
+      }
+      [data-state="ringing"] .vs-incoming {
+        display: flex;
+      }
+      [data-state="ringing"] .vs-controls {
+        display: none;
+      }
+      .vs-ctrl-decline,
+      .vs-ctrl-accept {
+        width: 70px;
+        height: 70px;
+        color: #fff;
+      }
+      .vs-ctrl-decline {
+        background: #ff3b30;
+      }
+      .vs-ctrl-decline svg {
+        transform: rotate(135deg);
+      }
+      .vs-ctrl-accept {
+        background: #34c759;
+        animation: vsAcceptPulse 1.3s ease-in-out infinite;
+      }
+      @keyframes vsAcceptPulse {
+        0%,
+        100% {
+          transform: scale(1);
+          box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.5);
+        }
+        50% {
+          transform: scale(1.07);
+          box-shadow: 0 0 0 14px rgba(52, 199, 89, 0);
+        }
+      }
 
-    /* Avatar circle */
-    .vs-avatar-circle {
-      width: 108px; height: 108px; border-radius: 50%;
-      background: linear-gradient(145deg, rgba(14,75,69,.45), rgba(6,22,18,.72));
-      border: 1.5px solid rgba(94,234,212,.18); backdrop-filter: blur(16px);
-      display: flex; align-items: center; justify-content: center;
-      position: relative; z-index: 1;
-      transition: border-color .45s cubic-bezier(.4,0,.2,1),
-                  box-shadow .45s cubic-bezier(.4,0,.2,1);
-    }
-    [data-state="listening"]  .vs-avatar-circle {
-      border-color: rgba(94,234,212,.5);
-      box-shadow: 0 0 0 6px rgba(94,234,212,.08), inset 0 0 18px rgba(94,234,212,.07);
-    }
-    [data-state="speaking"]   .vs-avatar-circle {
-      border-color: rgba(74,222,128,.5);
-      box-shadow: 0 0 0 6px rgba(74,222,128,.08), inset 0 0 18px rgba(74,222,128,.07);
-    }
-    [data-state="processing"] .vs-avatar-circle {
-      border-color: rgba(251,191,36,.4);
-    }
-    .vs-avatar-icon {
-      color: rgba(255,255,255,.52);
-      transition: color .45s cubic-bezier(.4,0,.2,1);
-    }
-    [data-state="listening"]  .vs-avatar-icon { color: #5eead4; }
-    [data-state="speaking"]   .vs-avatar-icon { color: #86efac; }
+      /* Nút hành động trong cuộc gọi (vd kết nối chuyên viên) */
+      .vs-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        margin-top: 14px;
+        width: 100%;
+        padding: 0 24px;
+      }
+      .vs-actions.hidden {
+        display: none;
+      }
+      .vs-actions .vs-action-label {
+        font-size: 14px;
+        color: var(--text-muted, #6b7a76);
+        margin-bottom: 2px;
+        text-align: center;
+      }
+      .vs-actions button {
+        border: none;
+        cursor: pointer;
+        border-radius: 999px;
+        padding: 11px 24px;
+        font-size: 15px;
+        font-weight: 600;
+        max-width: 320px;
+        width: 100%;
+      }
+      .vs-actions button.primary {
+        background: var(--teal-a, #0e4b45);
+        color: #fff;
+      }
+      .vs-actions button.ghost {
+        background: rgba(0, 0, 0, 0.04);
+        color: var(--text, #14201d);
+        border: 1px solid rgba(0, 0, 0, 0.12);
+      }
 
-    /* Equalizer bars — listening & speaking */
-    .vs-eq {
-      position: absolute; bottom: -4px; left: 50%;
-      transform: translateX(-50%);
-      display: flex; gap: 3px; align-items: flex-end; height: 20px;
-      opacity: 0; transition: opacity .45s cubic-bezier(.4,0,.2,1);
-    }
-    [data-state="listening"] .vs-eq,
-    [data-state="speaking"]  .vs-eq { opacity: 1; }
-    .vs-eq-bar {
-      width: 3px; border-radius: 3px; background: #5eead4;
-      animation: vsEq 1.4s ease-in-out infinite;
-      will-change: transform;
-    }
-    [data-state="speaking"] .vs-eq-bar { background: #4ade80; }
-    .vs-eq-bar:nth-child(1){height:7px;  animation-delay:0s;    animation-duration:1.1s}
-    .vs-eq-bar:nth-child(2){height:14px; animation-delay:.12s;  animation-duration:1.35s}
-    .vs-eq-bar:nth-child(3){height:18px; animation-delay:.04s;  animation-duration:.95s}
-    .vs-eq-bar:nth-child(4){height:11px; animation-delay:.22s;  animation-duration:1.2s}
-    .vs-eq-bar:nth-child(5){height:16px; animation-delay:.16s;  animation-duration:1.0s}
-    .vs-eq-bar:nth-child(6){height:9px;  animation-delay:.28s;  animation-duration:1.25s}
-    .vs-eq-bar:nth-child(7){height:13px; animation-delay:.08s;  animation-duration:1.15s}
-    @keyframes vsEq { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(.16)} }
+      /* Halo lan ra — khoảnh khắc nhấn duy nhất, chỉ khi đang trả lời */
+      .vs-halo {
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        width: 216px;
+        height: 216px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(53, 196, 232, 0.3) 0%,
+          rgba(47, 224, 196, 0.18) 42%,
+          transparent 70%
+        );
+        opacity: 0.6;
+        pointer-events: none;
+        filter: blur(8px);
+        animation: vsGlow 4.5s ease-in-out infinite;
+      }
+      /* Glow luôn "sống" - quầng sáng thở nhẹ quanh orb (chất Siri). */
+      @keyframes vsGlow {
+        0%,
+        100% {
+          opacity: 0.42;
+          transform: scale(0.9);
+        }
+        50% {
+          opacity: 0.8;
+          transform: scale(1.08);
+        }
+      }
+      /* Khi đang đọc trả lời: quầng bung ra thành gợn sóng lan toả. */
+      [data-state="speaking"] .vs-halo {
+        animation: vsHalo 2.2s ease-out infinite;
+      }
+      @keyframes vsHalo {
+        0% {
+          opacity: 0.55;
+          transform: scale(0.82);
+        }
+        100% {
+          opacity: 0;
+          transform: scale(1.85);
+        }
+      }
 
-    /* Text */
-    .vs-bot-name { font-size: 22px; font-weight: 600; color: #fff; letter-spacing: .2px; }
-    .vs-bot-sub  { font-size: 12px; color: rgba(255,255,255,.32); margin-top: 3px; letter-spacing: .4px; }
+      /* Khối cầu lỏng: nở theo âm lượng thật (nghe/nói) */
+      .vs-orb {
+        position: relative;
+        width: 152px;
+        height: 152px;
+        transform: scale(calc(1 + var(--vs-level) * 0.3));
+        transition: transform 0.08s ease-out;
+        filter: drop-shadow(0 20px 42px rgba(14, 75, 69, 0.24));
+      }
+      /* Lớp xoay chậm: cầm hai lớp gradient và quay quanh tâm để các "bướu" của
+       khối méo di chuyển vòng quanh — đây là thứ tạo cảm giác giọt nước lỏng,
+       không chỉ phồng/xẹp. */
+      .vs-orb-fluid {
+        position: absolute;
+        inset: 0;
+        animation:
+          vsFluid 14s ease-in-out infinite,
+          vsHue 10s ease-in-out infinite;
+      }
+      /* Trôi sắc nhẹ quanh teal↔cyan↔xanh lá - orb "thở màu" như Siri, không đổi
+       hẳn sang tông khác nên vẫn đúng thương hiệu. */
+      @keyframes vsHue {
+        0%,
+        100% {
+          filter: hue-rotate(-8deg) saturate(1.05);
+        }
+        50% {
+          filter: hue-rotate(20deg) saturate(1.18);
+        }
+      }
+      /* Xoay chậm + bóp giãn nhẹ (squash/stretch kiểu thạch) — toàn transform nên
+       luôn mượt, không răng cưa. Kết hợp morph bo góc bên dưới tạo cảm giác lỏng. */
+      @keyframes vsFluid {
+        0% {
+          transform: rotate(0deg) scale(1, 1);
+        }
+        25% {
+          transform: rotate(90deg) scale(1.06, 0.94);
+        }
+        50% {
+          transform: rotate(180deg) scale(0.96, 1.04);
+        }
+        75% {
+          transform: rotate(270deg) scale(1.05, 0.95);
+        }
+        100% {
+          transform: rotate(360deg) scale(1, 1);
+        }
+      }
+      .vs-orb-layer,
+      .vs-orb-sheen {
+        position: absolute;
+        inset: 0;
+        border-radius: 42% 58% 55% 45% / 48% 44% 56% 52%;
+      }
+      .vs-orb-a {
+        background: radial-gradient(
+          circle at 34% 28%,
+          var(--teal-c) 0%,
+          var(--aqua) 30%,
+          var(--teal-b) 62%,
+          var(--teal-a) 100%
+        );
+        animation: vsMorph 6s ease-in-out infinite;
+      }
+      /* Lớp nhấn màu kiểu Siri: aqua → cyan → chút xanh dương, hoà bằng screen nên
+       chỉ làm sáng/đổi sắc chứ không phủ mất tông teal chủ đạo. */
+      .vs-orb-b {
+        background: radial-gradient(
+          circle at 68% 72%,
+          var(--aqua) 0%,
+          var(--cyan) 46%,
+          rgba(74, 127, 224, 0.45) 100%
+        );
+        mix-blend-mode: screen;
+        opacity: 0.8;
+        animation: vsMorph 4.6s ease-in-out infinite reverse;
+      }
+      .vs-orb-sheen {
+        background: conic-gradient(
+          from 0deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.55) 16%,
+          transparent 38%,
+          rgba(255, 255, 255, 0.28) 60%,
+          transparent 80%
+        );
+        mix-blend-mode: soft-light;
+        opacity: 0.7;
+        animation: vsSpin 9s linear infinite;
+      }
+      @keyframes vsMorph {
+        0%,
+        100% {
+          border-radius: 64% 36% 57% 43% / 54% 62% 38% 46%;
+        }
+        25% {
+          border-radius: 38% 62% 44% 56% / 66% 40% 60% 34%;
+        }
+        50% {
+          border-radius: 33% 67% 63% 37% / 39% 54% 46% 61%;
+        }
+        75% {
+          border-radius: 57% 43% 34% 66% / 59% 37% 63% 41%;
+        }
+      }
+      @keyframes vsSpin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
 
-    /* Last message preview */
-    .vs-last-msg {
-      margin-top: 22px; max-width: 340px; width: 100%;
-      background: rgba(14,75,69,.25); border: 1px solid rgba(94,234,212,.12);
-      border-radius: 16px; padding: 12px 18px; backdrop-filter: blur(10px);
-      font-size: 13.5px; line-height: 1.55; color: rgba(255,255,255,.68);
-      text-align: center; word-break: break-word;
-      transition: opacity .45s cubic-bezier(.4,0,.2,1);
-    }
-    .vs-last-msg.hidden { opacity: 0; pointer-events: none; }
+      /* Orb WebGL kiểu ElevenLabs: canvas vuông giữa khung, phủ lên vị trí orb.
+       Khi WebGL chạy (.gl-active trên .vs-session) thì ẩn CSS orb cũ. */
+      .vs-orb-canvas {
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        width: 208px;
+        height: 208px;
+        display: none;
+        pointer-events: none;
+      }
+      .vs-session.gl-active .vs-orb-canvas {
+        display: block;
+      }
+      .vs-session.gl-active .vs-orb {
+        display: none;
+      }
 
-    /* ── Controls ── */
-    .vs-controls {
-      width: 100%; padding: 0 0 56px;
-      display: flex; align-items: flex-end; justify-content: center; gap: 52px;
-    }
-    .vs-ctrl-item { display: flex; flex-direction: column; align-items: center; gap: 9px; }
-    .vs-ctrl-label { font-size: 11px; color: rgba(255,255,255,.32); letter-spacing: .4px; }
+      /* Nhịp/sắc theo trạng thái */
+      [data-state="connecting"] .vs-orb,
+      [data-state="idle"] .vs-orb {
+        animation: vsBreathe 3.4s ease-in-out infinite;
+      }
+      [data-state="connecting"] .vs-orb-a,
+      [data-state="idle"] .vs-orb-a {
+        filter: saturate(0.72);
+      }
+      @keyframes vsBreathe {
+        0%,
+        100% {
+          transform: scale(0.97);
+        }
+        50% {
+          transform: scale(1.02);
+        }
+      }
 
-    .vs-ctrl {
-      border-radius: 50%; border: none; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: transform .18s cubic-bezier(.34,1.56,.64,1),
-                  box-shadow .22s cubic-bezier(.4,0,.2,1),
-                  background .22s cubic-bezier(.4,0,.2,1);
-      will-change: transform;
-    }
-    .vs-ctrl:hover  { transform: scale(1.1); }
-    .vs-ctrl:active { transform: scale(.91); }
+      [data-state="listening"] .vs-orb-a {
+        animation-duration: 5s;
+      }
+      [data-state="listening"] .vs-orb-b {
+        animation-duration: 4s;
+      }
 
-    .vs-ctrl-mute {
-      width: 62px; height: 62px; color: #fff;
-      background: rgba(255,255,255,.09);
-      border: 1.5px solid rgba(255,255,255,.14);
-      backdrop-filter: blur(12px);
-    }
-    .vs-ctrl-mute.muted {
-      background: rgba(239,68,68,.15); border-color: rgba(239,68,68,.32); color: #fca5a5;
-    }
-    .vs-ctrl-end {
-      width: 74px; height: 74px; color: #fff;
-      background: #dc2626; border: none;
-      box-shadow: 0 8px 28px rgba(220,38,38,.4);
-    }
-    .vs-ctrl-end:hover  { box-shadow: 0 12px 36px rgba(220,38,38,.55); }
-    .vs-ctrl-end:active { box-shadow: 0 4px 16px rgba(220,38,38,.3); }
+      [data-state="processing"] .vs-orb {
+        animation: vsThink 1.5s ease-in-out infinite;
+      }
+      [data-state="processing"] .vs-orb-a {
+        animation-duration: 3s;
+        filter: saturate(0.85) brightness(0.93);
+      }
+      [data-state="processing"] .vs-orb-sheen {
+        animation-duration: 2.4s;
+        opacity: 0.9;
+      }
+      @keyframes vsThink {
+        0%,
+        100% {
+          transform: scale(0.98) rotate(-2.5deg);
+        }
+        50% {
+          transform: scale(1.03) rotate(2.5deg);
+        }
+      }
 
-    /* Voice session trigger button in chat header */
-    #call-btn { color: #2E8B6F; }
-    #call-btn.hidden { display: none; }
-  </style>
-</head>
-<body>
+      [data-state="speaking"] .vs-orb-a {
+        animation-duration: 3.4s;
+      }
+      [data-state="speaking"] .vs-orb-b {
+        animation-duration: 2.8s;
+        opacity: 0.88;
+      }
+      [data-state="speaking"] .vs-orb-sheen {
+        opacity: 0.85;
+      }
 
-<!-- ============================================================
+      /* ── State + preview câu trả lời ── */
+      .vs-state {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: 0.1px;
+        color: var(--text);
+      }
+      .vs-state::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--text-subtle);
+        transition: background 0.3s ease;
+      }
+      [data-state="connecting"] .vs-state::before,
+      [data-state="idle"] .vs-state::before {
+        animation: vsBlink 1.2s ease infinite;
+      }
+      [data-state="listening"] .vs-state::before {
+        background: var(--teal-a);
+        animation: vsBlink 1s ease infinite;
+      }
+      [data-state="processing"] .vs-state::before {
+        background: var(--text-muted);
+        animation: vsBlink 0.6s ease infinite;
+      }
+      [data-state="speaking"] .vs-state::before {
+        background: var(--teal-b);
+        animation: vsPulse 0.6s ease infinite alternate;
+      }
+      @keyframes vsBlink {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.18;
+        }
+      }
+      @keyframes vsPulse {
+        from {
+          transform: scale(0.65);
+        }
+        to {
+          transform: scale(1.4);
+        }
+      }
+
+      .vs-last-msg {
+        margin-top: 16px;
+        max-width: 420px;
+        font-size: 15px;
+        line-height: 1.5;
+        color: var(--text-muted);
+        text-align: center;
+        word-break: break-word;
+        transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .vs-last-msg.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      /* ── Controls ── */
+      .vs-controls {
+        width: 100%;
+        padding: 0 0 clamp(40px, 8vh, 64px);
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 56px;
+      }
+      .vs-ctrl-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+      }
+      .vs-ctrl-label {
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+
+      .vs-ctrl {
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition:
+          transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1),
+          box-shadow 0.2s ease,
+          background 0.2s ease,
+          color 0.2s ease;
+      }
+      .vs-ctrl:hover {
+        transform: translateY(-2px) scale(1.05);
+      }
+      .vs-ctrl:active {
+        transform: scale(0.92);
+      }
+      .vs-ctrl:focus-visible {
+        outline: 2px solid var(--teal-a);
+        outline-offset: 3px;
+      }
+
+      .vs-ctrl-mute {
+        width: 60px;
+        height: 60px;
+        color: var(--text);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-strong);
+        box-shadow: 0 6px 18px rgba(20, 32, 28, 0.08);
+      }
+      .vs-ctrl-mute.muted {
+        background: var(--red-tint);
+        border-color: var(--red-line);
+        color: var(--red);
+      }
+      .vs-ctrl-end {
+        width: 68px;
+        height: 68px;
+        color: #fff;
+        background: var(--red);
+        box-shadow: 0 10px 26px rgba(140, 58, 43, 0.32);
+      }
+      .vs-ctrl-end:hover {
+        box-shadow: 0 14px 32px rgba(140, 58, 43, 0.42);
+      }
+      .vs-ctrl-end:active {
+        box-shadow: 0 5px 16px rgba(140, 58, 43, 0.28);
+      }
+
+      /* Nút mở voice session trong header chat — xám mặc định như icon khác. */
+      #call-btn {
+        color: var(--text-muted);
+      }
+      #call-btn.hidden {
+        display: none;
+      }
+
+      @media (max-width: 480px) {
+        .vs-orb-wrap {
+          width: 188px;
+          height: 188px;
+          margin-bottom: 28px;
+        }
+        .vs-orb {
+          width: 128px;
+          height: 128px;
+        }
+        .vs-halo {
+          width: 150px;
+          height: 150px;
+        }
+        .vs-controls {
+          gap: 44px;
+        }
+      }
+
+      /* Giảm chuyển động: bỏ các chuyển động mạnh (vòng halo lan, chấm nhấp nháy)
+       và làm mọi thứ chậm lại, nhưng VẪN giữ orb "thở" + morph rất chậm để nó
+       còn dấu hiệu đang sống thay vì đứng hình hoàn toàn. */
+      @media (prefers-reduced-motion: reduce) {
+        .vs-halo {
+          animation: none !important;
+        }
+        .vs-state::before {
+          animation: none !important;
+        }
+        .vs-orb-fluid {
+          animation-duration: 46s !important;
+        }
+        .vs-orb-sheen {
+          animation-duration: 22s !important;
+        }
+        .vs-orb-a {
+          animation-duration: 9s !important;
+        }
+        .vs-orb-b {
+          animation-duration: 11s !important;
+        }
+        .vs-orb {
+          animation: vsBreathe 6s ease-in-out infinite !important;
+        }
+      }
+
+      /* ── Ô chọn dòng thẻ cross-sell (thay dropdown) trong panel Gọi khách ── */
+      .card-tiles {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 6px;
+      }
+      .card-tile {
+        position: relative;
+        display: block;
+        cursor: pointer;
+        border: 1.5px solid var(--border-strong, #d1d5db);
+        border-radius: 16px;
+        padding: 14px 44px 14px 18px;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s,
+          background 0.15s;
+      }
+      .card-tile:hover {
+        border-color: var(--teal-b, #2e8b6f);
+      }
+      .card-tile input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .card-tile-radio {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 2px solid #9ca3af;
+        transition: border-color 0.15s;
+      }
+      .card-tile-name {
+        display: block;
+        font-size: 21px;
+        font-weight: 700;
+        line-height: 1.15;
+        color: var(--text, #14201d);
+      }
+      .card-tile-num {
+        display: block;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text, #14201d);
+        margin-top: 2px;
+      }
+      .card-tile-desc {
+        display: block;
+        font-size: 13px;
+        color: var(--text-muted, #6b7a76);
+        margin-top: 3px;
+      }
+      /* Trạng thái được chọn */
+      .card-tile:has(input:checked) {
+        border-color: var(--teal-a, #0e4b45);
+        box-shadow: 0 0 0 2px rgba(14, 75, 69, 0.14);
+        background: rgba(46, 139, 111, 0.05);
+      }
+      .card-tile input:checked ~ .card-tile-radio {
+        border-color: var(--teal-a, #0e4b45);
+        background: radial-gradient(circle, var(--teal-a, #0e4b45) 0 5px, transparent 6px);
+      }
+      .card-tile input:focus-visible ~ .card-tile-radio {
+        outline: 2px solid var(--teal-a, #0e4b45);
+        outline-offset: 2px;
+      }
+
+      /* Nhật ký cuộc gọi */
+      .call-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .call-item {
+        border: 1px solid var(--border, #e5e7eb);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+    </style>
+    <style>
+      #arch-toggle-box {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ============================================================
      APP SHELL - left nav (chrome) + the active screen.
      ============================================================ -->
-<div class="app-shell">
+    <div class="app-shell">
+      <div class="nav-scrim" id="nav-scrim"></div>
 
-  <div class="nav-scrim" id="nav-scrim" hidden></div>
-
-  <aside class="sidenav" id="sidenav">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-text">
-        <strong>ABC Bank</strong>
-        <span class="sub" id="brand-sub">Trợ lý ảo</span>
-      </span>
-    </div>
-
-    <nav class="nav-list" aria-label="Điều hướng chính">
-      <button type="button" class="nav-item active" id="nav-assistant">Trợ lý ảo</button>
-      <!-- The design's remaining sections have nothing behind them in this
-           demo. They stay as inert chrome rather than buttons that lie. -->
-      <span class="nav-item muted" aria-disabled="true">Tài khoản</span>
-      <span class="nav-item muted" aria-disabled="true">Thanh toán</span>
-      <span class="nav-item muted" aria-disabled="true">Thẻ</span>
-      <span class="nav-item muted" aria-disabled="true">Hỗ trợ</span>
-    </nav>
-
-    <div class="nav-section">
-      <span class="nav-eyebrow">Phiên làm việc</span>
-      <div class="nav-meta">
-        <span id="mode-pill" class="pill">đang kiểm tra…</span>
-        <span id="staff-pill" class="pill hidden"></span>
-      </div>
-      <!-- Names whoever the session has verified, so the demo shows identity
-           being established rather than just asserted in a chat bubble. -->
-      <div class="nav-user">
-        <span class="avatar sm" id="rail-avatar">K</span>
-        <span class="nav-user-text">
-          <b id="rail-user">Khách</b><em id="rail-user-sub">Chưa xác thực</em>
-        </span>
-      </div>
-    </div>
-
-    <div class="nav-foot">
-      <button id="view-customer-btn" class="ghost small hidden" type="button">Màn hình khách</button>
-      <button id="view-console-btn" class="ghost small hidden" type="button">Bảng điều khiển</button>
-      <button id="login-btn" class="ghost small" type="button">Đăng nhập</button>
-      <button id="logout" class="ghost small hidden" type="button">Đăng xuất</button>
-    </div>
-  </aside>
-
-  <div class="app-main">
-
-  <!-- ============================================================
-       KHÁCH HÀNG - mặc định. Không cần đăng nhập, chỉ có khung chat.
-       ============================================================ -->
-  <main id="screen-customer" class="screen screen-chat">
-    <section class="chat-panel">
-
-      <header class="chat-header">
-        <!-- Mock only: the surrounding banking app owns where "back" goes, so
-             here it is a real, focusable control that deliberately navigates
-             nowhere. Replace the handler when this is embedded. -->
-        <button type="button" class="icon-btn back-btn" id="back-btn" aria-label="Quay lại">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M15 5l-7 7 7 7"/></svg>
-        </button>
-        <div class="chat-id">
-          <span class="chat-name">ABC Bank Trợ lý ảo</span>
-          <span class="chat-status ok" id="chat-status">
-            <i class="dot" aria-hidden="true"></i><span id="chat-status-text">Trực tuyến</span>
+      <aside class="sidenav" id="sidenav">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-text">
+            <strong>ABC Bank</strong>
+            <span class="sub" id="brand-sub">Trợ lý ảo</span>
           </span>
         </div>
-        <button type="button" class="link-btn" id="talk-to-person">Gặp chuyên viên</button>
-        <button type="button" class="icon-btn hidden" id="call-btn"
-                aria-label="Hội thoại giọng nói" title="Hội thoại giọng nói với trợ lý ảo">
-          <!-- Waveform icon — signals AI voice mode -->
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="2"  y1="12" x2="4"  y2="12"/>
-            <line x1="7"  y1="8"  x2="7"  y2="16"/>
-            <line x1="11" y1="4"  x2="11" y2="20"/>
-            <line x1="15" y1="4"  x2="15" y2="20"/>
-            <line x1="19" y1="8"  x2="19" y2="16"/>
-            <line x1="20" y1="12" x2="22" y2="12"/>
-          </svg>
-        </button>
-        <!-- The old left rail carried this as a full-width "Cuộc trò chuyện
+
+        <nav class="nav-list" aria-label="Điều hướng chính">
+          <button type="button" class="nav-item active" id="nav-assistant">Trợ lý ảo</button>
+          <!-- The design's remaining sections have nothing behind them in this
+           demo. They stay as inert chrome rather than buttons that lie. -->
+          <span class="nav-item muted" aria-disabled="true">Tài khoản</span>
+          <span class="nav-item muted" aria-disabled="true">Thanh toán</span>
+          <span class="nav-item muted" aria-disabled="true">Thẻ</span>
+          <span class="nav-item muted" aria-disabled="true">Hỗ trợ</span>
+        </nav>
+
+        <div class="nav-section">
+          <span class="nav-eyebrow">Phiên làm việc</span>
+          <div class="nav-meta">
+            <span id="mode-pill" class="pill">đang kiểm tra…</span>
+            <span id="staff-pill" class="pill hidden"></span>
+          </div>
+          <!-- Names whoever the session has verified, so the demo shows identity
+           being established rather than just asserted in a chat bubble. -->
+          <div class="nav-user">
+            <span class="avatar sm" id="rail-avatar" aria-label="Khách">
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="8" r="3.4" />
+                <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+              </svg>
+            </span>
+            <span class="nav-user-text">
+              <b id="rail-user">Khách</b><em id="rail-user-sub">Chưa xác thực</em>
+            </span>
+          </div>
+        </div>
+
+        <div class="nav-foot">
+          <button id="view-customer-btn" class="ghost small hidden" type="button">
+            Màn hình khách
+          </button>
+          <button id="view-console-btn" class="ghost small hidden" type="button">
+            Bảng điều khiển
+          </button>
+          <button id="login-btn" class="ghost small" type="button">Đăng nhập</button>
+          <button id="logout" class="ghost small hidden" type="button">Đăng xuất</button>
+        </div>
+      </aside>
+
+      <div class="app-main">
+        <!-- ============================================================
+       KHÁCH HÀNG - mặc định. Không cần đăng nhập, chỉ có khung chat.
+       ============================================================ -->
+        <main id="screen-customer" class="screen screen-chat">
+          <section class="chat-panel">
+            <header class="chat-header">
+              <!-- Nút mở menu trái (chỉ hiện trên điện thoại) để tới đăng nhập/console. -->
+              <button type="button" class="icon-btn nav-toggle" aria-label="Mở menu">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 6h18M3 12h18M3 18h18" />
+                </svg>
+              </button>
+              <!-- Mock only: the surrounding banking app owns where "back" goes, so
+             here it is a real, focusable control that deliberately navigates
+             nowhere. Replace the handler when this is embedded. -->
+              <button type="button" class="icon-btn back-btn" id="back-btn" aria-label="Quay lại">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M15 5l-7 7 7 7" />
+                </svg>
+              </button>
+              <div class="chat-id">
+                <span class="chat-name">ABC Bank Trợ lý ảo</span>
+                <span class="chat-status ok" id="chat-status">
+                  <i class="dot" aria-hidden="true"></i
+                  ><span id="chat-status-text">Trực tuyến</span>
+                </span>
+              </div>
+              <button
+                type="button"
+                class="icon-btn"
+                id="talk-to-person"
+                aria-label="Gặp chuyên viên"
+                title="Gặp chuyên viên (nhân viên hỗ trợ)"
+              >
+                <!-- Headset + mic icon — nhân viên hỗ trợ -->
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 13v-1a8 8 0 0 1 16 0v1" />
+                  <rect x="2" y="13" width="4" height="6" rx="1.5" />
+                  <rect x="18" y="13" width="4" height="6" rx="1.5" />
+                  <path d="M18 19v.5a3 3 0 0 1-3 3H13" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-btn hidden"
+                id="call-btn"
+                aria-label="Hội thoại giọng nói"
+                title="Hội thoại giọng nói với trợ lý ảo"
+              >
+                <!-- Phone icon — mở hội thoại giọng nói -->
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"
+                  />
+                </svg>
+              </button>
+              <!-- The old left rail carried this as a full-width "Cuộc trò chuyện
              mới" button and repeated it as a bin icon in the header. The rail
              is gone with the mobile-first layout, so the two collapse into one
              control here - the header is the only chrome a phone gets. -->
-        <button type="button" class="icon-btn" id="new-chat"
-                aria-label="Cuộc trò chuyện mới" title="Cuộc trò chuyện mới">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 5v14M5 12h14"/></svg>
-        </button>
-        <button type="button" class="icon-btn rail-toggle" id="rail-toggle"
-                aria-label="Nguồn câu trả lời">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="1.8" stroke-linecap="round"><path d="M12 16v-5M12 8h.01"/>
-            <circle cx="12" cy="12" r="9"/></svg>
-        </button>
-      </header>
+              <button
+                type="button"
+                class="icon-btn"
+                id="new-chat"
+                aria-label="Cuộc trò chuyện mới"
+                title="Cuộc trò chuyện mới"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-btn rail-toggle"
+                id="rail-toggle"
+                aria-label="Nguồn câu trả lời"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                >
+                  <path d="M12 16v-5M12 8h.01" />
+                  <circle cx="12" cy="12" r="9" />
+                </svg>
+              </button>
+            </header>
 
-      <div class="arch-toggle hidden" id="arch-toggle-box">
-        <div class="arch-toggle-text">
-          <strong id="arch-toggle-title">Kiến trúc đầy đủ</strong>
-          <span class="hint" id="arch-toggle-hint">Định tuyến, guardrail, truy xuất và kiểm tra dẫn nguồn đều đang bật.</span>
-        </div>
-        <label class="switch">
-          <input type="checkbox" id="raw-toggle" />
-          <span class="switch-track"><span class="switch-thumb"></span></span>
-        </label>
-      </div>
+            <div class="arch-toggle hidden" id="arch-toggle-box">
+              <div class="arch-toggle-text">
+                <strong id="arch-toggle-title">Kiến trúc đầy đủ</strong>
+                <span class="hint" id="arch-toggle-hint"
+                  >Định tuyến, guardrail, truy xuất và kiểm tra dẫn nguồn đều đang bật.</span
+                >
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="raw-toggle" />
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+              </label>
+            </div>
 
-      <div class="arch-toggle hidden" id="script-toggle-box">
-        <div class="arch-toggle-text">
-          <strong id="script-toggle-title">Kịch bản demo: tắt</strong>
-          <span class="hint" id="script-toggle-hint">Bật để ép các câu trả lời tiếp theo theo đúng kịch bản đã soạn, bất kể router/model trả lời gì.</span>
-        </div>
-        <select id="script-select" class="script-select"></select>
-        <button type="button" class="link-btn" id="script-start-btn">Bắt đầu</button>
-        <button type="button" class="link-btn hidden" id="script-stop-btn">Dừng</button>
-      </div>
+            <div
+              id="messages"
+              class="messages"
+              role="log"
+              aria-live="polite"
+              aria-label="Nội dung hội thoại"
+            ></div>
 
-      <div id="messages" class="messages" role="log" aria-live="polite"
-           aria-label="Nội dung hội thoại"></div>
+            <div id="raw-banner" class="raw-banner hidden">
+              <div>
+                <strong>Chế độ LLM thuần - chỉ dùng để demo</strong>
+                <p>
+                  Mọi lớp bên dưới bị bỏ qua: định tuyến, guardrail, truy xuất, che dữ liệu cá nhân,
+                  kiểm tra dẫn nguồn. Đây là model trả lời chỉ dựa trên lịch sử hội thoại - chính là
+                  mốc so sánh mà phần còn lại của kiến trúc sinh ra để vượt qua.
+                </p>
+              </div>
+            </div>
+            <div id="handoff-banner" class="handoff-banner hidden"></div>
+            <div id="chat-actions" class="chat-actions hidden"></div>
 
-      <div id="script-banner" class="raw-banner hidden">
-        <div>
-          <strong id="script-banner-title">Chế độ kịch bản demo</strong>
-          <p>Mọi câu trả lời tiếp theo trong hội thoại này đang bị ép theo kịch bản đã chọn, bỏ qua toàn bộ định tuyến.</p>
-        </div>
-      </div>
+            <div class="suggestions hidden" id="suggestions"></div>
 
-      <div id="raw-banner" class="raw-banner hidden">
-        <div>
-          <strong>Chế độ LLM thuần - chỉ dùng để demo</strong>
-          <p>Mọi lớp bên dưới bị bỏ qua: định tuyến, guardrail, truy xuất,
-            che dữ liệu cá nhân, kiểm tra dẫn nguồn. Đây là model trả lời chỉ
-            dựa trên lịch sử hội thoại - chính là mốc so sánh mà phần còn lại
-            của kiến trúc sinh ra để vượt qua.</p>
-        </div>
-      </div>
-      <div id="handoff-banner" class="handoff-banner hidden"></div>
-      <div id="chat-actions" class="chat-actions hidden"></div>
+            <div id="waveform-bar" class="waveform-bar hidden">
+              <span id="silence-dot" class="rec-dot"></span>
+              <canvas id="waveform-canvas" height="36"></canvas>
+              <span id="stt-status" class="stt-status">Đang nghe…</span>
+            </div>
 
-      <div class="suggestions hidden" id="suggestions"></div>
+            <form id="composer" class="composer" autocomplete="off">
+              <!-- Gửi ảnh từ thư viện: mở hộp chọn ảnh rồi hiển thị ảnh trong khung
+             chat (xử lý phía client). Emoji và mic là thật - wired trong app.js;
+             mic ẩn/disable khi server không có STT. -->
+              <button
+                type="button"
+                id="image-btn"
+                class="icon-btn ghost-ic ic-image"
+                title="Gửi ảnh từ thư viện"
+                aria-label="Gửi ảnh từ thư viện"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="16" rx="3" />
+                  <circle cx="8.5" cy="9.5" r="1.6" />
+                  <path d="M21 16l-5-5L5 20" />
+                </svg>
+              </button>
+              <input
+                id="image-file"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                aria-hidden="true"
+                tabindex="-1"
+              />
+              <input id="input" type="text" placeholder="Nhập câu hỏi về tài chính của anh/chị…" />
+              <button
+                type="button"
+                id="emoji-btn"
+                class="icon-btn ghost-ic ic-emoji"
+                title="Biểu tượng cảm xúc"
+                aria-label="Chọn biểu tượng cảm xúc"
+              >
+                😊
+              </button>
+              <!-- Bảng chọn emoji (đổ nội dung bằng JS) -->
+              <div id="emoji-panel" class="emoji-panel hidden" aria-label="Bảng biểu tượng"></div>
+              <button
+                type="button"
+                id="mic-btn"
+                class="icon-btn ghost-ic ic-voice hidden"
+                title="Nhập bằng giọng nói"
+              >
+                🎙️
+              </button>
+              <button
+                type="button"
+                id="voice-toggle"
+                class="icon-btn ghost-ic"
+                title="Bật đọc tự động"
+              >
+                🔇
+              </button>
+              <button type="submit" id="send" class="send-btn" aria-label="Gửi">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M5 12h13M12 5l7 7-7 7" />
+                </svg>
+              </button>
+            </form>
+          </section>
 
-      <div id="waveform-bar" class="waveform-bar hidden">
-        <span id="silence-dot" class="rec-dot"></span>
-        <canvas id="waveform-canvas" height="36"></canvas>
-        <span id="stt-status" class="stt-status">Đang nghe…</span>
-      </div>
-
-      <form id="composer" class="composer" autocomplete="off">
-        <!-- Attach and emoji are chrome, not features: a bank assistant that
-             ships without them looks unfinished, and wiring them is out of
-             scope for a routing demo. `data-demo` makes the inertness
-             explicit rather than a silent dead click. Voice input is real -
-             wired in app.js against /api/stt - and hidden/disabled there
-             when STT isn't available on the running server. -->
-        <button type="button" class="icon-btn ghost-ic ic-attach" title="Đính kèm" data-demo>📎</button>
-        <input id="input" type="text" placeholder="Nhập câu hỏi về tài chính của anh/chị…" />
-        <button type="button" class="icon-btn ghost-ic ic-emoji" title="Biểu tượng cảm xúc" data-demo>😊</button>
-        <button type="button" id="mic-btn" class="icon-btn ghost-ic ic-voice hidden" title="Nhập bằng giọng nói">🎙️</button>
-        <button type="button" id="voice-toggle" class="icon-btn ghost-ic" title="Bật đọc tự động">🔇</button>
-        <button type="submit" id="send" class="send-btn" aria-label="Gửi">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 12h13M12 5l7 7-7 7"/></svg>
-        </button>
-      </form>
-    </section>
-
-    <!-- Off-canvas below 1024px, behind the ⓘ button in the header. That is
+          <!-- Off-canvas below 1024px, behind the ⓘ button in the header. That is
          what settles the old objection to putting instrumentation on the
          customer screen: the technical view is opt-in here, and the agent
          console still owns it for the people who read it all day. -->
-    <aside class="context-rail" id="context-rail">
-      <div class="rail-block">
-        <span class="rail-eyebrow">Nguồn câu trả lời</span>
-        <p class="hint">Câu trả lời vừa rồi dựa trên đâu - đúng phần mà bộ phận
-          tuân thủ sẽ soát lại.</p>
-        <div id="inspector">
-          <p class="empty">Gửi một câu hỏi để xem nguồn.</p>
-        </div>
-      </div>
-      <div class="rail-block">
-        <span class="rail-eyebrow">Đường ra quyết định</span>
-        <p class="hint">Các chốt kiểm soát lượt hỏi này đã đi qua, và quy tắc
-          áp dụng tại mỗi chốt.</p>
-        <div id="trace"><p class="empty">-</p></div>
-      </div>
-      <div class="rail-block">
-        <span class="rail-eyebrow">Giọng đọc</span>
-        <div class="rail-voice-settings">
-          <select id="tts-bar-provider">
-            <option value="vbee">Voice 1</option>
-            <option value="gtts">Voice 2</option>
-          </select>
-          <select id="tts-bar-voice">
-            <option value="hn_female_ngochuyen_full_48k-fhg">Nữ Hà Nội – Tự nhiên</option>
-            <option value="hn_female_hermer_stor_48k-fhg">Nữ Hà Nội – Chuyên nghiệp</option>
-            <option value="hn_female_lenka_stor_48k-phg">Nữ Hà Nội – Trẻ trung</option>
-            <option value="hn_male_minhquan_yt-stable">Nam Hà Nội – Ấm</option>
-            <option value="hn_male_manhdung_news_48k-fhg">Nam Hà Nội – Rõ ràng</option>
-            <option value="sg_female_tuongvy_call_44k-fhg">Nữ Sài Gòn – Năng động</option>
-            <option value="sg_female_thaotrinh_full_44k-phg" selected>Nữ Sài Gòn – Mềm mại</option>
-            <option value="sg_male_chidat_ebook_48k-phg">Nam Sài Gòn – Trầm ấm</option>
-          </select>
-        </div>
-      </div>
-      <p class="rail-note">Trợ lý đọc được thông tin tài khoản nhưng không bao giờ
-        thấy số thẻ đầy đủ. Mọi thao tác liên quan đến tiền hoặc trạng thái thẻ
-        đều hỏi xác nhận trước.</p>
-    </aside>
-  </main>
+          <aside class="context-rail" id="context-rail">
+            <div class="rail-block">
+              <span class="rail-eyebrow">Nguồn câu trả lời</span>
+              <p class="hint">
+                Câu trả lời vừa rồi dựa trên đâu - đúng phần mà bộ phận tuân thủ sẽ soát lại.
+              </p>
+              <div id="inspector">
+                <p class="empty">Gửi một câu hỏi để xem nguồn.</p>
+              </div>
+            </div>
+            <div class="rail-block">
+              <span class="rail-eyebrow">Đường ra quyết định</span>
+              <p class="hint">
+                Các chốt kiểm soát lượt hỏi này đã đi qua, và quy tắc áp dụng tại mỗi chốt.
+              </p>
+              <div id="trace"><p class="empty">-</p></div>
+            </div>
+            <div class="rail-block">
+              <span class="rail-eyebrow">Giọng đọc</span>
+              <div class="rail-voice-settings">
+                <select id="tts-bar-provider">
+                  <option value="VieNeu">Voice 1</option>
+                  <option value="ElevenLabs">Voice 2</option>
+                  <option value="gtts">Voice 3</option>
+                </select>
+                <select id="tts-bar-voice"></select>
+              </div>
+            </div>
+            <p class="rail-note">
+              Trợ lý đọc được thông tin tài khoản nhưng không bao giờ thấy số thẻ đầy đủ. Mọi thao
+              tác liên quan đến tiền hoặc trạng thái thẻ đều hỏi xác nhận trước.
+            </p>
+          </aside>
+        </main>
 
-  <!-- ============================================================
+        <!-- ============================================================
        ĐĂNG NHẬP NHÂN VIÊN
        ============================================================ -->
-  <main id="screen-login" class="screen screen-doc hidden">
-    <section class="panel">
-      <h2>Đăng nhập</h2>
-      <p class="hint">Màn hình khách không cần đăng nhập. Trang này dành cho nhân viên
-        trung tâm dịch vụ khách hàng.</p>
-      <form id="login-form">
-        <label class="field">
-          <span>Tên đăng nhập</span>
-          <input id="login-user" type="text" autocomplete="username" value="agent" />
-        </label>
-        <label class="field">
-          <span>Mật khẩu</span>
-          <input id="login-pass" type="password" autocomplete="current-password" />
-        </label>
-        <div id="login-error" class="error hidden"></div>
-        <div class="row-gap">
-          <button class="primary" type="submit">Đăng nhập</button>
-          <button id="login-cancel" class="ghost" type="button">Quay lại khung chat</button>
-        </div>
-      </form>
-      <p class="hint" style="margin-top:14px">
-        Tài khoản demo: <code>agent</code> / <code>demo1234</code>.
-      </p>
-    </section>
-    <section class="panel warn">
-      <h3>Cơ chế phân quyền</h3>
-      <p>Mọi endpoint dành cho nhân viên đều kiểm tra phiên đăng nhập ở phía máy
-        chủ trước khi xử lý. Ẩn một màn hình trong JavaScript không phải là một
-        biện pháp bảo mật - các route vẫn trả lời bất kỳ ai gọi trực tiếp, nên
-        việc kiểm tra phải nằm trong handler.</p>
-      <p>Mức độ demo: tài khoản được băm bằng PBKDF2 trong mã nguồn, phiên đăng
-        nhập lưu trong bộ nhớ và mất khi khởi động lại, cookie có HttpOnly +
-        SameSite=Lax nhưng không có Secure vì chạy trên HTTP thường ở localhost.
-        Một hệ thống thật sẽ xác thực qua nhà cung cấp định danh của ngân hàng.</p>
-    </section>
-  </main>
+        <main id="screen-login" class="screen screen-doc hidden">
+          <section class="panel">
+            <h2>Đăng nhập</h2>
+            <p class="hint">
+              Màn hình khách không cần đăng nhập. Trang này dành cho nhân viên trung tâm dịch vụ
+              khách hàng.
+            </p>
+            <form id="login-form">
+              <label class="field">
+                <span>Tên đăng nhập</span>
+                <input id="login-user" type="text" autocomplete="username" value="agent" />
+              </label>
+              <label class="field">
+                <span>Mật khẩu</span>
+                <input id="login-pass" type="password" autocomplete="current-password" />
+              </label>
+              <div id="login-error" class="error hidden"></div>
+              <div class="row-gap">
+                <button class="primary" type="submit">Đăng nhập</button>
+                <button id="login-cancel" class="ghost" type="button">Quay lại khung chat</button>
+              </div>
+            </form>
+            <p class="hint" style="margin-top: 14px">
+              Tài khoản demo: <code>agent</code> / <code>demo1234</code>.
+            </p>
+          </section>
+          <section class="panel warn">
+            <h3>Cơ chế phân quyền</h3>
+            <p>
+              Mọi endpoint nhân viên đều kiểm tra phiên ở phía máy chủ (ẩn màn hình bằng JavaScript
+              không phải bảo mật).
+            </p>
+            <details>
+              <summary>Chi tiết mức demo</summary>
+              <p>
+                Tài khoản băm PBKDF2, phiên lưu trong bộ nhớ (mất khi khởi động lại), cookie
+                HttpOnly + SameSite=Lax (không Secure vì chạy HTTP localhost). Hệ thống thật sẽ xác
+                thực qua nhà cung cấp định danh của ngân hàng.
+              </p>
+            </details>
+          </section>
+        </main>
 
-  <!-- ============================================================
+        <!-- ============================================================
        NHÂN VIÊN - màn hình riêng, không phải tab trong giao diện khách.
        ============================================================ -->
-  <main id="screen-agent" class="screen screen-doc hidden">
-    <nav class="subtabs">
-      <button class="subtab active" data-panel="dashboard">Tổng quan</button>
-      <button class="subtab" data-panel="queue">
-        Hàng chờ <span id="queue-count" class="badge zero">0</span>
-      </button>
-      <button class="subtab" data-panel="kb">Kho tri thức</button>
-      <button class="subtab" data-panel="settings">Cấu hình</button>
-    </nav>
-
-    <!-- ---------- OVERVIEW ---------- -->
-    <section id="panel-dashboard" class="agent-panel">
-      <div class="row-between">
-        <div>
-          <h2>Vận hành</h2>
-          <p class="hint" id="dash-scope">-</p>
-        </div>
-        <div class="row-gap">
-          <button id="seed-btn" class="ghost small">Nạp dữ liệu demo</button>
-          <button id="clear-btn" class="danger small">Xoá toàn bộ phiên</button>
-          <button id="dash-refresh" class="ghost small">Làm mới</button>
-        </div>
-      </div>
-      <div id="stat-grid" class="stat-grid"></div>
-      <div class="panel" style="margin-top:16px">
-        <h3>Thao tác thẻ <span class="tag">đã ghi vào dữ liệu</span></h3>
-        <p class="hint">Mỗi lần thẻ đổi trạng thái, kèm bước chuyển và hội thoại yêu cầu.
-          Một thao tác tài khoản mà ngân hàng không chứng minh được về sau thì
-          coi như chưa từng xảy ra.</p>
-        <div id="card-events"></div>
-      </div>
-      <div class="panel" style="margin-top:16px">
-        <h3>Định tuyến: lexical so với LLM <span id="router-mode" class="tag"></span></h3>
-        <p class="hint">Chế độ shadow chạy song song hai bộ phân loại, dùng kết quả
-          của bộ lexical, và ghi lại mọi chỗ hai bên khác nhau. Tỷ lệ trùng khớp
-          một mình không chứng minh bên nào đúng - hai bộ có thể cùng sai - nên
-          các ca lệch được liệt kê đầy đủ để người đọc tự phân xử.</p>
-        <div id="router-box"></div>
-      </div>
-      <div class="panel" style="margin-top:16px">
-        <h3>Chủ đề chưa giải quyết <span id="topic-count" class="tag"></span></h3>
-        <p class="hint">Các câu trợ lý chưa trả lời được, đã gom nhóm. Đây là danh sách tài
-          liệu cần viết tiếp, xếp theo mức ưu tiên - không phải bảng đếm lỗi.</p>
-        <div id="topics"></div>
-      </div>
-      <div class="split" style="margin-top:16px">
-        <div class="panel">
-          <h3>Chính sách <span class="tag">config.json</span></h3>
-          <div id="policy-box"></div>
-        </div>
-        <div class="panel">
-          <h3>Dữ liệu chiến dịch</h3>
-          <div id="campaign-box"></div>
-          <h3 style="margin-top:16px">Trí nhớ xuyên phiên</h3>
-          <div id="memory-box"></div>
-          <h3 style="margin-top:16px">Dữ liệu</h3>
-          <div id="db-box"></div>
-        </div>
-      </div>
-      <div class="panel" style="margin-top:16px">
-        <h3>Phân bố các route</h3>
-        <div id="route-bars"></div>
-      </div>
-      <div class="panel" style="margin-top:16px">
-        <h3>Hội thoại gần đây</h3>
-        <p class="hint">Mọi số liệu ở trên đều được tính từ đây. Bấm vào một dòng
-          để mở hội thoại đó.</p>
-        <div id="activity" class="queue"></div>
-      </div>
-    </section>
-
-    <!-- ---------- QUEUE ---------- -->
-    <section id="panel-queue" class="agent-panel hidden">
-      <div class="split">
-        <div class="panel">
-          <h2>Hàng chờ chuyển tiếp</h2>
-          <p class="hint">Các hội thoại trợ lý đã chuyển cho nhân viên.</p>
-          <div id="queue" class="queue"></div>
-        </div>
-        <div class="stack">
-          <div id="handover-empty" class="empty-state">
-            <h2>Chưa chọn hội thoại nào</h2>
-            <p>Chọn một hội thoại để xem bản tóm tắt bàn giao, bản ghi đầy đủ
-              và nhật ký kiểm toán - và để trả lời khách hàng.</p>
-          </div>
-          <div id="handover" class="stack hidden">
-            <div class="row-between">
-              <h2 id="handover-title">-</h2>
-              <button id="regen" class="ghost small">Tạo lại bản tóm tắt</button>
-            </div>
-            <div class="panel">
-              <h3>Tóm tắt bàn giao <span id="summary-source" class="tag"></span></h3>
-              <div id="summary" class="summary"></div>
-            </div>
-            <div class="panel">
-              <h3>Trả lời khách hàng <span id="handled-by" class="tag"></span></h3>
-              <p class="hint">Trợ lý sẽ ngừng trả lời ngay khi bạn nhắn - khách hàng
-                chỉ nghe một tiếng nói, không phải hai.</p>
-              <form id="reply-form" class="composer-inline" autocomplete="off">
-                <input id="reply-input" type="text"
-                       placeholder="Nhập câu trả lời…" />
-                <button class="primary" type="submit">Gửi</button>
-              </form>
-              <div id="reply-error" class="error hidden"></div>
-            </div>
-            <div class="panel">
-              <h3>Toàn bộ bản ghi</h3>
-              <pre id="transcript" class="transcript"></pre>
-            </div>
-            <div class="panel">
-              <h3>Nhật ký kiểm toán</h3>
-              <div id="audit" class="audit"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ---------- KNOWLEDGE BASE ---------- -->
-    <section id="panel-kb" class="agent-panel hidden">
-      <div class="split">
-        <div class="panel">
-          <div class="row-between">
-            <h2>Tài liệu</h2>
-            <div class="row-gap">
-              <button id="kb-upload-btn" class="ghost small">Tải lên</button>
-              <button id="kb-new" class="primary small">Soạn mới</button>
-            </div>
-          </div>
-          <p class="hint" id="kb-stats">-</p>
-          <input id="kb-file" type="file" accept=".md,.txt,.docx" class="hidden" />
-          <div id="kb-drop" class="dropzone">
-            Kéo thả tệp <b>.md</b>, <b>.txt</b> hoặc <b>.docx</b> vào đây
-            <small>Tệp Word sẽ được giải nén và trích xuất tiêu đề, danh sách, bảng biểu -
-              khung xem lại hiển thị đúng những gì được đánh index.</small>
-          </div>
-          <div id="kb-upload-error" class="error hidden"></div>
-          <div id="kb-list" class="queue"></div>
-        </div>
-
-        <div class="stack">
-          <div id="kb-empty" class="empty-state">
-            <h2>Chưa chọn tài liệu nào</h2>
-            <p>Chọn một tài liệu để xem các đoạn trích mà bộ truy xuất đã tách ra,
-              hoặc thêm tài liệu mới. Tài liệu tải lên được đánh index ngay - không
-              cần khởi động lại.</p>
-          </div>
-          <div id="kb-view" class="stack hidden">
-            <div class="row-between">
-              <h2 id="kb-title">-</h2>
-              <div class="row-gap">
-                <button id="kb-edit" class="ghost small">Sửa</button>
-                <button id="kb-delete" class="danger small">Xoá</button>
-              </div>
-            </div>
-            <div class="panel">
-              <h3>Đoạn trích đã tách <span id="kb-passage-count" class="tag"></span></h3>
-              <p class="hint">Đây là các đơn vị truy xuất. Một phần nội dung mà bộ
-                truy xuất không thấy được là một câu hỏi nó không trả lời được.</p>
-              <div id="kb-passages" class="passages"></div>
-            </div>
-            <div class="panel">
-              <h3>Văn bản đã trích xuất</h3>
-              <pre id="kb-raw" class="transcript"></pre>
-            </div>
-          </div>
-          <div id="kb-editor" class="panel hidden">
-            <div class="row-between">
-              <h3 id="kb-editor-title">Thêm tài liệu</h3>
-              <button id="kb-cancel" class="ghost small">Huỷ</button>
-            </div>
-            <label class="field">
-              <span>Tên tệp</span>
-              <input id="kb-filename" type="text" placeholder="bao-hiem-du-lich.md" />
-            </label>
-            <label class="field">
-              <span>Markdown - mỗi <code>## Mục</code> trở thành một đoạn trích</span>
-              <textarea id="kb-content" rows="16" spellcheck="false"></textarea>
-            </label>
-            <div id="kb-error" class="error hidden"></div>
-            <div class="row-gap">
-              <button id="kb-save" class="primary">Lưu &amp; đánh index lại</button>
-              <button id="kb-template" class="ghost">Chèn mẫu</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ---------- SETTINGS ---------- -->
-    <section id="panel-settings" class="agent-panel hidden">
-      <div class="split">
-        <div class="panel">
-          <h2>Nhà cung cấp LLM</h2>
-          <p class="hint">Áp dụng ngay lập tức, chỉ cho tiến trình đang chạy này.</p>
-          <div id="provider-list" class="queue"></div>
-        </div>
-        <div class="stack">
-          <div class="panel">
-            <h3>Cấu hình đang dùng</h3>
-            <div id="active-config"></div>
-          </div>
-          <div class="panel">
-            <h3>Cấu hình</h3>
-            <label class="field">
-              <span>Nhà cung cấp</span>
-              <select id="cfg-provider">
-                <option value="auto">auto - dùng provider đầu tiên đã cấu hình</option>
-                <option value="anthropic">anthropic</option>
-                <option value="openai">openai</option>
-                <option value="gemini">gemini</option>
-                <option value="groq">groq - có gói miễn phí</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>API key <em id="cfg-key-hint">- chỉ lưu trong bộ nhớ</em></span>
-              <div class="row-gap">
-                <input id="cfg-key" type="password" placeholder="dán key, để trống nếu giữ nguyên" />
-                <button id="cfg-key-toggle" class="ghost small" type="button">Hiện</button>
-              </div>
-            </label>
-            <label class="field">
-              <span>Model <em>- để trống dùng mặc định của nhà cung cấp</em></span>
-              <input id="cfg-model" type="text" />
-            </label>
-            <div class="grid-2">
-              <label class="field">
-                <span>Mức suy luận</span>
-                <select id="cfg-effort">
-                  <option value="low">thấp</option>
-                  <option value="medium">trung bình</option>
-                  <option value="high">cao</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Base URL <em>- chỉ dùng cho adapter openai</em></span>
-                <input id="cfg-base" type="text" placeholder="https://…/v1" />
-              </label>
-            </div>
-            <div class="grid-2">
-              <label class="field">
-                <span>Giọng điệu</span>
-                <select id="cfg-tone">
-                  <option value="professional">chuyên nghiệp - chính xác, súc tích</option>
-                  <option value="friendly">thân thiện - ấm áp, dùng từ đời thường</option>
-                  <option value="concise">ngắn gọn - trả lời trước, không rào đón</option>
-                  <option value="empathetic">đồng cảm - kiên nhẫn, cho gian lận và mất mát</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Temperature <em>- để trống dùng mặc định của nhà cung cấp</em></span>
-                <input id="cfg-temp" type="number" min="0" max="2" step="0.1"
-                       placeholder="vd: 0.3" />
-              </label>
-            </div>
+        <main id="screen-agent" class="screen screen-doc hidden">
+          <div class="console-head">
+            <button
+              type="button"
+              class="icon-btn nav-toggle console-nav-toggle"
+              aria-label="Mở menu"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M3 6h18M3 12h18M3 18h18" />
+              </svg>
+            </button>
+            <h1>Bảng điều khiển quản trị</h1>
             <p class="hint">
-              Giọng điệu là một tập preset cố định, không phải văn bản tự do.
-              Bất kể chọn gì ở đây cũng được ghi vào system prompt phía trên các
-              đoạn trích đã truy xuất, nên một ô nhập tự do sẽ là cách để ghi đè
-              luật dẫn nguồn ngay từ bảng điều khiển. Giọng điệu chỉ đổi cách nói -
-              không bao giờ đổi được những gì trợ lý được phép khẳng định.
+              Theo dõi và điều khiển hoạt động của trợ lý ảo: trạng thái, model, giọng nói và kho
+              tri thức.
             </p>
-            <div id="cfg-error" class="error hidden"></div>
-            <div class="row-gap">
-              <button id="cfg-save" class="primary">Áp dụng</button>
-              <button id="cfg-clear" class="ghost">Xoá key</button>
+          </div>
+          <nav class="subtabs">
+            <button class="subtab active" data-panel="dashboard">Tổng quan &amp; vận hành</button>
+            <button class="subtab" data-panel="queue">
+              Hàng chờ <span id="queue-count" class="badge zero">0</span>
+            </button>
+            <button class="subtab" data-panel="kb">Kho tri thức</button>
+            <button class="subtab" data-panel="settings">Cấu hình bot</button>
+            <button class="subtab" data-panel="voice">Giọng nói</button>
+            <button class="subtab hidden" id="subtab-agents" data-panel="agents">
+              Quản lý Agent
+            </button>
+            <button class="subtab hidden" id="subtab-calls" data-panel="calls">Gọi khách</button>
+          </nav>
+          <!-- Trên điện thoại thay dải tab bằng một dropdown gọn (xem styles.css). -->
+          <select id="subtab-select" class="subtab-select" aria-label="Chọn mục">
+            <option value="dashboard">Tổng quan &amp; vận hành</option>
+            <option value="queue">Hàng chờ</option>
+            <option value="kb">Kho tri thức</option>
+            <option value="settings">Cấu hình bot</option>
+            <option value="voice">Giọng nói</option>
+            <option value="agents" id="subtab-select-agents" hidden>Quản lý Agent</option>
+            <option value="calls" id="subtab-select-calls" hidden>Gọi khách</option>
+          </select>
+
+          <!-- ---------- OVERVIEW ---------- -->
+          <section id="panel-dashboard" class="agent-panel">
+            <div class="row-between">
+              <div>
+                <h2>Vận hành</h2>
+                <p class="hint" id="dash-scope">-</p>
+              </div>
+              <div class="row-gap">
+                <button id="seed-btn" class="ghost small">Nạp dữ liệu demo</button>
+                <button id="clear-btn" class="danger small">Xoá toàn bộ phiên</button>
+                <button id="dash-refresh" class="ghost small">Làm mới</button>
+              </div>
             </div>
-          </div>
-          <div class="panel warn">
-            <h3>Về việc xử lý API key</h3>
-            <p>Key nhập ở đây chỉ tồn tại trong bộ nhớ của tiến trình này - không
-              bao giờ ghi ra đĩa, và không endpoint nào trả về nó. Danh mục chỉ
-              hiển thị dạng che (<code>sk-a…4f2c</code>), không bao giờ hiện giá trị thật.</p>
-            <p>Tuy vậy nó vẫn ở dạng plaintext trong biến môi trường của tiến
-              trình. Phù hợp cho demo, <b>không</b> phải cách xử lý thông tin xác
-              thực trong môi trường production.</p>
-          </div>
-          <div class="panel">
-            <h3>Giọng nói (TTS)</h3>
-            <div class="grid-2">
-              <label class="field">
-                <span>Nhà cung cấp</span>
-                <select id="tts-provider">
-                  <option value="vbee">Voice 1</option>
-                  <option value="gtts">Voice 2</option>
-                </select>
-              </label>
-              <label class="field" id="tts-voice-field">
-                <span>Giọng Voice 2</span>
-                <select id="tts-voice">
-                  <option value="hn_female_ngochuyen_full_48k-fhg">Nữ Hà Nội – Tự nhiên</option>
-                  <option value="hn_female_hermer_stor_48k-fhg">Nữ Hà Nội – Chuyên nghiệp</option>
-                  <option value="hn_female_lenka_stor_48k-phg">Nữ Hà Nội – Trẻ trung</option>
-                  <option value="hn_male_minhquan_yt-stable">Nam Hà Nội – Ấm</option>
-                  <option value="hn_male_manhdung_news_48k-fhg">Nam Hà Nội – Rõ ràng</option>
-                  <option value="sg_female_tuongvy_call_44k-fhg">Nữ Sài Gòn – Năng động</option>
-                  <option value="sg_female_thaotrinh_full_44k-phg" selected>Nữ Sài Gòn – Mềm mại</option>
-                  <option value="sg_male_chidat_ebook_48k-phg">Nam Sài Gòn – Trầm ấm</option>
-                </select>
-              </label>
+
+            <!-- Bot control strip: live operational state + shortcuts to the two
+           control panels. Reads /api/health so it reflects the running
+           process, not a cached snapshot. -->
+            <div class="panel bot-control" id="bot-control">
+              <div class="row-between" style="align-items: flex-start; flex-wrap: wrap; gap: 10px">
+                <div>
+                  <h3>Điều khiển bot</h3>
+                  <p class="hint">
+                    Trạng thái hoạt động hiện tại của trợ lý ảo và lối tắt tới các bảng điều khiển.
+                  </p>
+                </div>
+                <div class="row-gap">
+                  <button id="bc-goto-settings" class="ghost small">Cấu hình bot</button>
+                  <button id="bc-goto-voice" class="ghost small">Cài đặt giọng nói</button>
+                </div>
+              </div>
+              <div class="bot-status-grid" id="bot-status-grid">
+                <p class="empty">Đang kiểm tra…</p>
+              </div>
             </div>
-            <div id="tts-status" class="hint"></div>
-            <div id="tts-error" class="error hidden"></div>
-            <button id="tts-save" class="primary">Áp dụng</button>
-          </div>
-        </div>
+
+            <div id="stat-grid" class="stat-grid"></div>
+            <div class="panel" style="margin-top: 16px">
+              <h3>Thao tác thẻ <span class="tag">đã ghi vào dữ liệu</span></h3>
+              <p class="hint">
+                Mỗi lần thẻ đổi trạng thái, kèm bước chuyển và hội thoại yêu cầu. Một thao tác tài
+                khoản mà ngân hàng không chứng minh được về sau thì coi như chưa từng xảy ra.
+              </p>
+              <div id="card-events"></div>
+            </div>
+            <div class="panel" style="margin-top: 16px">
+              <h3>Chủ đề chưa giải quyết <span id="topic-count" class="tag"></span></h3>
+              <p class="hint">
+                Các câu trợ lý chưa trả lời được, đã gom nhóm. Đây là danh sách tài liệu cần viết
+                tiếp, xếp theo mức ưu tiên - không phải bảng đếm lỗi.
+              </p>
+              <div id="topics"></div>
+            </div>
+            <div class="split" style="margin-top: 16px">
+              <div class="panel">
+                <h3>Chính sách <span class="tag">config.json</span></h3>
+                <div id="policy-box"></div>
+              </div>
+              <div class="panel">
+                <h3>Dữ liệu chiến dịch</h3>
+                <div id="campaign-box"></div>
+                <h3 style="margin-top: 16px">Trí nhớ xuyên phiên</h3>
+                <div id="memory-box"></div>
+                <h3 style="margin-top: 16px">Dữ liệu</h3>
+                <div id="db-box"></div>
+              </div>
+            </div>
+            <div class="panel" style="margin-top: 16px">
+              <h3>Phân bố các route</h3>
+              <div id="route-bars"></div>
+            </div>
+            <div class="panel" style="margin-top: 16px">
+              <h3>Hội thoại gần đây</h3>
+              <p class="hint">
+                Mọi số liệu ở trên đều được tính từ đây. Bấm vào một dòng để mở hội thoại đó.
+              </p>
+              <div id="activity" class="queue"></div>
+            </div>
+          </section>
+
+          <!-- ---------- QUEUE ---------- -->
+          <section id="panel-queue" class="agent-panel hidden">
+            <div class="split">
+              <div class="panel">
+                <h2>Hàng chờ chuyển tiếp</h2>
+                <p class="hint">Các hội thoại trợ lý đã chuyển cho nhân viên.</p>
+                <div id="queue" class="queue"></div>
+              </div>
+              <div class="stack">
+                <div id="handover-empty" class="empty-state">
+                  <h2>Chưa chọn hội thoại nào</h2>
+                  <p>
+                    Chọn một hội thoại để xem bản tóm tắt bàn giao, bản ghi đầy đủ và nhật ký kiểm
+                    toán - và để trả lời khách hàng.
+                  </p>
+                </div>
+                <div id="handover" class="stack hidden">
+                  <div class="row-between">
+                    <h2 id="handover-title">-</h2>
+                    <button id="regen" class="ghost small">Tạo lại bản tóm tắt</button>
+                  </div>
+                  <div class="panel">
+                    <h3>Tóm tắt bàn giao <span id="summary-source" class="tag"></span></h3>
+                    <div id="summary" class="summary"></div>
+                  </div>
+                  <div class="panel">
+                    <h3>Trả lời khách hàng <span id="handled-by" class="tag"></span></h3>
+                    <p class="hint">
+                      Trợ lý sẽ ngừng trả lời ngay khi bạn nhắn - khách hàng chỉ nghe một tiếng nói,
+                      không phải hai.
+                    </p>
+                    <form id="reply-form" class="composer-inline" autocomplete="off">
+                      <input id="reply-input" type="text" placeholder="Nhập câu trả lời…" />
+                      <button class="primary" type="submit">Gửi</button>
+                    </form>
+                    <div id="reply-error" class="error hidden"></div>
+                  </div>
+                  <div class="panel">
+                    <h3>Toàn bộ bản ghi</h3>
+                    <pre id="transcript" class="transcript"></pre>
+                  </div>
+                  <div class="panel">
+                    <h3>Nhật ký kiểm toán</h3>
+                    <div id="audit" class="audit"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ---------- KNOWLEDGE BASE ---------- -->
+          <section id="panel-kb" class="agent-panel hidden">
+            <div class="split">
+              <div class="panel">
+                <div class="row-between">
+                  <h2>Tài liệu</h2>
+                  <div class="row-gap">
+                    <button id="kb-upload-btn" class="ghost small">Tải lên</button>
+                    <button id="kb-new" class="primary small">Soạn mới</button>
+                  </div>
+                </div>
+                <p class="hint" id="kb-stats">-</p>
+                <input id="kb-file" type="file" accept=".md,.txt,.docx" class="hidden" />
+                <div id="kb-drop" class="dropzone">
+                  Kéo thả tệp <b>.md</b>, <b>.txt</b> hoặc <b>.docx</b> vào đây
+                  <small
+                    >Tệp Word sẽ được giải nén và trích xuất tiêu đề, danh sách, bảng biểu - khung
+                    xem lại hiển thị đúng những gì được đánh index.</small
+                  >
+                </div>
+                <div id="kb-upload-error" class="error hidden"></div>
+                <div id="kb-list" class="queue"></div>
+              </div>
+
+              <div class="stack">
+                <div id="kb-empty" class="empty-state">
+                  <h2>Chưa chọn tài liệu nào</h2>
+                  <p>
+                    Chọn một tài liệu để xem các đoạn trích mà bộ truy xuất đã tách ra, hoặc thêm
+                    tài liệu mới. Tài liệu tải lên được đánh index ngay - không cần khởi động lại.
+                  </p>
+                </div>
+                <div id="kb-view" class="stack hidden">
+                  <div class="row-between">
+                    <h2 id="kb-title">-</h2>
+                    <div class="row-gap">
+                      <button id="kb-edit" class="ghost small">Sửa</button>
+                      <button id="kb-delete" class="danger small">Xoá</button>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <h3>Đoạn trích đã tách <span id="kb-passage-count" class="tag"></span></h3>
+                    <p class="hint">
+                      Đây là các đơn vị truy xuất. Một phần nội dung mà bộ truy xuất không thấy được
+                      là một câu hỏi nó không trả lời được.
+                    </p>
+                    <div id="kb-passages" class="passages"></div>
+                  </div>
+                  <div class="panel">
+                    <h3>Văn bản đã trích xuất</h3>
+                    <pre id="kb-raw" class="transcript"></pre>
+                  </div>
+                </div>
+                <div id="kb-editor" class="panel hidden">
+                  <div class="row-between">
+                    <h3 id="kb-editor-title">Thêm tài liệu</h3>
+                    <button id="kb-cancel" class="ghost small">Huỷ</button>
+                  </div>
+                  <label class="field">
+                    <span>Tên tệp</span>
+                    <input id="kb-filename" type="text" placeholder="bao-hiem-du-lich.md" />
+                  </label>
+                  <label class="field">
+                    <span>Markdown - mỗi <code>## Mục</code> trở thành một đoạn trích</span>
+                    <textarea id="kb-content" rows="16" spellcheck="false"></textarea>
+                  </label>
+                  <div id="kb-error" class="error hidden"></div>
+                  <div class="row-gap">
+                    <button id="kb-save" class="primary">Lưu &amp; đánh index lại</button>
+                    <button id="kb-template" class="ghost">Chèn mẫu</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ---------- SETTINGS ---------- -->
+          <section id="panel-settings" class="agent-panel hidden">
+            <div class="split">
+              <div class="panel">
+                <h2>Nhà cung cấp LLM</h2>
+                <p class="hint">Áp dụng ngay lập tức, chỉ cho tiến trình đang chạy này.</p>
+                <div id="provider-list" class="queue"></div>
+              </div>
+              <div class="stack">
+                <div class="panel">
+                  <h3>Cấu hình đang dùng</h3>
+                  <div id="active-config"></div>
+                </div>
+                <div class="panel">
+                  <h3>Cấu hình</h3>
+                  <label class="field">
+                    <span>Nhà cung cấp</span>
+                    <select id="cfg-provider">
+                      <option value="auto">auto</option>
+                      <option value="anthropic">anthropic</option>
+                      <option value="openai">openai</option>
+                      <option value="gemini">gemini</option>
+                      <option value="groq">groq</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Model <em>- để trống dùng mặc định của nhà cung cấp</em></span>
+                    <input id="cfg-model" type="text" />
+                  </label>
+                  <div class="grid-2">
+                    <label class="field">
+                      <span>Mức suy luận</span>
+                      <select id="cfg-effort">
+                        <option value="low">thấp</option>
+                        <option value="medium">trung bình</option>
+                        <option value="high">cao</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Base URL <em>- chỉ dùng cho adapter openai</em></span>
+                      <input id="cfg-base" type="text" placeholder="https://…/v1" />
+                    </label>
+                  </div>
+                  <div class="grid-2">
+                    <label class="field">
+                      <span>Giọng điệu</span>
+                      <select id="cfg-tone">
+                        <option value="professional">chuyên nghiệp - chính xác, súc tích</option>
+                        <option value="friendly">thân thiện - ấm áp, dùng từ đời thường</option>
+                        <option value="concise">ngắn gọn - trả lời trước, không rào đón</option>
+                        <option value="empathetic">
+                          đồng cảm - kiên nhẫn, cho sự cố và mất mát
+                        </option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Temperature <em>- để trống dùng mặc định của nhà cung cấp</em></span>
+                      <input
+                        id="cfg-temp"
+                        type="number"
+                        min="0"
+                        max="2"
+                        step="0.1"
+                        placeholder="vd: 0.3"
+                      />
+                    </label>
+                  </div>
+                  <p class="hint">
+                    Giọng điệu là một tập preset cố định, không phải văn bản tự do. Bất kể chọn gì ở
+                    đây cũng được ghi vào system prompt phía trên các đoạn trích đã truy xuất, nên
+                    một ô nhập tự do sẽ là cách để ghi đè luật dẫn nguồn ngay từ bảng điều khiển.
+                    Giọng điệu chỉ đổi cách nói - không bao giờ đổi được những gì trợ lý được phép
+                    khẳng định.
+                  </p>
+                  <div id="cfg-error" class="error hidden"></div>
+                  <div class="row-gap">
+                    <button id="cfg-save" class="primary">Áp dụng</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ---------- VOICE ---------- -->
+          <section id="panel-voice" class="agent-panel hidden">
+            <h2>Giọng nói của bot</h2>
+            <p class="hint">
+              Chọn nhà cung cấp và giọng đọc mà trợ lý dùng để trả lời khách hàng. Thay đổi áp dụng
+              ngay cho toàn hệ thống - cả khung chat lẫn hội thoại giọng nói.
+            </p>
+            <div class="split-even" style="margin-top: 16px">
+              <div class="panel">
+                <h3>Cài đặt giọng đọc (TTS)</h3>
+                <div class="grid-2">
+                  <label class="field">
+                    <span>Nhà cung cấp</span>
+                    <select id="tts-provider">
+                      <option value="VieNeu">Voice 1</option>
+                      <option value="ElevenLabs">Voice 2</option>
+                      <option value="gtts">Voice 3</option>
+                    </select>
+                  </label>
+                  <label class="field" id="tts-voice-field">
+                    <span>Giọng đọc</span>
+                    <select id="tts-voice"></select>
+                  </label>
+                </div>
+                <div id="tts-status" class="hint" style="margin: 4px 0 12px"></div>
+                <div id="tts-error" class="error hidden"></div>
+                <div class="row-gap">
+                  <button id="tts-save" class="primary">Áp dụng</button>
+                  <button id="tts-preview" class="ghost">Nghe thử</button>
+                </div>
+              </div>
+              <div class="panel">
+                <h3>Ghi chú vận hành</h3>
+                <p class="hint">
+                  Giọng đọc áp dụng cho cả nút loa trong khung chat và chế độ hội thoại giọng nói.
+                  Khách hàng đang mở phiên sẽ nghe giọng mới từ câu trả lời kế tiếp, không cần tải
+                  lại trang.
+                </p>
+                <p class="hint">
+                  Nếu nhà cung cấp giọng nói không khả dụng, bot tự động trả lời bằng văn bản -
+                  trạng thái hiển thị ở khối "Điều khiển bot" trong tab Tổng quan.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <!-- ---------- WORKFORCE (admin only) ---------- -->
+          <section id="panel-agents" class="agent-panel hidden">
+            <h2>Quản lý Agent</h2>
+            <div id="agents-error" class="error hidden"></div>
+            <div class="agents-layout" style="margin-top: 16px">
+              <div id="agents-list" class="agents-list"></div>
+              <div id="agent-detail" class="agent-detail panel"></div>
+            </div>
+          </section>
+
+          <!-- ---------- GỌI KHÁCH (admin only) ---------- -->
+          <section id="panel-calls" class="agent-panel hidden">
+            <h2>Gọi khách</h2>
+            <div class="split">
+              <div class="panel">
+                <h3>Tạo cuộc gọi</h3>
+                <label class="field">
+                  <span>Số điện thoại khách</span>
+                  <input id="call-phone" type="tel" placeholder="vd: 0842199388" />
+                </label>
+                <label class="field">
+                  <span>Xưng hô</span>
+                  <select id="call-title">
+                    <option value="Anh">Anh</option>
+                    <option value="Chị">Chị</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Tên khách</span>
+                  <input id="call-name" type="text" placeholder="vd: Minh" />
+                </label>
+                <div class="field">
+                  <span>Dòng thẻ cross-sell</span>
+                  <div class="card-tiles" role="radiogroup" aria-label="Dòng thẻ cross-sell">
+                    <label class="card-tile">
+                      <input type="radio" name="call-card" value="CARD-CLASSIC" />
+                      <span class="card-tile-radio" aria-hidden="true"></span>
+                      <span class="card-tile-name">Classic</span>
+                      <span class="card-tile-num">30 triệu</span>
+                      <span class="card-tile-desc">Mua sắm online &amp; hàng ngày</span>
+                    </label>
+                    <label class="card-tile">
+                      <input type="radio" name="call-card" value="CARD-PLATINUM" checked />
+                      <span class="card-tile-radio" aria-hidden="true"></span>
+                      <span class="card-tile-name">Platinum</span>
+                      <span class="card-tile-num">60 triệu</span>
+                      <span class="card-tile-desc">Ẩm thực, giải trí &amp; phong cách sống</span>
+                    </label>
+                    <label class="card-tile">
+                      <input type="radio" name="call-card" value="CARD-SIGNATURE" />
+                      <span class="card-tile-radio" aria-hidden="true"></span>
+                      <span class="card-tile-name">Signature</span>
+                      <span class="card-tile-num">120 triệu</span>
+                      <span class="card-tile-desc">Du lịch &amp; tự chọn hoàn tiền</span>
+                    </label>
+                    <label class="card-tile">
+                      <input type="radio" name="call-card" value="CARD-INFINITE" />
+                      <span class="card-tile-radio" aria-hidden="true"></span>
+                      <span class="card-tile-name">Infinite</span>
+                      <span class="card-tile-num">400 triệu</span>
+                      <span class="card-tile-desc">Du lịch cao cấp, dặm bay &amp; golf</span>
+                    </label>
+                  </div>
+                </div>
+                <div id="call-error" class="error hidden"></div>
+                <div class="row-gap">
+                  <button id="call-start" class="primary call-btn-go">
+                    <span aria-hidden="true">📞</span> Gọi
+                  </button>
+                </div>
+              </div>
+              <div class="panel">
+                <h3>Nhật ký cuộc gọi</h3>
+                <div id="call-list" class="call-list"></div>
+              </div>
+            </div>
+          </section>
+        </main>
       </div>
-    </section>
-  </main>
+      <!-- /app-main -->
+    </div>
+    <!-- /app-shell -->
 
-  </div><!-- /app-main -->
-</div><!-- /app-shell -->
-
-  <!-- ============================================================
+    <!-- ============================================================
        VOICE SESSION OVERLAY — AI voice conversation mode.
        Not a call to a human agent — labelled and styled differently.
        ============================================================ -->
-  <div id="call-overlay" class="call-overlay hidden"
-       role="dialog" aria-modal="true" aria-label="Hội thoại giọng nói với Trợ lý ảo ABC Bank">
+    <div
+      id="call-overlay"
+      class="call-overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Hội thoại giọng nói với Trợ lý ảo ABC Bank"
+    >
+      <!-- data-state (idle|connecting|listening|processing|speaking) + --vs-level
+         do app.js đặt trên phần tử này; toàn bộ animation đọc từ đây. -->
+      <div class="vs-session" id="call-avatar-wrap" data-state="idle">
+        <!-- Top bar: brand + timer, giữ nhẹ để khối cầu là tâm điểm -->
+        <div class="vs-topbar">
+          <span class="vs-brand"
+            ><span class="vs-brand-dot" aria-hidden="true"></span>ABC Bank</span
+          >
+          <span class="vs-timer" id="call-timer">00:00</span>
+        </div>
 
-    <!-- data-state drives all CSS state animations -->
-    <div class="vs-session" id="call-avatar-wrap" data-state="idle">
-
-      <!-- Top bar: brand / state badge / timer -->
-      <div class="vs-topbar">
-        <span class="vs-brand">ABC Bank</span>
-        <span class="vs-badge" id="call-state-label">Đang kết nối</span>
-        <span class="vs-timer" id="call-timer">00:00</span>
-      </div>
-
-      <!-- Main: avatar + identity + last bot message -->
-      <div class="vs-main">
-        <div class="vs-avatar-wrap">
-          <div class="vs-glow"></div>
-          <div class="vs-spinner"></div>
-          <div class="vs-avatar-circle">
-            <!-- Soundwave icon -->
-            <svg class="vs-avatar-icon" width="38" height="38" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="1.5"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <line x1="2"  y1="12" x2="4"  y2="12"/>
-              <line x1="7"  y1="8"  x2="7"  y2="16"/>
-              <line x1="11" y1="4"  x2="11" y2="20"/>
-              <line x1="15" y1="4"  x2="15" y2="20"/>
-              <line x1="19" y1="8"  x2="19" y2="16"/>
-              <line x1="20" y1="12" x2="22" y2="12"/>
-            </svg>
+        <!-- Main: khối cầu lỏng + trạng thái + câu trả lời gần nhất -->
+        <div class="vs-main">
+          <!-- Kiểu gọi điện thoại (chỉ hiện khi data-mode="phone"): avatar + tên + số -->
+          <div class="vs-callee" id="call-callee">
+            <div class="vs-callee-avatar" id="call-callee-avatar" aria-label="Khách">
+              <svg
+                viewBox="0 0 24 24"
+                width="28"
+                height="28"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="8" r="3.4" />
+                <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+              </svg>
+            </div>
+            <div class="vs-callee-name" id="call-callee-name">Khách</div>
+            <div class="vs-callee-phone" id="call-callee-phone"></div>
           </div>
-          <!-- Equalizer bars (visible during listening / speaking) -->
-          <div class="vs-eq">
-            <span class="vs-eq-bar"></span><span class="vs-eq-bar"></span>
-            <span class="vs-eq-bar"></span><span class="vs-eq-bar"></span>
-            <span class="vs-eq-bar"></span><span class="vs-eq-bar"></span>
-            <span class="vs-eq-bar"></span>
+
+          <div class="vs-orb-wrap">
+            <div class="vs-halo" aria-hidden="true"></div>
+            <!-- Orb WebGL kiểu ElevenLabs: quả cầu gradient noise chảy, phản ứng âm
+               thanh. Nếu WebGL không dùng được, JS ẩn canvas và hiện lại CSS orb. -->
+            <canvas id="vs-orb-canvas" class="vs-orb-canvas" aria-hidden="true"></canvas>
+            <div class="vs-orb" aria-hidden="true">
+              <div class="vs-orb-fluid">
+                <span class="vs-orb-layer vs-orb-a"></span>
+                <span class="vs-orb-layer vs-orb-b"></span>
+              </div>
+              <span class="vs-orb-sheen"></span>
+            </div>
+          </div>
+
+          <div class="vs-state" id="call-state-label" aria-live="polite">Đang kết nối…</div>
+          <div class="vs-last-msg hidden" id="call-last-msg"></div>
+          <!-- Nút hành động trong cuộc gọi (vd đề nghị kết nối chuyên viên) -->
+          <div class="vs-actions hidden" id="call-actions"></div>
+        </div>
+
+        <!-- Controls: tắt tiếng + kết thúc -->
+        <div class="vs-controls">
+          <div class="vs-ctrl-item">
+            <button
+              class="vs-ctrl vs-ctrl-mute"
+              id="call-mute-btn"
+              title="Tắt tiếng"
+              aria-label="Tắt tiếng"
+            >
+              <!-- Mic-on icon (mặc định) -->
+              <svg
+                class="vs-icon-active"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="22" />
+                <line x1="8" y1="22" x2="16" y2="22" />
+              </svg>
+              <!-- Mic-off icon (khi đã tắt tiếng) -->
+              <svg
+                class="vs-icon-muted hidden"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="1" y1="1" x2="23" y2="23" />
+                <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+                <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" />
+                <line x1="12" y1="19" x2="12" y2="22" />
+                <line x1="8" y1="22" x2="16" y2="22" />
+              </svg>
+            </button>
+            <span class="vs-ctrl-label" id="call-mute-label">Tắt tiếng</span>
+          </div>
+
+          <div class="vs-ctrl-item">
+            <button
+              class="vs-ctrl vs-ctrl-end"
+              id="call-end-btn"
+              title="Kết thúc"
+              aria-label="Kết thúc hội thoại giọng nói"
+            >
+              <svg
+                width="26"
+                height="26"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+            <span class="vs-ctrl-label">Kết thúc</span>
           </div>
         </div>
 
-        <div class="vs-bot-name">Trợ lý ảo</div>
-        <div class="vs-bot-sub">ABC Bank · AI</div>
-
-        <!-- Preview of the assistant's last reply -->
-        <div class="vs-last-msg hidden" id="call-last-msg"></div>
-      </div>
-
-      <!-- Controls: mute + end -->
-      <div class="vs-controls">
-        <div class="vs-ctrl-item">
-          <button class="vs-ctrl vs-ctrl-mute" id="call-mute-btn"
-                  title="Tắt tiếng" aria-label="Tắt tiếng">
-            <!-- Mic-on icon (default) -->
-            <svg class="vs-icon-active" width="24" height="24" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="1.8"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="22"/>
-              <line x1="8"  y1="22" x2="16" y2="22"/>
-            </svg>
-            <!-- Mic-off icon (shown when muted) -->
-            <svg class="vs-icon-muted hidden" width="24" height="24" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="1.8"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <line x1="1" y1="1" x2="23" y2="23"/>
-              <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>
-              <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/>
-              <line x1="12" y1="19" x2="12" y2="22"/>
-              <line x1="8"  y1="22" x2="16" y2="22"/>
-            </svg>
-          </button>
-          <span class="vs-ctrl-label" id="call-mute-label">Tắt tiếng</span>
-        </div>
-
-        <div class="vs-ctrl-item">
-          <button class="vs-ctrl vs-ctrl-end" id="call-end-btn"
-                  title="Kết thúc" aria-label="Kết thúc hội thoại giọng nói">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2.2"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6"  y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-          <span class="vs-ctrl-label">Kết thúc</span>
+        <!-- Nút NGHE / TỪ CHỐI kiểu iPhone - chỉ hiện khi đang đổ chuông (ringing) -->
+        <div class="vs-incoming">
+          <div class="vs-ctrl-item">
+            <button
+              class="vs-ctrl vs-ctrl-decline"
+              id="call-decline-btn"
+              title="Từ chối"
+              aria-label="Từ chối cuộc gọi"
+            >
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                />
+              </svg>
+            </button>
+            <span class="vs-ctrl-label">Từ chối</span>
+          </div>
+          <div class="vs-ctrl-item">
+            <button
+              class="vs-ctrl vs-ctrl-accept"
+              id="call-accept-btn"
+              title="Nghe"
+              aria-label="Nghe cuộc gọi"
+            >
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                />
+              </svg>
+            </button>
+            <span class="vs-ctrl-label">Nghe</span>
+          </div>
         </div>
       </div>
+      <!-- /vs-session -->
+    </div>
 
-    </div><!-- /vs-session -->
-  </div>
-
-  <script src="/app.js"></script>
-</body>
+    <script src="/app.js?v=17"></script>
+  </body>
 </html>

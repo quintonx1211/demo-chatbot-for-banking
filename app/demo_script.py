@@ -14,6 +14,7 @@ When a script runs out mid-conversation, `next_reply` disarms it and returns
 None so the caller falls back to normal routing for that turn, rather than
 erroring out in front of an audience.
 """
+
 from __future__ import annotations
 
 import json
@@ -46,12 +47,17 @@ def _load() -> dict:
         with SCRIPTS_PATH.open("r", encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("data/demo_scripts.json could not be read (%s) - "
-                       "no scripts available until it is fixed", exc)
+        logger.warning(
+            "data/demo_scripts.json could not be read (%s) - "
+            "no scripts available until it is fixed",
+            exc,
+        )
         return {}
     if not isinstance(data, dict):
-        logger.warning("data/demo_scripts.json must be a JSON object at the "
-                       "top level - no scripts available")
+        logger.warning(
+            "data/demo_scripts.json must be a JSON object at the "
+            "top level - no scripts available"
+        )
         return {}
     return data
 
@@ -59,8 +65,11 @@ def _load() -> dict:
 def list_scripts() -> list[dict]:
     """Every script defined in the file, for a staff-facing picker."""
     return [
-        {"name": name, "label": body.get("label", name),
-         "steps": len(body.get("steps", []))}
+        {
+            "name": name,
+            "label": body.get("label", name),
+            "steps": len(body.get("steps", [])),
+        }
         for name, body in sorted(_load().items())
     ]
 
@@ -140,12 +149,15 @@ def validate() -> list[str]:
                 continue
             reply = step.get("reply")
             if not isinstance(reply, str) or not reply.strip():
-                problems.append(f"'{name}' bước {i + 1}: 'reply' phải là chuỗi văn bản khác rỗng")
+                problems.append(
+                    f"'{name}' bước {i + 1}: 'reply' phải là chuỗi văn bản khác rỗng"
+                )
     return problems
 
 
 if __name__ == "__main__":
     import sys
+
     # Windows consoles default to cp1252, which cannot print the Vietnamese
     # text this prints - same fix as tests/smoke_test.py.
     if hasattr(sys.stdout, "reconfigure"):

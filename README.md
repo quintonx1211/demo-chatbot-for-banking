@@ -6,7 +6,7 @@ a **RAG-grounded LLM layer** for everything else, and **automatic handoff to a
 human agent** with an LLM-written brief when the system isn't confident enough
 to answer.
 
-The point of the demo is the *routing*, not the chat. Every turn shows which
+The point of the demo is the _routing_, not the chat. Every turn shows which
 layer produced the answer, why, and what it was grounded in.
 
 ## Run it
@@ -50,7 +50,7 @@ inspector. **Staff sign-in** (top right, `agent` / `demo1234`) replaces it with
 the contact-centre console: dashboard, escalation queue, knowledge base and
 settings.
 
-The split is deliberate. Identity is established *inside* the customer
+The split is deliberate. Identity is established _inside_ the customer
 conversation only when an action needs it; everything on the staff side holds
 other customers' transcripts or decides what the assistant may claim, so it is
 gated server-side - `_require_staff()` runs in the handler, not in the UI.
@@ -58,7 +58,7 @@ gated server-side - `_require_staff()` runs in the handler, not in the UI.
 ## The dashboard, and what its numbers mean
 
 Press **Seed demo traffic** to replay ~35 scripted conversations through the
-real router. Only the *customer messages* are scripted - every routing decision,
+real router. Only the _customer messages_ are scripted - every routing decision,
 retrieval, guardrail block and escalation is produced by the same code path a
 live customer hits. The conversations are fabricated; the metrics over them are
 not, and every row in "Recent conversations" opens the transcript behind it.
@@ -90,7 +90,7 @@ experiment about the architecture parked beside the live queue is an invitation
 to run it mid-shift. Demonstrations belong in the demo script.
 
 The script refuses to present an invalid comparison. `answer_from_kb` degrades
-to verbatim knowledge-base text on *any* provider failure - correct in the
+to verbatim knowledge-base text on _any_ provider failure - correct in the
 product, where the customer gets verified information instead of an error, and
 actively misleading here: beside an ungrounded column reading
 `provider_unreachable`, a grounded column of fluent verified text looks like
@@ -123,7 +123,7 @@ request.
 ## Demo scripts (forcing the next reply)
 
 The opposite lever from raw mode: instead of removing the architecture, it
-removes the *uncertainty* of a live demo. `data/demo_scripts.json` holds
+removes the _uncertainty_ of a live demo. `data/demo_scripts.json` holds
 named, ordered lists of replies; once a script is armed on a session
 (`POST /api/demo-script/start {session_id, name}`), every following turn in
 that conversation returns the script's next reply verbatim - routing,
@@ -131,7 +131,7 @@ guardrails, retrieval, and the model are all bypassed, and what the
 "customer" actually typed is not checked at all, on purpose (`app/router.py`,
 checked before even raw mode). A flaky provider, a retrieval miss, or a
 customer fixture that drifted since the script was written can never surface
-mid-presentation. Once every step in the script has been used, the *next*
+mid-presentation. Once every step in the script has been used, the _next_
 turn falls through to normal routing on its own - `script_name` comes back
 `null` in the response, and the session behaves exactly as if the script had
 never been armed.
@@ -150,17 +150,17 @@ before it costs you mid-demo. Full guide (Vietnamese): `DEMO-SCRIPT-GUIDE.md`.
 
 Open the **Customer chat** tab. Each suggestion below hits a different branch:
 
-| Try this | What happens |
-|---|---|
-| `Check my balance` → `0842199388` → `183589113804` | High-confidence intent → sequential identity verification (full phone, then full national ID) → deterministic flow reading the customer record |
-| `freeze my card` → `7091 9527` → `yes`, then `unblock my card` → `yes` | A reversible card action, written to `data/db/cards.csv` and logged |
-| `I lost my debit card` → `5194 9572` → `6591` → `yes` | Irreversible: the card is blocked for good and a replacement is issued |
-| `What's the status of my loan application?` → `9170 3723` | Deterministic lookup, no model involved |
-| `what is the annual fee on Vietcombank Visa Platinum` | Retrieval from a market-reference document, answered with an explicit "not verified by us" note |
-| `What are your fees for international transfers?` | No scripted flow matches → retrieval over the knowledge base → LLM answers strictly from the retrieved passages, with sources shown |
-| `Should I invest my savings in tech stocks?` | Compliance guardrail - refused before any model call |
-| `Do you offer crop insurance for vineyards?` | No supporting passage exists → escalation rather than a guess |
-| `Let me talk to a real person` | Explicit handoff |
+| Try this                                                               | What happens                                                                                                                                   |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Check my balance` → `0842199388` → `001094113804`                     | High-confidence intent → sequential identity verification (full phone, then full national ID) → deterministic flow reading the customer record |
+| `freeze my card` → `7091 9527` → `yes`, then `unblock my card` → `yes` | A reversible card action, written to `data/db/cards.csv` and logged                                                                            |
+| `I lost my debit card` → `5194 9572` → `6591` → `yes`                  | Irreversible: the card is blocked for good and a replacement is issued                                                                         |
+| `What's the status of my loan application?` → `9170 3723`              | Deterministic lookup, no model involved                                                                                                        |
+| `what is the annual fee on Vietcombank Visa Platinum`                  | Retrieval from a market-reference document, answered with an explicit "not verified by us" note                                                |
+| `What are your fees for international transfers?`                      | No scripted flow matches → retrieval over the knowledge base → LLM answers strictly from the retrieved passages, with sources shown            |
+| `Should I invest my savings in tech stocks?`                           | Compliance guardrail - refused before any model call                                                                                           |
+| `Do you offer crop insurance for vineyards?`                           | No supporting passage exists → escalation rather than a guess                                                                                  |
+| `Let me talk to a real person`                                         | Explicit handoff                                                                                                                               |
 
 Then open the **Agent console** tab to see the escalated conversation, the
 handover brief, the full transcript, and the per-turn audit trail.
@@ -182,9 +182,9 @@ python eval_retrieval.py --rerank    # adds the LLM stage (needs a provider)
 
 Measured on the shipped corpus (51 passages, 8 documents):
 
-| | P@1 | Recall@3 | MRR | Rejection |
-|---|---|---|---|---|
-| Lexical pipeline | 49.1% | 71.9% | 0.591 | 100% |
+|                  | P@1   | Recall@3 | MRR   | Rejection |
+| ---------------- | ----- | -------- | ----- | --------- |
+| Lexical pipeline | 49.1% | 71.9%    | 0.591 | 100%      |
 
 **These numbers got worse when the corpus got harder, and that is the point.**
 On the original five hand-written documents the same pipeline scored 73.2% /
@@ -200,10 +200,10 @@ Recall does not improve with a wider candidate pool - it is flat from N=3 to
 N=20:
 
 | Candidates | Standalone gate (0.28) | Reranking gate (0.10) |
-|---|---|---|
-| top-3 | 71.9% | 82.5% |
-| top-10 | 71.9% | 84.2% |
-| top-20 | 71.9% | 84.2% |
+| ---------- | ---------------------- | --------------------- |
+| top-3      | 71.9%                  | 82.5%                 |
+| top-10     | 71.9%                  | 84.2%                 |
+| top-20     | 71.9%                  | 84.2%                 |
 
 A flat curve means the binding constraint is the **gate**, not the ranking: the
 right passage is being rejected before anything gets a chance to rank it. No
@@ -216,7 +216,7 @@ P@1. Whether the model converts that headroom is unmeasured: see below.
 
 **Rejection is measured as a first-class metric.** A retriever tuned only for
 recall will surface a loosely-related passage for a question the corpus does not
-cover, and here that becomes a grounded-*looking* answer to something the bank
+cover, and here that becomes a grounded-_looking_ answer to something the bank
 never documented. Ranking and rejection are therefore separate mechanisms:
 coverage decides whether there is anything worth returning, and only then does
 anything decide the order. A ranker always produces an order, even over noise,
@@ -237,7 +237,7 @@ sweep that produced this is `sweep_retrieval.py`.
 labelled questions fail because the words genuinely do not overlap - "salary
 payment bounces" against a document that says "returned payments" and "payroll",
 "gone inactive" against "dormant". Their coverage (0.16–0.25) and BM25 (2.3–3.7)
-scores sit *inside* the range occupied by out-of-scope questions, so no cut-off
+scores sit _inside_ the range occupied by out-of-scope questions, so no cut-off
 separates them. Admitting them means admitting "can I buy cryptocurrency in the
 app" too.
 
@@ -247,7 +247,7 @@ rather than another lexical signal.
 ### LLM reranking
 
 Off by default; `LLM_RERANK=1` enables it. When on, the pipeline changes shape:
-stage one runs for *recall* (looser gate 0.10, pool of 10) and the model scores
+stage one runs for _recall_ (looser gate 0.10, pool of 10) and the model scores
 each candidate 0–10 for whether it answers the question. Candidates below 5 are
 dropped, and if none survive the turn escalates - the judge replaces the lexical
 threshold as the rejection gate rather than sitting behind it.
@@ -315,7 +315,7 @@ documents, 1 MB request body.
 ## Staff sign-in
 
 The customer chat needs no sign-in - it is a widget on a public page, and
-identity is established *inside* the conversation only when an action needs it
+identity is established _inside_ the conversation only when an action needs it
 (`flows.py` asks for the last 4 digits before any account action). The agent
 console, knowledge base and settings are the opposite: they hold other
 customers' transcripts, decide what the assistant may claim, and accept an API
@@ -354,7 +354,7 @@ agent mid-sentence is the failure people remember.
 
 **The audit trail records the human.** Agent turns carry `route: "agent"` and
 an `actor` naming the staff member. Up to that point the trail explains how the
-*assistant* decided; the moment people start replying, "who said this to the
+_assistant_ decided; the moment people start replying, "who said this to the
 customer" is the question a reviewer is actually asking, and a trail that only
 covers the bot answers half of it.
 
@@ -528,14 +528,14 @@ effort) -> LLMResult`. Adding a fourth provider means one file plus one entry in
 **What genuinely differs between them**, and why each adapter owns its own
 mapping rather than sharing one:
 
-| | Anthropic | OpenAI | Gemini | Groq |
-|---|---|---|---|---|
-| System prompt | `system=[{...}]` block | `role: "system"` message | `system_instruction` on the config | `role: "system"` message |
-| Reasoning depth | `output_config.effort` | `reasoning_effort` (reasoning models only - opt in via `LLM_REASONING_EFFORT`) | `thinking_config.thinking_budget`, a token count not a level | not offered - `LLM_EFFORT` is accepted and ignored |
-| Prompt caching | explicit `cache_control: ephemeral` | automatic, prefix-based | separate cache object with a TTL - not wired up here | automatic |
-| Token ceiling | `max_tokens` | `max_completion_tokens` | `max_output_tokens` | `max_completion_tokens` |
-| Usage fields | `input_tokens` | `prompt_tokens` | `prompt_token_count` | `prompt_tokens` |
-| Safety decline | `stop_reason == "refusal"` | `message.refusal` populated | `prompt_feedback.block_reason` **or** `finish_reason == SAFETY` | **no field** - arrives as ordinary text |
+|                 | Anthropic                           | OpenAI                                                                         | Gemini                                                          | Groq                                               |
+| --------------- | ----------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------- | -------------------------------------------------- |
+| System prompt   | `system=[{...}]` block              | `role: "system"` message                                                       | `system_instruction` on the config                              | `role: "system"` message                           |
+| Reasoning depth | `output_config.effort`              | `reasoning_effort` (reasoning models only - opt in via `LLM_REASONING_EFFORT`) | `thinking_config.thinking_budget`, a token count not a level    | not offered - `LLM_EFFORT` is accepted and ignored |
+| Prompt caching  | explicit `cache_control: ephemeral` | automatic, prefix-based                                                        | separate cache object with a TTL - not wired up here            | automatic                                          |
+| Token ceiling   | `max_tokens`                        | `max_completion_tokens`                                                        | `max_output_tokens`                                             | `max_completion_tokens`                            |
+| Usage fields    | `input_tokens`                      | `prompt_tokens`                                                                | `prompt_token_count`                                            | `prompt_tokens`                                    |
+| Safety decline  | `stop_reason == "refusal"`          | `message.refusal` populated                                                    | `prompt_feedback.block_reason` **or** `finish_reason == SAFETY` | **no field** - arrives as ordinary text            |
 
 The last row is the one that matters architecturally. Three of the four report
 a decline as a **successful HTTP response** in three different shapes, and
@@ -572,13 +572,13 @@ endpoint, so it is never mistaken for OpenAI itself.
 
 **Other options, ranked by how well they fit this demo:**
 
-| Option | What you get free | Catch |
-|---|---|---|
-| **Groq** | 30 RPM / 1K RPD on Llama 3.3 70B and GPT-OSS | Open-weight models only; no `refusal` field, so a safety block arrives as ordinary text |
-| **Google Gemini** | Flash-tier models, no card needed | **Prompts are used to train Google's products** on the free tier; Pro is paid-only, which is why the adapter defaults to Flash |
-| **OpenRouter** | `:free` model variants - 50 req/day, 20 req/min | Rises to 1,000/day only after a lifetime $10 purchase |
-| **Anthropic** | ~$5 trial credit on signup, phone verification | Widely reported but not stated in official docs; treat as unconfirmed |
-| **OpenAI** | A "Free" tier row exists in the usage-tier table | Per-model support isn't documented and third-party reports say the common models show "not supported". The reliable entry point is a $5 top-up |
+| Option            | What you get free                                | Catch                                                                                                                                          |
+| ----------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Groq**          | 30 RPM / 1K RPD on Llama 3.3 70B and GPT-OSS     | Open-weight models only; no `refusal` field, so a safety block arrives as ordinary text                                                        |
+| **Google Gemini** | Flash-tier models, no card needed                | **Prompts are used to train Google's products** on the free tier; Pro is paid-only, which is why the adapter defaults to Flash                 |
+| **OpenRouter**    | `:free` model variants - 50 req/day, 20 req/min  | Rises to 1,000/day only after a lifetime $10 purchase                                                                                          |
+| **Anthropic**     | ~$5 trial credit on signup, phone verification   | Widely reported but not stated in official docs; treat as unconfirmed                                                                          |
+| **OpenAI**        | A "Free" tier row exists in the usage-tier table | Per-model support isn't documented and third-party reports say the common models show "not supported". The reliable entry point is a $5 top-up |
 
 Two things worth weighing before picking one:
 
@@ -593,8 +593,8 @@ returns a safety block as ordinary assistant text instead, so the grounding
 gate becomes the only thing standing between it and the customer. Fine for a
 demo, not for production.
 
-For a bank, the honest framing is that free tiers are for *exercising the
-routing*, not for evaluating answer quality - and the grounding threshold needs
+For a bank, the honest framing is that free tiers are for _exercising the
+routing_, not for evaluating answer quality - and the grounding threshold needs
 re-measuring per model regardless (below).
 
 ## Re-calibrate after switching provider
@@ -675,7 +675,7 @@ The UI carries no branding. Three colour values at the top of `web/styles.css`
 drive the whole palette, so re-theming means changing those and nothing else.
 
 **No provider adapter has been verified against a successful API response.**
-The adapter *layer* is covered by `provider_test.py` - dispatch, refusal
+The adapter _layer_ is covered by `provider_test.py` - dispatch, refusal
 handling, fallback, the grounding gate - using stub adapters. Beyond that, each
 adapter was run with a deliberately invalid key:
 
@@ -701,7 +701,7 @@ human queue. We looked at it and recommend against it for this product. The
 reasoning, so the decision can be revisited rather than re-argued:
 
 **What it would fix.** Roughly a third of current escalations are questions the
-bank *can* answer but has not written down yet - the unresolved-topic panel
+bank _can_ answer but has not written down yet - the unresolved-topic panel
 shows exactly which. Web search would not fix those either; the answer is in the
 bank's own procedures, not on the open web. Writing the missing page fixes them
 permanently and costs nothing per query.

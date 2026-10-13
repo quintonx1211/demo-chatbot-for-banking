@@ -16,8 +16,11 @@ Two behaviours differ from OpenAI itself and are handled below:
     that maps onto the `model_refusal` escalation; Groq returns the decline as
     ordinary assistant text, which is indistinguishable from an answer at this
     layer. The grounding gate becomes the only thing that catches it.
-  * No `reasoning_effort` on the models offered here, so LLM_EFFORT is accepted
-    and ignored rather than sent and rejected.
+  * Reasoning models (gpt-oss, qwen3) spend part of the token budget "thinking"
+    before any answer text, and default to medium effort. LLM_EFFORT is mapped
+    to `reasoning_effort` for those models so replies stay fast and the reasoning
+    can't eat the whole budget and truncate the answer; models that don't accept
+    the param never receive it.
 """
 
 from __future__ import annotations
@@ -73,19 +76,33 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
             {"role": "user", "content": request.user},
         ]
 
+    extra: dict = {}
+    if request.temperature is not None:
+        extra["temperature"] = request.temperature
+    # Cap "thinking" on reasoning models at the configured effort. Only sent for
+    # models that accept it (gpt-oss, qwen3); others reject an unknown param.
+    if any(tag in model.lower() for tag in ("gpt-oss", "qwen3")):
+        extra["reasoning_effort"] = (
+            effort if effort in ("low", "medium", "high") else "low"
+        )
+
     try:
         response = client.chat.completions.create(
             model=model,
-            **({"temperature": request.temperature}
-               if request.temperature is not None else {}),
             # Counts reasoning tokens too on models that reason, which is why
             # the budget in base.py is generous.
             max_completion_tokens=request.max_tokens,
             messages=msgs,
+            **extra,
         )
     except Exception as exc:  # network, auth, rate limit - degrade, don't crash
-        return LLMResult(text="", generated=False, provider=NAME, model=model,
-                         error=classify_provider_error(exc))
+        return LLMResult(
+            text="",
+            generated=False,
+            provider=NAME,
+            model=model,
+            error=classify_provider_error(exc),
+        )
 
     choice = response.choices[0]
     text = (choice.message.content or "").strip()

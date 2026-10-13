@@ -2,13 +2,13 @@
   "customers": [
     {
       "customer_id": "CUS-100301",
-      "name": "Nguyen Van An",
+      "name": "Nguyễn Văn An",
       "given_name": "An",
       "segment": "MASS",
       "profile": "travel_offer",
       "dob": "1994-01-27",
       "phone": "0842199388",
-      "national_id": "183589113804",
+      "national_id": "001094113804",
       "accounts": [
         {
           "account_id": "ACC-9926-6701",
@@ -54,13 +54,13 @@
     },
     {
       "customer_id": "CUS-100308",
-      "name": "Tran Thi Bich",
-      "given_name": "Bich",
+      "name": "Trần Thị Bích",
+      "given_name": "Bích",
       "segment": "MASS",
       "profile": "dormant_card",
       "dob": "1990-11-16",
       "phone": "0882935134",
-      "national_id": "834161133919",
+      "national_id": "079190133919",
       "accounts": [
         {
           "account_id": "ACC-2681-1001",
@@ -106,13 +106,13 @@
     },
     {
       "customer_id": "CUS-100315",
-      "name": "Le Minh Chau",
-      "given_name": "Chau",
+      "name": "Lê Minh Châu",
+      "given_name": "Châu",
       "segment": "MASS",
       "profile": "inactive_card",
       "dob": "1983-01-18",
       "phone": "0944984320",
-      "national_id": "706686007998",
+      "national_id": "031183007998",
       "accounts": [
         {
           "account_id": "ACC-2951-2501",
@@ -173,13 +173,13 @@
     },
     {
       "customer_id": "CUS-100322",
-      "name": "Pham Quoc Dung",
-      "given_name": "Dung",
+      "name": "Phạm Quốc Dũng",
+      "given_name": "Dũng",
       "segment": "PRIORITY",
       "profile": "high_balance",
       "dob": "1975-05-14",
       "phone": "0984911069",
-      "national_id": "188152754149",
+      "national_id": "048075754149",
       "accounts": [
         {
           "account_id": "ACC-8846-3901",
@@ -245,13 +245,13 @@
     },
     {
       "customer_id": "CUS-100329",
-      "name": "Hoang Thi Ha",
-      "given_name": "Ha",
+      "name": "Hoàng Thị Hà",
+      "given_name": "Hà",
       "segment": "MASS",
       "profile": "frozen_card",
       "dob": "1993-12-22",
       "phone": "0394818868",
-      "national_id": "203073127325",
+      "national_id": "036193127325",
       "accounts": [
         {
           "account_id": "ACC-4943-4001",
@@ -309,13 +309,13 @@
     },
     {
       "customer_id": "CUS-100336",
-      "name": "Vu Duc Hieu",
-      "given_name": "Hieu",
+      "name": "Vũ Đức Hiếu",
+      "given_name": "Hiếu",
       "segment": "MASS",
       "profile": "loan_in_review",
       "dob": "1976-04-10",
       "phone": "0328985767",
-      "national_id": "530146763936",
+      "national_id": "038076763936",
       "accounts": [
         {
           "account_id": "ACC-7238-5701",
@@ -380,13 +380,13 @@
     },
     {
       "customer_id": "CUS-100343",
-      "name": "Dang Thi Lan",
+      "name": "Đặng Thị Lan",
       "given_name": "Lan",
       "segment": "MASS",
       "profile": "overdrawn",
       "dob": "2001-10-02",
       "phone": "0334234376",
-      "national_id": "423544959326",
+      "national_id": "040301959326",
       "accounts": [
         {
           "account_id": "ACC-3600-5201",
@@ -442,13 +442,13 @@
     },
     {
       "customer_id": "CUS-100350",
-      "name": "Bui Van Long",
+      "name": "Bùi Văn Long",
       "given_name": "Long",
       "segment": "MASS",
       "profile": "blocked_and_replaced",
       "dob": "1994-01-18",
       "phone": "0380591171",
-      "national_id": "718873715684",
+      "national_id": "046094715684",
       "accounts": [
         {
           "account_id": "ACC-7217-1501",
@@ -517,13 +517,13 @@
     },
     {
       "customer_id": "CUS-100357",
-      "name": "Do Thi Mai",
+      "name": "Đỗ Thị Mai",
       "given_name": "Mai",
       "segment": "PRIORITY",
       "profile": "multi_card",
       "dob": "1975-05-13",
       "phone": "0395821542",
-      "national_id": "226291473446",
+      "national_id": "056175473446",
       "accounts": [
         {
           "account_id": "ACC-8956-9501",
@@ -594,13 +594,13 @@
     },
     {
       "customer_id": "CUS-100364",
-      "name": "Ngo Thanh Nam",
+      "name": "Ngô Thanh Nam",
       "given_name": "Nam",
       "segment": "MASS",
       "profile": "new_customer",
       "dob": "1965-09-18",
       "phone": "0906365046",
-      "national_id": "314347547383",
+      "national_id": "074065547383",
       "accounts": [
         {
           "account_id": "ACC-9304-8001",
@@ -651,13 +651,13 @@
     },
     {
       "customer_id": "CUS-100371",
-      "name": "Duong Thi Oanh",
+      "name": "Dương Thị Oanh",
       "given_name": "Oanh",
       "segment": "MASS",
       "profile": "mortgage_approved",
       "dob": "1985-09-17",
       "phone": "0395386101",
-      "national_id": "362640916062",
+      "national_id": "075185916062",
       "accounts": [
         {
           "account_id": "ACC-4582-7801",
@@ -735,13 +735,13 @@
     },
     {
       "customer_id": "CUS-100378",
-      "name": "Ly Van Phuc",
-      "given_name": "Phuc",
+      "name": "Lý Văn Phúc",
+      "given_name": "Phúc",
       "segment": "MASS",
       "profile": "dispute_open",
       "dob": "1995-09-22",
       "phone": "0391542777",
-      "national_id": "024890009309",
+      "national_id": "077095009309",
       "accounts": [
         {
           "account_id": "ACC-2512-6201",
@@ -802,13 +802,13 @@
     },
     {
       "customer_id": "CUS-100385",
-      "name": "Trinh Thi Quyen",
-      "given_name": "Quyen",
+      "name": "Trịnh Thị Quyên",
+      "given_name": "Quyên",
       "segment": "MASS",
       "profile": "savings_only",
       "dob": "1965-08-25",
       "phone": "0353197363",
-      "national_id": "721630608115",
+      "national_id": "089165608115",
       "accounts": [
         {
           "account_id": "ACC-6002-3388",
@@ -861,13 +861,13 @@
     },
     {
       "customer_id": "CUS-100392",
-      "name": "Cao Van Son",
-      "given_name": "Son",
+      "name": "Cao Văn Sơn",
+      "given_name": "Sơn",
       "segment": "PRIORITY",
       "profile": "business_owner",
       "dob": "1990-04-05",
       "phone": "0365015326",
-      "national_id": "424902059367",
+      "national_id": "092090059367",
       "accounts": [
         {
           "account_id": "ACC-6472-3701",
@@ -943,13 +943,13 @@
     },
     {
       "customer_id": "CUS-100399",
-      "name": "Mai Thi Thuy",
-      "given_name": "Thuy",
+      "name": "Mai Thị Thúy",
+      "given_name": "Thúy",
       "segment": "MASS",
       "profile": "loan_declined",
       "dob": "1993-02-01",
       "phone": "0337098656",
-      "national_id": "697357204495",
+      "national_id": "034193204495",
       "accounts": [
         {
           "account_id": "ACC-1197-5901",

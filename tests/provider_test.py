@@ -48,34 +48,56 @@ class StubProvider:
     def complete(self, request: LLMRequest, effort: str) -> LLMResult:
         self.calls.append(request)
         if self.behaviour == "refusal":
-            return LLMResult(text="", generated=False, provider=self.NAME,
-                             model=self.model_name(), error="model_refusal")
+            return LLMResult(
+                text="",
+                generated=False,
+                provider=self.NAME,
+                model=self.model_name(),
+                error="model_refusal",
+            )
         if self.behaviour == "transport_error":
-            return LLMResult(text="", generated=False, provider=self.NAME,
-                             model=self.model_name(),
-                             error="APIConnectionError: connection reset")
+            return LLMResult(
+                text="",
+                generated=False,
+                provider=self.NAME,
+                model=self.model_name(),
+                error="APIConnectionError: connection reset",
+            )
         if self.behaviour == "empty":
-            return LLMResult(text="   ", generated=True, provider=self.NAME,
-                             model=self.model_name())
+            return LLMResult(
+                text="   ", generated=True, provider=self.NAME, model=self.model_name()
+            )
         if self.behaviour == "ungrounded":
             # Fluent, plausible, and sharing almost no vocabulary with the
             # corpus - which is exactly what the grounding check is for.
             return LLMResult(
-                text=("Bộ phận chăm sóc đặc biệt của chúng tôi miễn toàn bộ phí "
-                      "cho khách hàng bạch kim và hoàn tất lệnh chuyển trong "
-                      "chín phút trên toàn cầu."),
-                generated=True, provider=self.NAME, model=self.model_name(),
-                input_tokens=900, output_tokens=40)
+                text=(
+                    "Bộ phận chăm sóc đặc biệt của chúng tôi miễn toàn bộ phí "
+                    "cho khách hàng bạch kim và hoàn tất lệnh chuyển trong "
+                    "chín phút trên toàn cầu."
+                ),
+                generated=True,
+                provider=self.NAME,
+                model=self.model_name(),
+                input_tokens=900,
+                output_tokens=40,
+            )
         # Drawn from the Vietnamese corpus so it passes the grounding check.
         # An English sentence here shares no content words with the retrieved
         # passages, scores ~0 on grounding, and escalates - the gate working
         # correctly, but it made the adapter contract test look broken.
         return LLMResult(
-            text=("Chuyển tiền quốc tế thu phí 350.000 VND ở chiều đi và thời "
-                  "gian ghi có 1-5 ngày làm việc tuỳ quốc gia thụ hưởng. Thời "
-                  "điểm chốt giao dịch trong ngày là 16:00."),
-            generated=True, provider=self.NAME, model=self.model_name(),
-            input_tokens=900, output_tokens=42)
+            text=(
+                "Chuyển tiền quốc tế thu phí 350.000 VND ở chiều đi và thời "
+                "gian ghi có 1-5 ngày làm việc tuỳ quốc gia thụ hưởng. Thời "
+                "điểm chốt giao dịch trong ngày là 16:00."
+            ),
+            generated=True,
+            provider=self.NAME,
+            model=self.model_name(),
+            input_tokens=900,
+            output_tokens=42,
+        )
 
 
 def with_stub(behaviour: str):
@@ -95,10 +117,15 @@ def main() -> int:
     print("\nReal adapters satisfy the contract")
     for name, provider in list(llm.PROVIDERS.items()):
         missing = [a for a in REQUIRED_ATTRS if not hasattr(provider, a)]
-        check(not missing, f"{name}: exposes {', '.join(REQUIRED_ATTRS)}"
-                           + (f" (missing {missing})" if missing else ""))
-        check(provider.available() is False or provider.available() is True,
-              f"{name}: available() returns a bool")
+        check(
+            not missing,
+            f"{name}: exposes {', '.join(REQUIRED_ATTRS)}"
+            + (f" (missing {missing})" if missing else ""),
+        )
+        check(
+            provider.available() is False or provider.available() is True,
+            f"{name}: available() returns a bool",
+        )
 
     # --- dispatch --------------------------------------------------------
     print("\nAdapter returning normal text")
@@ -109,21 +136,31 @@ def main() -> int:
     check(result.route == "rag", f"routed to rag (got {result.route})")
     check(result.generated, "marked as generated")
     check(len(stub.calls) == 1, "adapter called exactly once")
-    check("cơ sở tri thức" in stub.calls[0].user,
-          "adapter received the retrieved passages")
-    check(stub.calls[0].system.startswith("Bạn là Trợ lý ảo ABC Bank"),
-          "adapter received the answering system prompt")
-    check(result.grounding is not None and result.grounding > 0.5,
-          f"grounding computed ({result.grounding})")
+    check(
+        "cơ sở tri thức" in stub.calls[0].user,
+        "adapter received the retrieved passages",
+    )
+    check(
+        stub.calls[0].system.startswith("Bạn là Trợ lý ảo ABC Bank"),
+        "adapter received the answering system prompt",
+    )
+    check(
+        result.grounding is not None and result.grounding > 0.5,
+        f"grounding computed ({result.grounding})",
+    )
 
     print("\nAdapter reporting a safety refusal")
     with_stub("refusal")
     router = Router()
     session = router.sessions.create()
     result = router.handle_turn(session, QUESTION)
-    check(result.route == "escalation_offered", f"offered a handoff (got {result.route})")
-    check("declined" in (result.escalation_reason or ""),
-          f"reason names the refusal: {result.escalation_reason!r}")
+    check(
+        result.route == "escalation_offered", f"offered a handoff (got {result.route})"
+    )
+    check(
+        "declined" in (result.escalation_reason or ""),
+        f"reason names the refusal: {result.escalation_reason!r}",
+    )
 
     print("\nAdapter hitting a transport error")
     with_stub("transport_error")
@@ -140,8 +177,10 @@ def main() -> int:
     corpus = " ".join(p.text for p in router.kb.passages)
     # The extractive fallback is "<preamble>\n\n<verbatim passage excerpt>".
     excerpt = result.text.split("\n\n", 1)[-1].strip()[:80]
-    check(bool(excerpt) and excerpt in corpus,
-          "fallback text is verbatim from the knowledge base")
+    check(
+        bool(excerpt) and excerpt in corpus,
+        "fallback text is verbatim from the knowledge base",
+    )
 
     print("\nAdapter returning blank output")
     with_stub("empty")
@@ -158,12 +197,18 @@ def main() -> int:
     result = router.handle_turn(session, QUESTION)
     # A failed grounding check now *offers* a handoff rather than forcing one -
     # the customer decides whether their time is better spent in a queue.
-    check(result.route == "escalation_offered", f"offered a handoff (got {result.route})")
-    check("grounding" in (result.escalation_reason or "").lower(),
-          f"reason names the grounding gate: {result.escalation_reason!r}")
+    check(
+        result.route == "escalation_offered", f"offered a handoff (got {result.route})"
+    )
+    check(
+        "grounding" in (result.escalation_reason or "").lower(),
+        f"reason names the grounding gate: {result.escalation_reason!r}",
+    )
     accepted = router.handle_turn(session, "có")
-    check(accepted.route == "escalation" and session.escalated,
-          f"accepting the offer escalates (got {accepted.route})")
+    check(
+        accepted.route == "escalation" and session.escalated,
+        f"accepting the offer escalates (got {accepted.route})",
+    )
 
     print("\nSummarisation goes through the same adapter")
     stub = with_stub("ok")
@@ -171,9 +216,13 @@ def main() -> int:
     session = router.sessions.create()
     router.handle_turn(session, "cho tôi gặp nhân viên")
     check(session.escalated, "session escalated")
-    check(any("bản ghi đầy đủ" in c.user.lower() or "thông tin phiên" in c.user.lower()
-              for c in stub.calls),
-          "adapter received the summarisation request")
+    check(
+        any(
+            "bản ghi đầy đủ" in c.user.lower() or "thông tin phiên" in c.user.lower()
+            for c in stub.calls
+        ),
+        "adapter received the summarisation request",
+    )
 
     print(f"\n{'-' * 60}")
     if failures:

@@ -11,14 +11,13 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from .textmodel import TfidfIndex, tokenize
-
 # Confidence bands. Tuned against the utterance set below; the router treats
 # them as the only policy knob it needs.
 from . import policy as _policy
+from .textmodel import TfidfIndex, tokenize
 
-HIGH_CONFIDENCE = _policy.current.high_confidence   # deterministic scripted flow
-LOW_CONFIDENCE = 0.28    # below this the intent is not trusted at all
+HIGH_CONFIDENCE = _policy.current.high_confidence  # deterministic scripted flow
+LOW_CONFIDENCE = 0.28  # below this the intent is not trusted at all
 
 
 # Each intent lists example utterances (training data for the TF-IDF centroid)
@@ -60,7 +59,8 @@ INTENTS: dict[str, dict] = {
             r"\b(my|our)\b[^?.]{0,24}\bbalance",
             r"\bbalance\b[^?.]{0,20}\b(my|our)\b",
             r"^\s*(check|show|what.s)\b[^?.]{0,16}\bbalance",
-            r"how much (money|funds) do i have"],
+            r"how much (money|funds) do i have",
+        ],
     },
     "block_card": {
         "utterances": [
@@ -96,10 +96,12 @@ INTENTS: dict[str, dict] = {
             # The customer asking to block a card got a policy document.
             r"(?<!tạm )(?<!mở )(?<!bỏ )khoá thẻ",
             r"(?<!tạm )(?<!mở )(?<!bỏ )khóa thẻ",
-            r"thẻ[^?.]{0,12}(?<!tạm )(?<!mở )khoá (ngay|lại|giúp|vĩnh viễn)",r"\b(block|deactivate)\b.*\bcard\b",
-                    r"\bcard\b.*\b(lost|stolen|missing)\b",
-                    r"\b(lost|stolen)\b.*\bcard\b",
-                    r"\breport\b.*\bcard\b.*\b(lost|stolen)\b"],
+            r"thẻ[^?.]{0,12}(?<!tạm )(?<!mở )khoá (ngay|lại|giúp|vĩnh viễn)",
+            r"\b(block|deactivate)\b.*\bcard\b",
+            r"\bcard\b.*\b(lost|stolen|missing)\b",
+            r"\b(lost|stolen)\b.*\bcard\b",
+            r"\breport\b.*\bcard\b.*\b(lost|stolen)\b",
+        ],
     },
     "freeze_card": {
         "utterances": [
@@ -115,9 +117,11 @@ INTENTS: dict[str, dict] = {
             "lock my card temporarily",
         ],
         "anchors": [
-            r"(tạm khoá|tạm khóa|tạm dừng|khoá tạm|khóa tạm)",r"\b(freeze|suspend|pause|lock)\b[^?.]{0,20}\bcard\b",
-                    r"\bcard\b[^?.]{0,16}\b(freeze|frozen|suspend|paused|locked)\b",
-                    r"\btemporar\w+\b[^?.]{0,20}\b(block|lock|stop)\b"],
+            r"(tạm khoá|tạm khóa|tạm dừng|khoá tạm|khóa tạm)",
+            r"\b(freeze|suspend|pause|lock)\b[^?.]{0,20}\bcard\b",
+            r"\bcard\b[^?.]{0,16}\b(freeze|frozen|suspend|paused|locked)\b",
+            r"\btemporar\w+\b[^?.]{0,20}\b(block|lock|stop)\b",
+        ],
     },
     "unfreeze_card": {
         "utterances": [
@@ -139,11 +143,12 @@ INTENTS: dict[str, dict] = {
         # found nothing, so the assistant offered a human agent for an action
         # it was perfectly able to perform itself.
         "anchors": [
-            r"(mở khoá|mở khóa|bỏ khoá|bỏ khóa|mở lại thẻ)",r"\bun(block|freeze|lock|suspend)\w*\b",
-                    r"\b(undo|remove|lift|cancel)\b[^?.]{0,20}"
-                    r"\b(block|freeze|hold|lock)\b",
-                    r"\b(turn|switch)\b[^?.]{0,12}\b(back on|on again)\b",
-                    r"\bfound\b[^?.]{0,16}\bcard\b"],
+            r"(mở khoá|mở khóa|bỏ khoá|bỏ khóa|mở lại thẻ)",
+            r"\bun(block|freeze|lock|suspend)\w*\b",
+            r"\b(undo|remove|lift|cancel)\b[^?.]{0,20}" r"\b(block|freeze|hold|lock)\b",
+            r"\b(turn|switch)\b[^?.]{0,12}\b(back on|on again)\b",
+            r"\bfound\b[^?.]{0,16}\bcard\b",
+        ],
     },
     "loan_status": {
         "utterances": [
@@ -160,8 +165,11 @@ INTENTS: dict[str, dict] = {
         ],
         "anchors": [
             r"hồ sơ vay",
-            r"khoản vay[^?.]{0,16}(đến đâu|thế nào|duyệt)",r"\bloan\b.*\bstatus\b", r"\bstatus\b.*\b(loan|mortgage)\b",
-                    r"\b(loan|mortgage)\b.*\b(approved|application)\b"],
+            r"khoản vay[^?.]{0,16}(đến đâu|thế nào|duyệt)",
+            r"\bloan\b.*\bstatus\b",
+            r"\bstatus\b.*\b(loan|mortgage)\b",
+            r"\b(loan|mortgage)\b.*\b(approved|application)\b",
+        ],
     },
     "transaction_history": {
         "utterances": [
@@ -177,7 +185,10 @@ INTENTS: dict[str, dict] = {
         ],
         "anchors": [
             r"(giao dịch|chi tiêu)[^?.]{0,12}(gần đây|gần nhất)",
-            r"lịch sử giao dịch",r"\b(recent|last|latest)\b.*\btransaction", r"\bspend\b"],
+            r"lịch sử giao dịch",
+            r"\b(recent|last|latest)\b.*\btransaction",
+            r"\bspend\b",
+        ],
     },
     "account_summary": {
         "utterances": [
@@ -194,8 +205,11 @@ INTENTS: dict[str, dict] = {
         ],
         "anchors": [
             r"tôi là ai",
-            r"(thông tin|hồ sơ)[^?.]{0,10}của tôi",r"(?<![a-z])who am i(?![a-z])", r"my (details|profile)(?![a-z])",
-                    r"what .*(accounts?|products?) do i (have|hold)"],
+            r"(thông tin|hồ sơ)[^?.]{0,10}của tôi",
+            r"(?<![a-z])who am i(?![a-z])",
+            r"my (details|profile)(?![a-z])",
+            r"what .*(accounts?|products?) do i (have|hold)",
+        ],
     },
     "activate_card": {
         "utterances": [
@@ -223,11 +237,13 @@ INTENTS: dict[str, dict] = {
             "the card you sent me is inactive",
         ],
         "anchors": [
-            r"kích hoạt",r"activat(e|ing|ion)",
-                    r"new card[^?.]{0,24}(start|use|using|work)",
-                    r"card[^?.]{0,20}(not|isn.t) (working|active|activated)",
-                    r"thẻ[^?.]{0,30}(ngủ đông|lâu[^?.]{0,15}không dùng|lâu không dùng|không hoạt động)",
-                    r"ngủ đông"],
+            r"kích hoạt",
+            r"activat(e|ing|ion)",
+            r"new card[^?.]{0,24}(start|use|using|work)",
+            r"card[^?.]{0,20}(not|isn.t) (working|active|activated)",
+            r"thẻ[^?.]{0,30}(ngủ đông|lâu[^?.]{0,15}không dùng|lâu không dùng|không hoạt động)",
+            r"ngủ đông",
+        ],
     },
     "card_offers": {
         "utterances": [
@@ -291,10 +307,16 @@ INTENTS: dict[str, dict] = {
             "xin chào",
             "chào bạn",
             "alo",
-            "hello", "hi there", "good morning", "hey", "good evening",
+            "hello",
+            "hi there",
+            "good morning",
+            "hey",
+            "good evening",
         ],
         "anchors": [
-            r"^\s*(xin chào|chào|alo)",r"^\s*(hi|hello|hey|good (morning|afternoon|evening))\b"],
+            r"^\s*(xin chào|chào|alo)",
+            r"^\s*(hi|hello|hey|good (morning|afternoon|evening))\b",
+        ],
     },
     "smalltalk": {
         "utterances": [
@@ -303,26 +325,42 @@ INTENTS: dict[str, dict] = {
             "hiểu rồi",
             "vâng ạ",
             "còn đó không",
-            "ok thanks", "thank you", "got it", "understood", "great",
-            "are you still there", "hello are you there", "any update",
-            "sorry what", "never mind then", "cool",
+            "ok thanks",
+            "thank you",
+            "got it",
+            "understood",
+            "great",
+            "are you still there",
+            "hello are you there",
+            "any update",
+            "sorry what",
+            "never mind then",
+            "cool",
         ],
         "anchors": [
-            r"^\s*(cảm ơn|cám ơn|ok|hiểu rồi|vâng|dạ)\s*[.!]?\s*$",r"^\s*(ok(ay)?|thanks|thank you|got it|understood|great|"
-                    r"cool|nice|perfect|alright|sure)\s*[.!]?\s*$",
-                    r"are you (still )?(there|here)",
-                    r"^\s*(hmm+|uh+|erm+|\?+)\s*$"],
+            r"^\s*(cảm ơn|cám ơn|ok|hiểu rồi|vâng|dạ)\s*[.!]?\s*$",
+            r"^\s*(ok(ay)?|thanks|thank you|got it|understood|great|"
+            r"cool|nice|perfect|alright|sure)\s*[.!]?\s*$",
+            r"are you (still )?(there|here)",
+            r"^\s*(hmm+|uh+|erm+|\?+)\s*$",
+        ],
     },
     "goodbye": {
         "utterances": [
             "tạm biệt",
             "cảm ơn, vậy thôi ạ",
             "hết rồi cảm ơn",
-            "thanks that is all", "goodbye", "bye bye", "that's everything thanks",
+            "thanks that is all",
+            "goodbye",
+            "bye bye",
+            "that's everything thanks",
         ],
         "anchors": [
             r"^\s*(tạm biệt|chào nhé)",
-            r"vậy thôi",r"^\s*(bye|goodbye)\b", r"that('s| is) all"],
+            r"vậy thôi",
+            r"^\s*(bye|goodbye)\b",
+            r"that('s| is) all",
+        ],
     },
     # Knowledge intents: recognised, but answered from the knowledge base by
     # the RAG layer rather than by a scripted flow.
@@ -390,6 +428,12 @@ INTENTS: dict[str, dict] = {
             "thẻ của tôi có ưu đãi gì phù hợp với tôi không",
             "có ưu đãi nào phù hợp với sở thích của tôi không",
             "tôi muốn tìm thẻ phù hợp với chi tiêu của mình",
+            "tôi muốn mở thẻ",
+            "tôi muốn mở thẻ tín dụng",
+            "tôi muốn làm thẻ tín dụng",
+            "cho tôi đăng ký mở thẻ",
+            "làm thẻ tín dụng mới",
+            "mở thẻ mới",
             "thẻ nào phù hợp với tôi",
             "tôi muốn chọn thẻ phù hợp với nhu cầu",
             "tôi muốn tìm thẻ tín dụng phù hợp",
@@ -408,8 +452,24 @@ INTENTS: dict[str, dict] = {
             "help me find the right card",
         ],
         "anchors": [
-            r"(tôi (hay|thích|thường))[^?.]{0,30}(mua sắm|du lịch|golf|ăn uống|giải trí)",
-            r"(tìm|chọn|tư vấn)[^?.]{0,20}thẻ[^?.]{0,20}(phù hợp|nào|tốt|đúng)",
+            # "tôi hay/thích/thường + <bất kỳ khoản chi tiêu nào>". Danh sách khoản
+            # chi phải phủ đủ để một câu nêu sở thích luôn vào flow cross-sell
+            # (nếu hẹp, "tôi hay đi grab / cà phê / xem phim" lọt sang KB rồi bị
+            # đẩy nhân viên - đúng lỗi đã gặp).
+            r"(tôi (hay|thích|thường)|mình (hay|thích|thường)|thường xuyên)"
+            r"[^?.]{0,30}(mua sắm|mua hàng|online|thương mại điện tử|shopee|lazada|tiki|"
+            r"ăn uống|nhà hàng|quán ăn|cà ?phê|cafe|du lịch|nước ngoài|khách sạn|"
+            r"máy bay|di chuyển|gọi xe|grab|be|xanh sm|taxi|xăng|giải trí|rạp|phim|"
+            r"golf|thể thao|gym|thời trang|quần áo|mỹ phẩm|siêu thị|chi tiêu)",
+            # Yêu cầu tư vấn thẻ - "tư vấn/gợi ý/chọn/tìm thẻ" đứng một mình là đủ,
+            # không cần thêm "phù hợp/nào" phía sau ("tư vấn thẻ giúp tôi").
+            r"(tìm|chọn|tư vấn|gợi ý|giới thiệu|đề xuất)[^?.]{0,20}thẻ",
+            # "mở/làm/đăng ký thẻ" = muốn có thẻ mới -> vào tư vấn cross-sell, KHÔNG
+            # để rơi vào KB (dễ trích tài liệu ưu đãi Platinum -> nghe như ép mở
+            # Platinum) hay nhầm sang card_close. Chặn "mở khóa thẻ" (unfreeze) bằng
+            # cách yêu cầu "thẻ" đứng ngay sau, "mở khóa" thì không khớp.
+            r"\b(mở|làm|đăng ký|đăng kí)\s+thẻ\b",
+            r"thẻ[^?.]{0,20}(nào|gì)[^?.]{0,20}(phù hợp|tốt|nên|hợp|dành cho)",
             r"thẻ nào[^?.]{0,20}(phù hợp|tốt|nên chọn)",
             r"(biết thêm|tìm hiểu thêm)[^?.]{0,20}thẻ",
             r"(ưu đãi|hoàn tiền)[^?.]{0,20}(phù hợp|cho (tôi|việc))",
@@ -453,6 +513,7 @@ INTENTS: dict[str, dict] = {
     "reward_inquiry": {
         "utterances": [
             "thẻ của tôi có ưu đãi gì",
+            "thẻ của tôi có quyền lợi gì",
             "tôi được hoàn tiền bao nhiêu",
             "đặc quyền của thẻ tôi là gì",
             "quyền lợi thẻ của tôi gồm những gì",
@@ -463,7 +524,74 @@ INTENTS: dict[str, dict] = {
         ],
         "anchors": [
             r"(ưu đãi|đặc quyền|quyền lợi|hoàn tiền)[^?.]{0,16}(của tôi|thẻ tôi)",
+            # Thứ tự ngược: "thẻ (của) tôi ... quyền lợi/ưu đãi/hoàn tiền". Câu
+            # "thẻ của tôi có quyền lợi gì" trước đây tụt dưới ngưỡng vì anchor
+            # trên chỉ khớp khi "của tôi" đứng SAU từ quyền lợi.
+            r"thẻ (của )?tôi[^?.]{0,16}(ưu đãi|đặc quyền|quyền lợi|hoàn tiền|cashback)",
             r"\b(rewards?|perks?|benefits?|cashback)\b[^?.]{0,16}\b(my card|do i get|include)\b",
+        ],
+    },
+    # "Ngân hàng có những loại thẻ nào?" - hỏi DANH MỤC sản phẩm thẻ. Tách khỏi
+    # cross_sell (gợi ý 1 thẻ hợp gu) và product_comparison (so sánh 2 thẻ): đây
+    # chỉ muốn xem ngân hàng phát hành những dòng thẻ gì. Trả lời tất định từ
+    # products.json để không bị KB trả nhầm tài liệu tra soát hay LLM trả lời
+    # chung chung "thẻ ATM, thẻ tín dụng".
+    "card_catalogue": {
+        "utterances": [
+            "ngân hàng có những loại thẻ nào",
+            "các loại thẻ của ngân hàng",
+            "ngân hàng có mấy loại thẻ",
+            "bên bạn có những thẻ gì",
+            "cho tôi xem các dòng thẻ",
+            "ngân hàng phát hành những thẻ nào",
+            "có những loại thẻ tín dụng nào",
+            "danh mục thẻ của ngân hàng",
+            "what cards does the bank offer",
+            "what types of cards do you have",
+            # Hỏi chi tiết MỘT thẻ cụ thể -> flow trả full "table row" của thẻ đó.
+            "thẻ Platinum có gì",
+            "thẻ Classic có ưu đãi gì",
+            "cho tôi biết thêm về thẻ Signature",
+            "thẻ Infinite gồm những quyền lợi gì",
+            "chi tiết thẻ Platinum",
+            "giới thiệu thẻ Infinite cho tôi",
+        ],
+        "anchors": [
+            r"(loại|dòng|danh mục)\s+thẻ",
+            r"(ngân hàng|bên (bạn|mình)|các bạn)[^?.]{0,24}(những|các|mấy)?[^?.]{0,10}thẻ[^?.]{0,15}(nào|gì)",
+            r"(có|phát hành)[^?.]{0,16}(những|các|mấy)[^?.]{0,10}thẻ[^?.]{0,12}(nào|gì)",
+            r"\bwhat (cards|types of cards)\b",
+            # MỘT thẻ cụ thể + hỏi thông tin -> chi tiết thẻ đó.
+            r"thẻ\s+(classic|platinum|signature|infinite)[^?.]{0,24}"
+            r"(có gì|có ưu đãi gì|ưu đãi gì|thế nào|ra sao|như thế nào|chi tiết|"
+            r"gồm|quyền lợi|thông tin)",
+            r"(biết thêm|tìm hiểu|thông tin|chi tiết|giới thiệu)[^?.]{0,20}"
+            r"thẻ\s+(classic|platinum|signature|infinite)",
+        ],
+    },
+    # Khách từ chối / đang bận (TH3 demo_tutorial). Bắt riêng để KHÔNG rơi vào KB
+    # (đang trích tài liệu thẻ vào mặt người vừa nói "không cần" - rất pushy) hay
+    # escalation. Trả lời lịch sự, không nài, để cửa mở cho lần sau.
+    "decline": {
+        "utterances": [
+            "tôi không cần thẻ đâu",
+            "tôi không quan tâm",
+            "tôi không có nhu cầu",
+            "thôi không cần đâu",
+            "tôi đang bận",
+            "tôi đang họp",
+            "để khi khác đi",
+            "tôi không muốn mở thẻ",
+            "không cảm ơn",
+            "lúc khác nhé",
+        ],
+        "anchors": [
+            r"(không|chẳng|chả)\s*(cần|quan tâm|có nhu cầu|muốn)(?![^?.]{0,6}(mở khoá|mở khóa))",
+            r"(đang|hơi)\s*(bận|họp|có việc|vội)",
+            r"(để|tính|hẹn)\s*(khi khác|lúc khác|sau|hôm khác)",
+            r"\bthôi\b[^?.]{0,10}(không|khỏi|đủ rồi)",
+            r"(thôi|không|khỏi)[,\s]{0,2}(cảm ơn|cám ơn)",
+            r"\b(no thanks|not interested|i'?m busy|maybe later)\b",
         ],
     },
 }
@@ -472,20 +600,30 @@ INTENTS: dict[str, dict] = {
 # Intents that read a specific customer's record. They all require an identity
 # check, so misrouting into one costs the customer a verification step for
 # information that needed none.
-PERSONAL_INTENTS = frozenset({
-    "balance_inquiry", "transaction_history", "loan_status",
-    "account_summary", "block_card", "freeze_card", "unfreeze_card",
-    # cross_sell_interest is intentionally NOT here: Scenario 1 (Customer
-    # Service) lets an unverified customer ask "which card fits my spending?"
-    # without an identity check.  Verified customers get a personalised answer
-    # (segment-locked); unverified customers get a catalogue recommendation.
-    "card_close", "card_limit_adjust", "reward_inquiry", "card_offers",
-    # activate_card reads session.customer directly (which card is inactive,
-    # which is dormant) - missing from this set meant it ran before
-    # verification ever set that field, crashing on session.customer being
-    # None instead of asking for identity first.
-    "activate_card",
-})
+PERSONAL_INTENTS = frozenset(
+    {
+        "balance_inquiry",
+        "transaction_history",
+        "loan_status",
+        "account_summary",
+        "block_card",
+        "freeze_card",
+        "unfreeze_card",
+        # cross_sell_interest is intentionally NOT here: Scenario 1 (Customer
+        # Service) lets an unverified customer ask "which card fits my spending?"
+        # without an identity check.  Verified customers get a personalised answer
+        # (segment-locked); unverified customers get a catalogue recommendation.
+        "card_close",
+        "card_limit_adjust",
+        "reward_inquiry",
+        "card_offers",
+        # activate_card reads session.customer directly (which card is inactive,
+        # which is dormant) - missing from this set meant it ran before
+        # verification ever set that field, crashing on session.customer being
+        # None instead of asking for identity first.
+        "activate_card",
+    }
+)
 
 # Questions about how something *works*, as opposed to requests for a
 # customer's own data. The two share almost all their vocabulary - "how is
@@ -587,7 +725,7 @@ class IntentClassifier:
 
         ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
         top_intent, top_score = ranked[0]
-        runner_up, runner_up_score = (ranked[1] if len(ranked) > 1 else (None, 0.0))
+        runner_up, runner_up_score = ranked[1] if len(ranked) > 1 else (None, 0.0)
 
         # Ambiguity penalty: two intents scoring alike means we are not really
         # confident in either, so we push the query toward the RAG layer.
@@ -596,8 +734,10 @@ class IntentClassifier:
 
         if top_score < LOW_CONFIDENCE:
             return IntentPrediction(
-                intent="unknown", confidence=round(top_score, 3),
-                runner_up=top_intent, runner_up_confidence=round(top_score, 3),
+                intent="unknown",
+                confidence=round(top_score, 3),
+                runner_up=top_intent,
+                runner_up_confidence=round(top_score, 3),
                 scores={k: round(v, 3) for k, v in ranked[:4]},
             )
 

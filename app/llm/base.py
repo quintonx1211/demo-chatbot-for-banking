@@ -13,7 +13,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from .. import playbook
 from ..retriever import RetrievedPassage
+from .rules import with_core_rules
 
 # Sized well above the few sentences we want back. Reasoning-capable models
 # spend part of this budget on thinking before emitting any answer text, so a
@@ -77,7 +79,7 @@ TONES: dict[str, str] = {
         "Ưu tiên danh sách hơn đoạn văn. Không thêm lời nhạt nhẽo hay lời chào hỏi kết thúc."
     ),
     "empathetic": (
-        "Giọng điệu: kiên nhẫn và trấn an. Khi khách hàng báo mất tiền, gian lận hoặc sự cố thẻ, "
+        "Giọng điệu: kiên nhẫn và trấn an. Khi khách hàng báo mất tiền hoặc sự cố thẻ, "
         "hãy thừa nhận tình huống trong một mệnh đề ngắn trước khi trả lời. "
         "Không thể hiện sự đồng cảm quá dài — một mệnh đề, rồi giúp đỡ."
     ),
@@ -90,6 +92,26 @@ def tone_instruction(name: str | None = None) -> str:
     """The style clause for `name`, falling back to the default preset."""
     key = (name or DEFAULT_TONE).strip().lower()
     return TONES.get(key, TONES[DEFAULT_TONE])
+
+
+def _with_playbook(system_body: str, cross_sell: bool = False) -> str:
+    """Append the cross-sell playbook below the persona/answer rules, if present.
+
+    Only injected when `cross_sell` is True - i.e. the turn's intent is a
+    card-shopping one (see playbook.is_cross_sell_context). This keeps the sales
+    script off unrelated turns (fraud, disputes, loans, card servicing), where it
+    would only waste tokens and risk steering the customer toward a card offer.
+
+    Sits below CORE_RULES (added later by `with_core_rules`) and below the answer
+    rules, so the safety backbone always outranks it: the playbook shapes HOW the
+    cross-sell conversation flows, never what facts or commitments are allowed.
+    Applies to chat and call alike, since both go through the builders below.
+    """
+    if not cross_sell:
+        return system_body
+    section = playbook.prompt_section()
+    return f"{system_body}\n\n{section}" if section else system_body
+
 
 SUMMARY_SYSTEM_PROMPT = """Bạn viết tóm tắt bàn giao cho nhân viên trung tâm chăm sóc khách hàng \
 tiếp nhận cuộc hội thoại được chuyển từ trợ lý ảo.
@@ -117,11 +139,41 @@ RAW_SYSTEM_PROMPT = """Bạn là Trợ lý ảo ABC Bank, trợ lý ảo hữu �
 Trả lời tự nhiên dựa trên cuộc hội thoại và kiến thức chung của bạn. \
 Luôn trả lời bằng tiếng Việt."""
 
+# Câu hỏi KHÔNG có trong cơ sở tri thức. Thay vì chuyển ngay cho chuyên viên,
+# cho phép model trả lời bằng kiến thức chung - NHƯNG vẫn giữ persona và các
+# lằn ranh an toàn của ngân hàng. Đây là bản "mở có kiểm soát", khác hẳn
+# RAW_SYSTEM_PROMPT (mở hoàn toàn, dùng cho demo lever).
+GENERAL_SYSTEM_PROMPT = """Bạn là Trợ lý ảo ABC Bank, trợ lý chăm sóc khách hàng của Ngân hàng ABC.
+
+Câu hỏi này không nằm trong tài liệu chính thức của ngân hàng. Bạn được phép trả lời \
+bằng kiến thức chung, nhưng phải tuân thủ NGHIÊM NGẶT các quy tắc sau:
+
+1. TUYỆT ĐỐI KHÔNG tư vấn đầu tư, thuế hay pháp lý. Không khuyến nghị mua/bán/nắm giữ \
+cổ phiếu, quỹ, trái phiếu, tiền số hay vàng. Không dự đoán giá hay xu hướng thị trường. \
+Nếu bị hỏi, từ chối lịch sự trong một câu và đề nghị kết nối chuyên viên.
+2. KHÔNG bịa thông tin về sản phẩm, phí, lãi suất, hạn mức hay chính sách CỦA NGÂN HÀNG ABC. \
+Những thông tin đó chỉ được lấy từ tài liệu chính thức. Nếu khách hỏi cụ thể mà bạn không có \
+tài liệu, hãy nói thẳng là cần kiểm tra và đề nghị chuyên viên - đừng đoán.
+3. KHÔNG phỏng đoán về tài khoản, số dư, giao dịch hay hồ sơ của khách hàng cụ thể - bạn \
+không xem được dữ liệu đó.
+4. Với câu hỏi kiến thức/định nghĩa tài chính cơ bản (ví dụ "lạm phát là gì"), trả lời khái \
+quát, dễ hiểu. Với câu hỏi về số liệu thời sự/thị trường hiện tại (ví dụ "kinh tế thế giới \
+dạo này thế nào"), nói rõ bạn không có số liệu cập nhật và chỉ trả lời khái quát, thận trọng.
+5. Câu hỏi hoàn toàn ngoài lĩnh vực ngân hàng - tài chính (thời tiết, thể thao, giải trí...): \
+trả lời ngắn gọn lịch sự rồi nhẹ nhàng hướng khách về nhu cầu ngân hàng.
+6. KHÔNG yêu cầu, nhắc lại hay xác nhận số thẻ đầy đủ, mã PIN, mật khẩu hay mã OTP.
+
+Phong cách: xưng "tôi", gọi khách hàng là "quý khách", 2-4 câu ngắn, lịch sự và chuyên nghiệp. \
+Không nhắc lại câu hỏi, không mở đầu dài dòng.
+
+QUAN TRỌNG: Luôn trả lời bằng tiếng Việt."""
+
 
 @dataclass
 class LLMRequest:
     """What every adapter receives. Deliberately the lowest common denominator:
     one system instruction, one user turn, one token ceiling."""
+
     system: str
     user: str
     max_tokens: int
@@ -138,7 +190,7 @@ class LLMRequest:
 @dataclass
 class LLMResult:
     text: str
-    generated: bool          # True if a model produced it, False for the offline path
+    generated: bool  # True if a model produced it, False for the offline path
     provider: str | None = None
     model: str | None = None
     input_tokens: int = 0
@@ -168,7 +220,12 @@ def classify_provider_error(exc: Exception) -> str:
     text = str(exc).lower()
     if "ratelimit" in name or "rate limit" in text or "429" in text:
         return "provider_rate_limited"
-    if "authentication" in name or "permission" in name or "401" in text or "403" in text:
+    if (
+        "authentication" in name
+        or "permission" in name
+        or "401" in text
+        or "403" in text
+    ):
         return "provider_auth_error"
     if "timeout" in name:
         return "provider_timeout"
@@ -194,11 +251,17 @@ def build_answer_request(
     history_messages: list | None = None,
     tone: str | None = None,
     temperature: float | None = None,
+    cross_sell: bool = False,
 ) -> LLMRequest:
     context_block = (
         f"Các đoạn văn trong cơ sở tri thức:\n\n{format_context(passages)}\n\n"
         f"---\nCâu hỏi của khách hàng: {question}\n\n"
         "Trả lời chỉ dựa trên các đoạn văn trên. Viết bằng tiếng Việt."
+    )
+    system = with_core_rules(
+        _with_playbook(
+            f"{ANSWER_SYSTEM_PROMPT}\n\n{tone_instruction(tone)}", cross_sell
+        )
     )
 
     if history_messages:
@@ -207,8 +270,8 @@ def build_answer_request(
         # immediately before it writes the answer.
         messages = list(history_messages) + [{"role": "user", "content": context_block}]
         return LLMRequest(
-            system=f"{ANSWER_SYSTEM_PROMPT}\n\n{tone_instruction(tone)}",
-            user=question,        # kept for extractive fallback path
+            system=system,
+            user=question,  # kept for extractive fallback path
             max_tokens=ANSWER_MAX_TOKENS,
             temperature=temperature,
             messages=messages,
@@ -219,21 +282,52 @@ def build_answer_request(
         f"Cuộc hội thoại trước đó:\n{history}\n\n" if history.strip() else ""
     )
     return LLMRequest(
-        system=f"{ANSWER_SYSTEM_PROMPT}\n\n{tone_instruction(tone)}",
+        system=system,
         user=f"{history_block}{context_block}",
         max_tokens=ANSWER_MAX_TOKENS,
         temperature=temperature,
     )
 
 
-def build_raw_request(message: str, history: str = "",
-                      temperature: float | None = None) -> LLMRequest:
-    history_block = (
-        f"Hội thoại trước đó:\n{history}\n\n" if history.strip() else ""
-    )
+def build_raw_request(
+    message: str, history: str = "", temperature: float | None = None
+) -> LLMRequest:
+    history_block = f"Hội thoại trước đó:\n{history}\n\n" if history.strip() else ""
     return LLMRequest(
-        system=RAW_SYSTEM_PROMPT,
+        system=with_core_rules(RAW_SYSTEM_PROMPT),
         user=f"{history_block}Khách hàng: {message}",
+        max_tokens=ANSWER_MAX_TOKENS,
+        temperature=temperature,
+    )
+
+
+def build_general_request(
+    message: str,
+    history_messages: list | None = None,
+    tone: str | None = None,
+    temperature: float | None = None,
+    cross_sell: bool = False,
+) -> LLMRequest:
+    """A controlled open-knowledge answer for a question with no KB match: the
+    bank persona and safety rails stay, only the "answer strictly from passages"
+    constraint is lifted. Tone is appended so the register matches the rest."""
+    system = with_core_rules(
+        _with_playbook(
+            f"{GENERAL_SYSTEM_PROMPT}\n\n{tone_instruction(tone)}", cross_sell
+        )
+    )
+    if history_messages:
+        messages = list(history_messages) + [{"role": "user", "content": message}]
+        return LLMRequest(
+            system=system,
+            user=message,
+            max_tokens=ANSWER_MAX_TOKENS,
+            temperature=temperature,
+            messages=messages,
+        )
+    return LLMRequest(
+        system=system,
+        user=message,
         max_tokens=ANSWER_MAX_TOKENS,
         temperature=temperature,
     )
@@ -327,16 +421,20 @@ def extractive_answer(passages: list[RetrievedPassage]) -> str:
     excerpt = _excerpt(best.text)
 
     if is_unverified(best):
-        return (f"Đây là nội dung từ tài liệu tham khảo thị trường của chúng tôi về "
-                f"**{best.heading.lower()}**:\n\n{excerpt}\n\n"
-                f"_Đây là thông tin tham khảo về sản phẩm của ngân hàng khác, "
-                f"được thu thập từ nguồn công khai và chưa được chúng tôi xác minh. "
-                f"Vui lòng xác nhận các điều khoản hiện hành với ngân hàng đó trước khi sử dụng._")
+        return (
+            f"Đây là nội dung từ tài liệu tham khảo thị trường của chúng tôi về "
+            f"**{best.heading.lower()}**:\n\n{excerpt}\n\n"
+            f"_Đây là thông tin tham khảo về sản phẩm của ngân hàng khác, "
+            f"được thu thập từ nguồn công khai và chưa được chúng tôi xác minh. "
+            f"Vui lòng xác nhận các điều khoản hiện hành với ngân hàng đó trước khi sử dụng._"
+        )
 
-    return (f"Đây là thông tin chúng tôi có về **{best.heading.lower()}** - "
-            f"trích dẫn trực tiếp từ tài liệu hướng dẫn của chúng tôi:\n\n"
-            f"{excerpt}\n\n"
-            f"Quý khách muốn tìm hiểu thêm phần nào không ạ?")
+    return (
+        f"Đây là thông tin chúng tôi có về **{best.heading.lower()}** - "
+        f"trích dẫn trực tiếp từ tài liệu hướng dẫn của chúng tôi:\n\n"
+        f"{excerpt}\n\n"
+        f"Quý khách muốn tìm hiểu thêm phần nào không ạ?"
+    )
 
 
 def extractive_summary(transcript: str, context_lines: list[str]) -> str:

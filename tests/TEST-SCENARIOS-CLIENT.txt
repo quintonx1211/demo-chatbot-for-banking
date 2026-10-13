@@ -13,7 +13,7 @@ Mã xác thực 8 khách hàng demo:
   Tran Thi Bich      3728 9926   MASS          có ưu đãi Classic + thẻ ngủ đông
   Le Minh Chau       8386 5738   MASS_AFFLUENT thẻ chưa kích hoạt
   Pham Quoc Dung     3826 2134   MASS_AFFLUENT
-  Hoang Thi Ha       8318 7062   AFFLUENT      thẻ tạm khoá
+  Hoang Thi Ha       8318 7062   AFFLUENT      có sở thích du lịch
   Vu Duc Hieu        7539 1860   AFFLUENT
   Dang Thi Lan       1434 6488   PRIVATE       có sở thích golf + du lịch nước ngoài
   Bui Van Long       6167 3423   PRIVATE
@@ -29,23 +29,23 @@ KHÔNG cần đăng nhập – đây là luồng tư vấn, không truy cập d�
 
 --- 1A. Khách quan tâm mua sắm online -----------------------------------------
 
-  Gõ:       tôi muốn tìm thẻ phù hợp với mua sắm online
-  KỲ VỌNG   bot hỏi sở thích cụ thể hơn (không hỏi xác minh danh tính):
-             "Bạn hay mua hàng trên nền tảng nào, hay thường chi tiêu nhiều ở đâu nhất?"
+  Gõ:       tôi muốn tìm thẻ phù hợp với mua sắm online   
+  KỲ VỌNG   bot hỏi thêm sở thích chi tiêu (không hỏi xác minh danh tính).
   Gõ:       tôi hay mua hàng Shopee, Lazada
   KỲ VỌNG   bot giới thiệu Thẻ Classic với lý do cụ thể:
              "Hoàn tiền 5% khi mua sắm online tại các sàn thương mại điện tử"
+  KỲ VỌNG   có disclaimer ở cuối câu trả lời.
   LỖI NẾU   bot hỏi xác minh danh tính trước khi trả lời tư vấn.
   LỖI NẾU   bot giới thiệu sai thẻ (Classic là đúng cho mua sắm online).
 
 --- 1B. Khách quan tâm golf ---------------------------------------------------
 
   Gõ:       tôi thích chơi golf, thẻ nào phù hợp với tôi?
-  KỲ VỌNG   bot trả lời NGAY (vì có "thẻ nào" – ý định rõ) → giới thiệu Thẻ Infinite
-             với lý do: "Ưu đãi Golf: hoàn 1.000.000 VND phí sân golf"
-             hoặc tích luỹ dặm bay VNA Lotusmiles.
-             Bot KHÔNG hỏi lại sở thích vì intent đã rõ từ đầu.
-  LỖI NẾU   bot hỏi lại "Bạn hay mua hàng trên nền tảng nào..." (không cần thiết).
+  KỲ VỌNG   (hoặc bot hỏi thêm, hoặc trả lời ngay nếu đã rõ intent)
+  Gõ (nếu bị hỏi): golf và du lịch nước ngoài
+  KỲ VỌNG   bot giới thiệu Thẻ Infinite với lý do:
+             "Ưu đãi Golf: hoàn 1.000.000 VND phí sân golf"
+             hoặc tích luỹ dặm bay VNA Lotusmiles
   LỖI NẾU   giới thiệu thẻ khác (Classic, Platinum, Signature).
 
 --- 1C. Khách muốn so sánh hai thẻ -------------------------------------------
@@ -77,16 +77,16 @@ thích → giải thích tại sao thẻ Classic phù hợp.
   Gõ:       9411 3147
   KỲ VỌNG   xác minh thành công: "Cảm ơn, An - bạn đã được xác minh."
   KỲ VỌNG   NGAY SAU XÁC MINH, bot chủ động đề xuất ưu đãi (proactive):
-             "**Nhân tiện:** **Thẻ Classic** – {hook ngắn gọn}"
-             kèm CTA và link deeplink trên dòng tiếp theo.
+             "Nhân tiện: Ngân hàng đang mời bạn mở Thẻ Classic..."
+             có CTA và link deeplink.
   VÌ SAO    đây là Scenario 2 – bot không chờ khách hỏi, mà chủ động đề xuất
             sau khi biết đây là khách trong danh sách mục tiêu.
 
   Gõ:       tôi muốn biết thêm về thẻ này
-  KỲ VỌNG   bot hỏi sở thích: "An hay mua hàng trên nền tảng nào,
-             hay thường chi tiêu nhiều ở đâu nhất?"
+  KỲ VỌNG   bot hỏi sở thích: "An quan tâm nhất điều gì: mua sắm online,
+             ăn uống, du lịch, hay chơi golf?"
 
-  Gõ:       tôi hay mua sắm online
+  Gõ:       tôi hay ua sắm onlinem
   KỲ VỌNG   bot giải thích tại sao Classic phù hợp với mua sắm online:
              "Hoàn tiền 5% khi mua sắm online tại các sàn thương mại điện tử"
 

@@ -32,10 +32,10 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app import llm                                    # noqa: E402
-from app.llm import compare as compare_mod             # noqa: E402
+from app import llm  # noqa: E402
+from app.llm import compare as compare_mod  # noqa: E402
 from app.llm.base import LLMRequest, build_answer_request  # noqa: E402
-from app.retriever import KnowledgeBase                # noqa: E402
+from app.retriever import KnowledgeBase  # noqa: E402
 
 QUESTION = "How much is the overdraft fee, and is there a daily cap?"
 
@@ -53,14 +53,25 @@ def main() -> int:
     _line("model", info["model"])
     _line("effort", info["effort"])
     _line("tone", info.get("tone"))
-    _line("temperature", info.get("temperature")
-          if info.get("temperature") is not None else "provider default")
+    _line(
+        "temperature",
+        (
+            info.get("temperature")
+            if info.get("temperature") is not None
+            else "provider default"
+        ),
+    )
 
     for name, adapter in llm.PROVIDERS.items():
         present = next((k for k in adapter.ENV_KEYS if os.environ.get(k)), None)
-        _line(f"key: {name}",
-              f"set via {present} ({len(os.environ[present])} chars)"
-              if present else "not set")
+        _line(
+            f"key: {name}",
+            (
+                f"set via {present} ({len(os.environ[present])} chars)"
+                if present
+                else "not set"
+            ),
+        )
 
     if provider is None:
         print("\nNo provider is active, so both comparison columns fall back to")
@@ -74,25 +85,38 @@ def main() -> int:
     # Exactly the two calls the comparison panel makes, in the same order,
     # bypassing _run so nothing is masked by the extractive fallback.
     calls = [
-        ("GROUNDED  (as answer_from_kb builds it)",
-         build_answer_request(QUESTION, passages, tone=llm.current_tone(),
-                              temperature=llm.current_temperature())),
-        ("UNGROUNDED (as compare.py builds it)",
-         LLMRequest(system=compare_mod.UNGROUNDED_SYSTEM_PROMPT,
-                    user=QUESTION, max_tokens=1000)),
+        (
+            "GROUNDED  (as answer_from_kb builds it)",
+            build_answer_request(
+                QUESTION,
+                passages,
+                tone=llm.current_tone(),
+                temperature=llm.current_temperature(),
+            ),
+        ),
+        (
+            "UNGROUNDED (as compare.py builds it)",
+            LLMRequest(
+                system=compare_mod.UNGROUNDED_SYSTEM_PROMPT,
+                user=QUESTION,
+                max_tokens=1000,
+            ),
+        ),
     ]
 
     failures = 0
     for label, request in calls:
         print(f"\n=== {label} ===")
         _line("max_tokens", request.max_tokens)
-        _line("temperature", request.temperature
-              if request.temperature is not None else "omitted")
+        _line(
+            "temperature",
+            request.temperature if request.temperature is not None else "omitted",
+        )
         _line("system prompt", f"{len(request.system)} chars")
         started = time.perf_counter()
         try:
             result = provider.complete(request, llm._effort())
-        except Exception as exc:                    # the adapter should catch
+        except Exception as exc:  # the adapter should catch
             print(f"  RAISED PAST THE ADAPTER: {type(exc).__name__}: {exc}")
             failures += 1
             continue
@@ -101,8 +125,14 @@ def main() -> int:
         _line("generated", result.generated)
         _line("error", result.error or "none")
         _line("tokens in/out", f"{result.input_tokens}/{result.output_tokens}")
-        _line("text", (result.text[:110].replace("\n", " ") + "...")
-              if result.text else "(empty)")
+        _line(
+            "text",
+            (
+                (result.text[:110].replace("\n", " ") + "...")
+                if result.text
+                else "(empty)"
+            ),
+        )
         if not result.generated:
             failures += 1
 

@@ -1,0 +1,14 @@
+[tool.black]
+line-length = 88
+target-version = ["py39"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+extend-exclude = ["data", "voices", ".venv", "__pycache__"]
+
+[tool.ruff.lint]
+# Import sorting + pyflakes/pycodestyle basics. Formatting is Black's job, so
+# rules that would fight the formatter are left off.
+select = ["E4", "E7", "E9", "F", "I", "W"]
+ignore = ["E501"]  # line length is enforced by Black, not the linter

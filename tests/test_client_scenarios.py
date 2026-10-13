@@ -12,8 +12,8 @@ Credentials từ data/accounts.json (đọc động – không hard-code):
   Le Minh Chau    CUS-100315  MASS       thẻ inactive (CARD-ACTIVATION)
 """
 
-import sys
 import os
+import sys
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -21,11 +21,12 @@ if hasattr(sys.stdout, "reconfigure"):
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app import db, cards as cards_mod
+from app import cards as cards_mod
+from app import db
 from app.router import Router
 
-
 # ── helpers ──────────────────────────────────────────────────────────────────
+
 
 def cred(profile: str) -> tuple[str, str]:
     """Hai lượt xác thực (SĐT rồi CCCD) từ fixture – không hard-code để không
@@ -33,18 +34,21 @@ def cred(profile: str) -> tuple[str, str]:
     một - dùng `*cred(...)` khi ghép vào danh sách lượt hội thoại."""
     import json
     from pathlib import Path
+
     data = json.loads(
-        (Path(__file__).resolve().parent.parent / "data" / "accounts.json")
-        .read_text(encoding="utf-8"))["customers"]
+        (Path(__file__).resolve().parent.parent / "data" / "accounts.json").read_text(
+            encoding="utf-8"
+        )
+    )["customers"]
     by_profile = {c["profile"]: c for c in data}
     c = by_profile[profile]
     return (c["phone"], c["national_id"])
 
 
-VAN_AN   = cred("travel_offer")    # CUS-100301 MASS, có XS-CLASSIC-2026Q3
-BICH     = cred("dormant_card")    # CUS-100308 MASS, thẻ ngủ đông
-HA       = cred("frozen_card")     # CUS-100329 MASS, thẻ tạm khoá
-CHAU     = cred("inactive_card")   # CUS-100315 MASS, thẻ chưa kích hoạt
+VAN_AN = cred("travel_offer")  # CUS-100301 MASS, có XS-CLASSIC-2026Q3
+BICH = cred("dormant_card")  # CUS-100308 MASS, thẻ ngủ đông
+HA = cred("frozen_card")  # CUS-100329 MASS, thẻ tạm khoá
+CHAU = cred("inactive_card")  # CUS-100315 MASS, thẻ chưa kích hoạt
 
 
 def run(router: Router, turns: list[str]) -> tuple:
@@ -66,6 +70,7 @@ def test(name: str):
     def decorator(fn):
         _TESTS.append((name, fn))
         return fn
+
     return decorator
 
 
@@ -73,26 +78,40 @@ def test(name: str):
 # SCENARIO 1 – CUSTOMER SERVICE
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @test("1A-step1: Bot KHÔNG hỏi xác minh khi chưa xác định – hỏi sở thích thay")
 def t1a_step1(router: Router) -> list[str]:
     session, results = run(router, ["tôi muốn tìm thẻ phù hợp với mua sắm online"])
     r = results[-1]
     errs = []
     if session.verified:
-        errs.append("bot đã đặt session.verified=True – không nên xác minh cho luồng tư vấn")
-    if "xác minh" in r.text.lower() or "cmnd" in r.text.lower() or "cccd" in r.text.lower():
+        errs.append(
+            "bot đã đặt session.verified=True – không nên xác minh cho luồng tư vấn"
+        )
+    if (
+        "xác minh" in r.text.lower()
+        or "cmnd" in r.text.lower()
+        or "cccd" in r.text.lower()
+    ):
         errs.append(f"bot yêu cầu xác minh danh tính trong câu trả lời: {r.text[:100]}")
     if not session.pending_flow == "cross_sell_interest":
-        errs.append(f"pending_flow nên là 'cross_sell_interest', thực tế: {session.pending_flow!r}")
+        errs.append(
+            f"pending_flow nên là 'cross_sell_interest', thực tế: {session.pending_flow!r}"
+        )
     return errs
 
 
-@test("1A-step2: Sau khi trả lời sở thích, bot giới thiệu Thẻ Classic cho mua sắm online")
+@test(
+    "1A-step2: Sau khi trả lời sở thích, bot giới thiệu Thẻ Classic cho mua sắm online"
+)
 def t1a_step2(router: Router) -> list[str]:
-    session, results = run(router, [
-        "tôi muốn tìm thẻ phù hợp với mua sắm online",
-        "tôi hay mua hàng Shopee, Lazada",
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi muốn tìm thẻ phù hợp với mua sắm online",
+            "tôi hay mua hàng Shopee, Lazada",
+        ],
+    )
     r = results[-1]
     errs = []
     if "Classic" not in r.text:
@@ -100,16 +119,21 @@ def t1a_step2(router: Router) -> list[str]:
     if r.route not in ("deterministic",):
         errs.append(f"route phải là 'deterministic', nhận được: {r.route!r}")
     if session.pending_flow:
-        errs.append(f"flow chưa được reset sau khi trả lời: pending_flow={session.pending_flow!r}")
+        errs.append(
+            f"flow chưa được reset sau khi trả lời: pending_flow={session.pending_flow!r}"
+        )
     return errs
 
 
 @test("1A-step2: Câu trả lời có disclaimer (không bịa)")
 def t1a_disclaimer(router: Router) -> list[str]:
-    session, results = run(router, [
-        "tôi muốn tìm thẻ phù hợp",
-        "mua sắm online Shopee",
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi muốn tìm thẻ phù hợp",
+            "mua sắm online Shopee",
+        ],
+    )
     r = results[-1]
     # disclaimer thường là chữ nghiêng phía cuối (có từ "lưu ý" hoặc dấu *)
     has_disclaimer = "_" in r.text or "*" in r.text or "lưu ý" in r.text.lower()
@@ -120,10 +144,13 @@ def t1a_disclaimer(router: Router) -> list[str]:
 
 @test("1B: Golf → Thẻ Infinite")
 def t1b(router: Router) -> list[str]:
-    session, results = run(router, [
-        "tôi thích chơi golf, thẻ nào phù hợp với tôi?",
-        "golf và du lịch nước ngoài",
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi thích chơi golf, thẻ nào phù hợp với tôi?",
+            "golf và du lịch nước ngoài",
+        ],
+    )
     r = results[-1]
     errs = []
     if "Infinite" not in r.text:
@@ -164,12 +191,16 @@ def t1d(router: Router) -> list[str]:
 # SCENARIO 2 – AUTOMATED CROSS-SELLING
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @test("2A-verify: Xác minh Nguyen Van An thành công")
 def t2a_verify(router: Router) -> list[str]:
-    session, results = run(router, [
-        "tôi muốn kiểm tra số dư",
-        *VAN_AN,
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi muốn kiểm tra số dư",
+            *VAN_AN,
+        ],
+    )
     errs = []
     if not session.verified:
         errs.append("Xác minh thất bại – session.verified=False")
@@ -181,13 +212,18 @@ def t2a_verify(router: Router) -> list[str]:
     return errs
 
 
-@test("2A-proactive: Sau xác minh, bot CHỦ ĐỘNG đề xuất ưu đãi Classic (proactive offer)")
+@test(
+    "2A-proactive: Sau xác minh, bot CHỦ ĐỘNG đề xuất ưu đãi Classic (proactive offer)"
+)
 def t2a_proactive(router: Router) -> list[str]:
-    session, results = run(router, [
-        "xin chào",
-        "tôi muốn kiểm tra số dư",
-        *VAN_AN,
-    ])
+    session, results = run(
+        router,
+        [
+            "xin chào",
+            "tôi muốn kiểm tra số dư",
+            *VAN_AN,
+        ],
+    )
     # Tìm turn chứa xác minh (turn cuối cùng)
     r = results[-1]
     errs = []
@@ -207,11 +243,14 @@ def t2a_proactive(router: Router) -> list[str]:
 
 @test("2A-interest: Bot hỏi sở thích sau khi khách muốn biết thêm về thẻ")
 def t2a_interest(router: Router) -> list[str]:
-    session, results = run(router, [
-        "tôi muốn kiểm tra số dư",
-        *VAN_AN,
-        "tôi muốn biết thêm về thẻ này",
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi muốn kiểm tra số dư",
+            *VAN_AN,
+            "tôi muốn biết thêm về thẻ này",
+        ],
+    )
     r = results[-1]
     errs = []
     keywords = ["mua sắm", "ăn uống", "du lịch", "golf", "quan tâm"]
@@ -222,17 +261,24 @@ def t2a_interest(router: Router) -> list[str]:
 
 @test("2A-fit: Sau khi trả lời sở thích, bot giải thích tại sao Classic phù hợp")
 def t2a_fit(router: Router) -> list[str]:
-    session, results = run(router, [
-        "tôi muốn kiểm tra số dư",
-        *VAN_AN,
-        "tôi muốn biết thêm về thẻ này",
-        "tôi hay mua sắm online",
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi muốn kiểm tra số dư",
+            *VAN_AN,
+            "tôi muốn biết thêm về thẻ này",
+            "tôi hay mua sắm online",
+        ],
+    )
     r = results[-1]
     errs = []
     if "Classic" not in r.text:
         errs.append(f"Bot không nhắc Thẻ Classic khi giải thích: {r.text[:200]}")
-    if "hoàn tiền" not in r.text.lower() and "5%" not in r.text and "mua sắm" not in r.text.lower():
+    if (
+        "hoàn tiền" not in r.text.lower()
+        and "5%" not in r.text
+        and "mua sắm" not in r.text.lower()
+    ):
         errs.append(f"Bot không giải thích quyền lợi cụ thể: {r.text[:200]}")
     return errs
 
@@ -242,11 +288,14 @@ def t2b(router: Router) -> list[str]:
     # Xác minh qua balance_inquiry (trong PERSONAL_INTENTS) để session được verified
     # trước khi hỏi offers. card_offers không nằm trong PERSONAL_INTENTS nên sẽ
     # xử lý ngay với session đã verified.
-    session, results = run(router, [
-        "kiểm tra số dư tài khoản",
-        *VAN_AN,
-        "tôi có ưu đãi gì không?",
-    ])
+    session, results = run(
+        router,
+        [
+            "kiểm tra số dư tài khoản",
+            *VAN_AN,
+            "tôi có ưu đãi gì không?",
+        ],
+    )
     r = results[-1]
     errs = []
     if "Classic" not in r.text:
@@ -261,24 +310,34 @@ def t2b(router: Router) -> list[str]:
 
 @test("2C: Khách hỏi số dư → bot trả lời số dư (sau xác minh)")
 def t2c(router: Router) -> list[str]:
-    session, results = run(router, [
-        "số dư tài khoản",
-        *VAN_AN,
-    ])
+    session, results = run(
+        router,
+        [
+            "số dư tài khoản",
+            *VAN_AN,
+        ],
+    )
     r = results[-1]
     errs = []
-    if "số dư" not in r.text.lower() and "balance" not in r.text.lower() and "VND" not in r.text:
+    if (
+        "số dư" not in r.text.lower()
+        and "balance" not in r.text.lower()
+        and "VND" not in r.text
+    ):
         errs.append(f"Kỳ vọng số dư trong câu trả lời: {r.text[:200]}")
     return errs
 
 
 @test("2D: Hoang Thi Ha không có cross-sell campaign → 'không có ưu đãi'")
 def t2d(router: Router) -> list[str]:
-    session, results = run(router, [
-        "tôi có ưu đãi gì không?",
-        *HA,
-        "tôi có ưu đãi gì không?",
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi có ưu đãi gì không?",
+            *HA,
+            "tôi có ưu đãi gì không?",
+        ],
+    )
     r = results[-1]
     errs = []
     # Sau xác minh HA không có cross_sell campaign → offers_for returns []
@@ -291,12 +350,16 @@ def t2d(router: Router) -> list[str]:
 # SCENARIO 3 – CARD OPERATIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @test("3A: Xem quyền lợi thẻ – hiển thị reward_scheme của Classic cho CUS-100301")
 def t3a(router: Router) -> list[str]:
-    session, results = run(router, [
-        "thẻ của tôi có quyền lợi gì?",
-        *VAN_AN,
-    ])
+    session, results = run(
+        router,
+        [
+            "thẻ của tôi có quyền lợi gì?",
+            *VAN_AN,
+        ],
+    )
     r = results[-1]
     errs = []
     # Classic reward_scheme: hoàn tiền 3%, 5%, tối đa 300.000
@@ -311,27 +374,35 @@ def t3a(router: Router) -> list[str]:
 
 @test("3B-step1: Yêu cầu tăng hạn mức – bot hỏi số tiền mới")
 def t3b_step1(router: Router) -> list[str]:
-    session, results = run(router, [
-        "tôi muốn tăng hạn mức thẻ",
-        *VAN_AN,
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi muốn tăng hạn mức thẻ",
+            *VAN_AN,
+        ],
+    )
     r = results[-1]
     errs = []
     # Sau xác minh, bot nên hỏi số hạn mức mới
     if "hạn mức" not in r.text.lower():
         errs.append(f"Bot không hỏi về hạn mức: {r.text[:200]}")
     if session.pending_flow != "card_limit_adjust":
-        errs.append(f"pending_flow phải là 'card_limit_adjust', nhận được: {session.pending_flow!r}")
+        errs.append(
+            f"pending_flow phải là 'card_limit_adjust', nhận được: {session.pending_flow!r}"
+        )
     return errs
 
 
 @test("3B-step2: Trả lời '50 triệu' → ghi nhận yêu cầu, mã LMT-, báo CHỜ DUYỆT")
 def t3b_step2(router: Router) -> list[str]:
-    session, results = run(router, [
-        "tôi muốn tăng hạn mức thẻ",
-        *VAN_AN,
-        "50 triệu",
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi muốn tăng hạn mức thẻ",
+            *VAN_AN,
+            "50 triệu",
+        ],
+    )
     r = results[-1]
     errs = []
     if "LMT-" not in r.text:
@@ -350,16 +421,25 @@ def t3c_step1(router: Router) -> list[str]:
     # Reset DB trước để đảm bảo thẻ active
     db.reset()
     cards_mod.reset()
-    session, results = run(router, [
-        "tôi muốn đóng thẻ",
-        *VAN_AN,
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi muốn đóng thẻ",
+            *VAN_AN,
+        ],
+    )
     r = results[-1]
     errs = []
-    if "đóng thẻ" not in r.text.lower() and "chắc" not in r.text.lower() and "xác nhận" not in r.text.lower():
+    if (
+        "đóng thẻ" not in r.text.lower()
+        and "chắc" not in r.text.lower()
+        and "xác nhận" not in r.text.lower()
+    ):
         errs.append(f"Bot không hỏi xác nhận đóng thẻ: {r.text[:200]}")
     if session.pending_flow != "card_close":
-        errs.append(f"pending_flow phải là 'card_close', nhận được: {session.pending_flow!r}")
+        errs.append(
+            f"pending_flow phải là 'card_close', nhận được: {session.pending_flow!r}"
+        )
     return errs
 
 
@@ -367,11 +447,14 @@ def t3c_step1(router: Router) -> list[str]:
 def t3c_step2(router: Router) -> list[str]:
     db.reset()
     cards_mod.reset()
-    session, results = run(router, [
-        "tôi muốn đóng thẻ",
-        *VAN_AN,
-        "có",
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi muốn đóng thẻ",
+            *VAN_AN,
+            "có",
+        ],
+    )
     r = results[-1]
     errs = []
     if "CLS-" not in r.text:
@@ -412,11 +495,14 @@ def t3c_step3(router: Router) -> list[str]:
 def t3d(router: Router) -> list[str]:
     db.reset()
     cards_mod.reset()
-    session, results = run(router, [
-        "tôi muốn đóng thẻ",
-        *VAN_AN,
-        "thôi không cần, hỏi về số dư thôi",
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi muốn đóng thẻ",
+            *VAN_AN,
+            "thôi không cần, hỏi về số dư thôi",
+        ],
+    )
     r = results[-1]
     errs = []
     if session.pending_flow == "card_close":
@@ -428,30 +514,49 @@ def t3d(router: Router) -> list[str]:
 
 @test("3E-step1: Hoang Thi Ha có thẻ tạm khoá → bot xác nhận và hỏi mở khoá")
 def t3e_step1(router: Router) -> list[str]:
-    session, results = run(router, [
-        "tôi muốn mở khoá thẻ",
-        *HA,
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi muốn mở khoá thẻ",
+            *HA,
+        ],
+    )
     r = results[-1]
     errs = []
-    if "mở" not in r.text.lower() and "khoá" not in r.text.lower() and "khóa" not in r.text.lower():
+    if (
+        "mở" not in r.text.lower()
+        and "khoá" not in r.text.lower()
+        and "khóa" not in r.text.lower()
+    ):
         errs.append(f"Bot không đề cập đến mở khoá thẻ: {r.text[:200]}")
     if session.pending_flow != "unfreeze":
-        errs.append(f"pending_flow phải là 'unfreeze', nhận được: {session.pending_flow!r}")
+        errs.append(
+            f"pending_flow phải là 'unfreeze', nhận được: {session.pending_flow!r}"
+        )
     return errs
 
 
 @test("3E-step2: Xác nhận 'có' → thẻ được mở khoá, mã tham chiếu có trong câu trả lời")
 def t3e_step2(router: Router) -> list[str]:
-    session, results = run(router, [
-        "tôi muốn mở khoá thẻ",
-        *HA,
-        "có",
-    ])
+    session, results = run(
+        router,
+        [
+            "tôi muốn mở khoá thẻ",
+            *HA,
+            "có",
+        ],
+    )
     r = results[-1]
     errs = []
     # Confirmation có thể dùng "mở khoá", "kích hoạt trở lại", hoặc "hoạt động trở lại"
-    unfrozen_keywords = ["mở", "khoá", "khóa", "kích hoạt", "hoạt động trở lại", "active"]
+    unfrozen_keywords = [
+        "mở",
+        "khoá",
+        "khóa",
+        "kích hoạt",
+        "hoạt động trở lại",
+        "active",
+    ]
     if not any(k in r.text.lower() for k in unfrozen_keywords):
         errs.append(f"Bot không xác nhận thẻ đã được mở khoá/kích hoạt: {r.text[:200]}")
     # Mã tham chiếu: UNF- hoặc bất kỳ chuỗi reference nào
@@ -466,12 +571,17 @@ def t3e_step2(router: Router) -> list[str]:
 # KIỂM TRA CHÉO – SẢN PHẨM VÀ KB
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @test("KB-1: Hỏi về BYOR Signature → có câu trả lời có nội dung phù hợp")
 def tkb1(router: Router) -> list[str]:
     session, results = run(router, ["thẻ Signature có chương trình BYOR là gì?"])
     r = results[-1]
     errs = []
-    if "BYOR" not in r.text and "Build Your Own" not in r.text and "linh hoạt" not in r.text.lower():
+    if (
+        "BYOR" not in r.text
+        and "Build Your Own" not in r.text
+        and "linh hoạt" not in r.text.lower()
+    ):
         errs.append(f"Câu trả lời không giải thích BYOR: {r.text[:200]}")
     if r.route == "escalation":
         errs.append("Bot escalate thay vì trả lời từ KB")
@@ -513,6 +623,7 @@ def tkb4(router: Router) -> list[str]:
 # ═══════════════════════════════════════════════════════════════════════════════
 # RUNNER
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def main() -> int:
     print("Khởi tạo Router và reset dữ liệu demo...")

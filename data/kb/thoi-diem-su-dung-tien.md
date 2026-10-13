@@ -62,6 +62,14 @@ theo lịch tiêu chuẩn của loại séc đó. **Thứ hai**, nó chỉ áp d
 mặt và chuyển khoản điện tử không bao giờ thuộc trường hợp này, dù giá trị bao
 nhiêu - một khoản chuyển đến 2 tỷ đồng vẫn dùng được ngay trong ngày nhận.
 
+## Chuyển khoản đến có bị phong toả như séc không?
+
+Không. Việc giữ tiền theo lịch phong toả **chỉ áp dụng cho séc**. Chuyển khoản
+điện tử và tiền mặt không bao giờ bị phong toả như séc, dù giá trị bao nhiêu -
+một khoản chuyển khoản đến 2 tỷ đồng vẫn dùng được ngay trong ngày nhận. Lương
+và các khoản chuyển khoản đến cũng dùng được ngay trong ngày nhận, khác với séc
+phải chờ theo lịch giải toả.
+
 Trường hợp "thấu chi nhiều lần" tính trên sáu tháng liền trước ngày nộp, và đếm
 số **ngày làm việc** tài khoản bị âm tại bất kỳ thời điểm nào trong ngày, không
 đếm số giao dịch thấu chi.

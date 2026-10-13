@@ -34,12 +34,15 @@ FILENAME_RE = re.compile(
 # is not a file - writing to it opens the console. The demo runs on Windows,
 # so this is a real case rather than a theoretical one.
 _RESERVED_STEMS = {
-    "con", "prn", "aux", "nul",
+    "con",
+    "prn",
+    "aux",
+    "nul",
     *(f"com{n}" for n in range(1, 10)),
     *(f"lpt{n}" for n in range(1, 10)),
 }
 
-MAX_BYTES = 256 * 1024        # a knowledge-base article, not a data dump
+MAX_BYTES = 256 * 1024  # a knowledge-base article, not a data dump
 MAX_DOCUMENTS = 200
 
 
@@ -131,15 +134,17 @@ class KnowledgeBaseStore:
                 passages = _parse_document(path)
             except loaders.UnsupportedDocument:
                 continue
-            documents.append(DocumentInfo(
-                filename=path.name,
-                doc_id=passages[0].doc_id if passages else path.stem.upper(),
-                title=passages[0].title if passages else path.stem,
-                passages=len(passages),
-                bytes=path.stat().st_size,
-                headings=[p.heading for p in passages],
-                fmt=path.suffix.lower().lstrip("."),
-            ))
+            documents.append(
+                DocumentInfo(
+                    filename=path.name,
+                    doc_id=passages[0].doc_id if passages else path.stem.upper(),
+                    title=passages[0].title if passages else path.stem,
+                    passages=len(passages),
+                    bytes=path.stat().st_size,
+                    headings=[p.heading for p in passages],
+                    fmt=path.suffix.lower().lstrip("."),
+                )
+            )
         return documents
 
     def read_document(self, filename: str) -> dict:
@@ -162,8 +167,12 @@ class KnowledgeBaseStore:
             "content": content,
             "editable": path.suffix.lower() in (".md", ".txt"),
             "passages": [
-                {"heading": p.heading, "breadcrumb": p.breadcrumb,
-                 "citation": p.citation, "text": p.text}
+                {
+                    "heading": p.heading,
+                    "breadcrumb": p.breadcrumb,
+                    "citation": p.citation,
+                    "text": p.text,
+                }
                 for p in passages
             ],
         }
@@ -217,8 +226,9 @@ class KnowledgeBaseStore:
         self._check_capacity(path)
 
         if path.suffix.lower() in (".md", ".txt"):
-            path.write_text(text.replace("\r\n", "\n").replace("\r", "\n"),
-                            encoding="utf-8")
+            path.write_text(
+                text.replace("\r\n", "\n").replace("\r", "\n"), encoding="utf-8"
+            )
         else:
             path.write_bytes(data)
         return self._finish(path)

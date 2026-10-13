@@ -25,13 +25,14 @@ UnsupportedDocument = extract_mod.UnsupportedDocument
 class IngestResult:
     doc_id: str
     title: str
-    text: str                      # cleaned, chunked-from text
+    text: str  # cleaned, chunked-from text
     chunks: list[chunker.Chunk]
     warnings: list[str] = field(default_factory=list)
 
 
-def ingest(filename: str, data: bytes, *, semantic: bool = False,
-          stem: str | None = None) -> IngestResult:
+def ingest(
+    filename: str, data: bytes, *, semantic: bool = False, stem: str | None = None
+) -> IngestResult:
     """Run the full pipeline on uploaded bytes.
 
     `semantic=False` by default - matches `retriever.py`'s default chunker,
@@ -54,5 +55,6 @@ def ingest(filename: str, data: bytes, *, semantic: bool = False,
     if not chunks:
         warnings.append("No retrievable content found after cleaning.")
 
-    return IngestResult(doc_id=doc_id, title=title, text=cleaned,
-                        chunks=chunks, warnings=warnings)
+    return IngestResult(
+        doc_id=doc_id, title=title, text=cleaned, chunks=chunks, warnings=warnings
+    )

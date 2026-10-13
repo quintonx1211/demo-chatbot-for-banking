@@ -33,13 +33,20 @@ from dataclasses import dataclass
 from threading import Lock
 
 COOKIE_NAME = "rtb_staff"
-SESSION_TTL_SECONDS = 8 * 60 * 60      # a working day
+SESSION_TTL_SECONDS = 8 * 60 * 60  # a working day
 _PBKDF2_ROUNDS = 200_000
+
+# Two trust levels among staff. `agent` runs the operational surfaces (queue,
+# replies, dashboard); `admin` is the workforce manager and additionally owns
+# every *configuration* surface - provider keys, TTS, knowledge base, and the
+# agent/skillset setup added for this feature. Kept as plain strings because
+# StaffUser.role already carries one and nothing here needs a richer model.
+ROLE_ADMIN = "admin"
+ROLE_AGENT = "agent"
 
 
 def _hash(password: str, salt: bytes) -> bytes:
-    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt,
-                               _PBKDF2_ROUNDS)
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _PBKDF2_ROUNDS)
 
 
 @dataclass(frozen=True)
@@ -55,12 +62,23 @@ class StaffUser:
 _SALT = b"banking-chatbot-demo-salt"
 DEMO_USERNAME = "agent"
 DEMO_PASSWORD = "demo1234"
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin1234"
 _STAFF: dict[str, tuple[bytes, StaffUser]] = {
     DEMO_USERNAME: (
         _hash(DEMO_PASSWORD, _SALT),
-        StaffUser(DEMO_USERNAME, "Le Van A", "contact-centre agent"),
+        StaffUser(DEMO_USERNAME, "Le Van A", ROLE_AGENT),
+    ),
+    ADMIN_USERNAME: (
+        _hash(ADMIN_PASSWORD, _SALT),
+        StaffUser(ADMIN_USERNAME, "Quản trị viên", ROLE_ADMIN),
     ),
 }
+
+
+def is_admin(session: "StaffSession | None") -> bool:
+    """True only for a live session whose user holds the admin role."""
+    return session is not None and session.user.role == ROLE_ADMIN
 
 
 @dataclass
@@ -86,7 +104,9 @@ class AuthStore:
         # so a wrong username and a wrong password take the same path. Otherwise
         # response timing enumerates valid usernames.
         candidate = _hash(password or "", _SALT)
-        expected, user = record if record else (_hash(os.urandom(16).hex(), _SALT), None)
+        expected, user = (
+            record if record else (_hash(os.urandom(16).hex(), _SALT), None)
+        )
         if not hmac.compare_digest(candidate, expected) or user is None:
             return None
 
@@ -135,8 +155,9 @@ def cookie_header(token: str, max_age: int = SESSION_TTL_SECONDS) -> str:
     # HttpOnly: JavaScript must not be able to read it, so an XSS in the console
     # cannot lift a staff session. SameSite=Lax: a cross-site POST cannot carry
     # it, which is what stops a drive-by from deleting the knowledge base.
-    return (f"{COOKIE_NAME}={token}; Path=/; HttpOnly; SameSite=Lax; "
-            f"Max-Age={max_age}")
+    return (
+        f"{COOKIE_NAME}={token}; Path=/; HttpOnly; SameSite=Lax; " f"Max-Age={max_age}"
+    )
 
 
 def clear_cookie_header() -> str:

@@ -22,22 +22,27 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Step:
-    stage: str          # pending_flow | guardrail | nlu | retrieval | generation | ...
-    outcome: str        # what this stage concluded
-    detail: str = ""    # the numbers behind it
-    decisive: bool = False   # True if this stage is why the turn ended up where it did
+    stage: str  # pending_flow | guardrail | nlu | retrieval | generation | ...
+    outcome: str  # what this stage concluded
+    detail: str = ""  # the numbers behind it
+    decisive: bool = False  # True if this stage is why the turn ended up where it did
 
     def to_dict(self) -> dict:
-        return {"stage": self.stage, "outcome": self.outcome,
-                "detail": self.detail, "decisive": self.decisive}
+        return {
+            "stage": self.stage,
+            "outcome": self.outcome,
+            "detail": self.detail,
+            "decisive": self.decisive,
+        }
 
 
 @dataclass
 class Trace:
     steps: list[Step] = field(default_factory=list)
 
-    def add(self, stage: str, outcome: str, detail: str = "",
-            decisive: bool = False) -> None:
+    def add(
+        self, stage: str, outcome: str, detail: str = "", decisive: bool = False
+    ) -> None:
         self.steps.append(Step(stage, outcome, detail, decisive))
 
     def decide(self, stage: str, outcome: str, detail: str = "") -> None:
@@ -58,25 +63,25 @@ class Trace:
 # rule being applied is legible without reading the source.
 STAGE_RULES = {
     "pending_flow": "Luồng nghiệp vụ đang dở giữ quyền xử lý lượt này, trừ khi "
-                    "khách hàng rõ ràng đã chuyển sang chủ đề khác.",
+    "khách hàng rõ ràng đã chuyển sang chủ đề khác.",
     "handoff_offer": "Lời mời chuyển chuyên viên đang chờ trả lời được xử lý "
-                     "trước khi phân loại bất kỳ điều gì khác.",
+    "trước khi phân loại bất kỳ điều gì khác.",
     "guardrail": "Chủ đề thuộc diện quản lý bị từ chối tại đây, trước khi bất "
-                 "kỳ model nào nhìn thấy nội dung câu hỏi.",
+    "kỳ model nào nhìn thấy nội dung câu hỏi.",
     "campaign": "Chiến dịch khách hàng đủ điều kiện, đọc từ tệp trích xuất "
-                "hằng đêm. Tất định - không có model tham gia.",
+    "hằng đêm. Tất định - không có model tham gia.",
     "nlu": "Độ tin cậy ý định từ 0.55 trở lên sẽ chạy luồng nghiệp vụ đọc "
-           "thẳng hồ sơ. Dưới mức đó, câu hỏi đi sang kho tri thức.",
+    "thẳng hồ sơ. Dưới mức đó, câu hỏi đi sang kho tri thức.",
     "retrieval": "Đoạn tài liệu phải vượt ngưỡng liên quan. Không đoạn nào "
-                 "vượt nghĩa là không có nguồn đã thẩm định, và trợ lý đề nghị "
-                 "chuyển chuyên viên thay vì đoán.",
+    "vượt nghĩa là không có nguồn đã thẩm định, và trợ lý đề nghị "
+    "chuyển chuyên viên thay vì đoán.",
     "generation": "Model chỉ được dùng các đoạn đã truy xuất. Câu trả lời sau "
-                  "đó được chấm điểm dựa trên chính các đoạn đó; dưới 0.55 sẽ "
-                  "bị loại bỏ.",
+    "đó được chấm điểm dựa trên chính các đoạn đó; dưới 0.55 sẽ "
+    "bị loại bỏ.",
     "escalation": "Đã chuyển cho chuyên viên, kèm toàn bộ nội dung hội thoại.",
     "privacy": "Dữ liệu nhạy cảm được che trước khi truy xuất và trước khi nội "
-               "dung rời khỏi hệ thống tới nhà cung cấp model.",
+    "dung rời khỏi hệ thống tới nhà cung cấp model.",
     "raw_mode": "Công tắc demo, chỉ bật cho hội thoại này: định tuyến, "
-                "guardrail, truy xuất và kiểm tra dẫn nguồn đều bị bỏ qua - "
-                "model trả lời chỉ dựa trên lịch sử hội thoại.",
+    "guardrail, truy xuất và kiểm tra dẫn nguồn đều bị bỏ qua - "
+    "model trả lời chỉ dựa trên lịch sử hội thoại.",
 }

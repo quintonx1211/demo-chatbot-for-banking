@@ -58,17 +58,56 @@ SEED_PATH = DATA_DIR / "accounts.json"
 # so the files stay diffable and a human editing one in Excel gets the columns
 # they expect back.
 COLUMNS: dict[str, list[str]] = {
-    "customers": ["customer_id", "name", "given_name", "dob", "phone",
-                  "national_id", "segment", "profile"],
-    "accounts": ["account_id", "customer_id", "type", "mask", "balance",
-                 "available", "currency"],
-    "cards": ["card_id", "customer_id", "type", "mask", "status",
-              "linked_account", "replaces", "updated_at"],
-    "loans": ["application_id", "customer_id", "product", "amount", "status",
-              "submitted_on", "note"],
+    "customers": [
+        "customer_id",
+        "name",
+        "given_name",
+        "dob",
+        "phone",
+        "national_id",
+        "segment",
+        "profile",
+    ],
+    "accounts": [
+        "account_id",
+        "customer_id",
+        "type",
+        "mask",
+        "balance",
+        "available",
+        "currency",
+    ],
+    "cards": [
+        "card_id",
+        "customer_id",
+        "type",
+        "mask",
+        "status",
+        "linked_account",
+        "replaces",
+        "updated_at",
+    ],
+    "loans": [
+        "application_id",
+        "customer_id",
+        "product",
+        "amount",
+        "status",
+        "submitted_on",
+        "note",
+    ],
     "transactions": ["customer_id", "date", "description", "amount"],
-    "card_events": ["card_id", "customer_id", "from_status", "to_status",
-                    "action", "session_id", "actor", "reference", "at"],
+    "card_events": [
+        "card_id",
+        "customer_id",
+        "from_status",
+        "to_status",
+        "action",
+        "session_id",
+        "actor",
+        "reference",
+        "at",
+    ],
 }
 
 # Columns that must come back as numbers. Everything in a CSV is a string on
@@ -83,13 +122,12 @@ NUMERIC: dict[str, set[str]] = {
 # What each action is allowed to do, and from where. A transition absent from
 # this table cannot happen, whatever a caller asks for.
 TRANSITIONS: dict[str, tuple[frozenset[str], str]] = {
-    "activate":   (frozenset({"inactive"}), "active"),
+    "activate": (frozenset({"inactive"}), "active"),
     "reactivate": (frozenset({"dormant"}), "active"),
-    "freeze":     (frozenset({"active"}), "frozen"),
-    "unfreeze":   (frozenset({"frozen"}), "active"),
+    "freeze": (frozenset({"active"}), "frozen"),
+    "unfreeze": (frozenset({"frozen"}), "active"),
     # A lost or stolen card is a one-way door; the replacement is a new card.
-    "report_lost": (frozenset({"active", "frozen", "dormant", "inactive"}),
-                    "blocked"),
+    "report_lost": (frozenset({"active", "frozen", "dormant", "inactive"}), "blocked"),
 }
 
 # Statuses a customer can transact on.
@@ -108,6 +146,7 @@ def _now() -> str:
 
 
 # -- CSV plumbing ---------------------------------------------------------
+
 
 def _path(table: str) -> Path:
     return DB_DIR / f"{table}.csv"
@@ -147,15 +186,21 @@ def _write(table: str, rows: list[dict]) -> None:
         DB_DIR.mkdir(parents=True, exist_ok=True)
         columns = COLUMNS[table]
         handle = tempfile.NamedTemporaryFile(
-            "w", delete=False, dir=DB_DIR, newline="", encoding="utf-8",
-            prefix=f".{table}.", suffix=".tmp")
+            "w",
+            delete=False,
+            dir=DB_DIR,
+            newline="",
+            encoding="utf-8",
+            prefix=f".{table}.",
+            suffix=".tmp",
+        )
         try:
-            writer = csv.DictWriter(handle, fieldnames=columns,
-                                    extrasaction="ignore")
+            writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
             writer.writeheader()
             for row in rows:
-                writer.writerow({c: ("" if row.get(c) is None else row.get(c))
-                                 for c in columns})
+                writer.writerow(
+                    {c: ("" if row.get(c) is None else row.get(c)) for c in columns}
+                )
             handle.close()
             os.replace(handle.name, _path(table))
         except BaseException:
@@ -168,10 +213,11 @@ def _append(table: str, row: dict) -> None:
     with _lock:
         _ensure()
         with _path(table).open("a", newline="", encoding="utf-8") as handle:
-            csv.DictWriter(handle, fieldnames=COLUMNS[table],
-                           extrasaction="ignore").writerow(
-                {c: ("" if row.get(c) is None else row.get(c))
-                 for c in COLUMNS[table]})
+            csv.DictWriter(
+                handle, fieldnames=COLUMNS[table], extrasaction="ignore"
+            ).writerow(
+                {c: ("" if row.get(c) is None else row.get(c)) for c in COLUMNS[table]}
+            )
 
 
 def _ensure() -> None:
@@ -193,6 +239,7 @@ def _ensure() -> None:
 
 # -- seeding --------------------------------------------------------------
 
+
 def reset() -> None:
     """Rewrite every table from the fixture.
 
@@ -207,29 +254,36 @@ def reset() -> None:
 
         customers, accounts, cards, loans, transactions = [], [], [], [], []
         for customer in raw["customers"]:
-            customers.append({
-                "customer_id": customer["customer_id"],
-                "name": customer["name"],
-                "given_name": (customer.get("given_name")
-                               or customer["name"].split()[-1]),
-                "dob": customer.get("dob"),
-                "phone": customer["phone"],
-                "national_id": customer["national_id"],
-                "segment": customer.get("segment", "MASS"),
-                "profile": customer.get("profile", ""),
-            })
+            customers.append(
+                {
+                    "customer_id": customer["customer_id"],
+                    "name": customer["name"],
+                    "given_name": (
+                        customer.get("given_name") or customer["name"].split()[-1]
+                    ),
+                    "dob": customer.get("dob"),
+                    "phone": customer["phone"],
+                    "national_id": customer["national_id"],
+                    "segment": customer.get("segment", "MASS"),
+                    "profile": customer.get("profile", ""),
+                }
+            )
             for account in customer.get("accounts", []):
-                accounts.append({**account,
-                                 "customer_id": customer["customer_id"],
-                                 "currency": account.get("currency", "VND")})
+                accounts.append(
+                    {
+                        **account,
+                        "customer_id": customer["customer_id"],
+                        "currency": account.get("currency", "VND"),
+                    }
+                )
             for card in customer.get("cards", []):
-                cards.append({**card, "customer_id": customer["customer_id"],
-                              "updated_at": now})
+                cards.append(
+                    {**card, "customer_id": customer["customer_id"], "updated_at": now}
+                )
             for loan in customer.get("loans", []):
                 loans.append({**loan, "customer_id": customer["customer_id"]})
             for txn in customer.get("transactions", []):
-                transactions.append({**txn,
-                                     "customer_id": customer["customer_id"]})
+                transactions.append({**txn, "customer_id": customer["customer_id"]})
 
         _write("customers", customers)
         _write("accounts", accounts)
@@ -240,6 +294,7 @@ def reset() -> None:
 
 
 # -- reads ----------------------------------------------------------------
+
 
 def customer_ids() -> list[str]:
     return [row["customer_id"] for row in _read("customers")]
@@ -254,8 +309,9 @@ def get_customer(customer_id: str | None) -> dict | None:
     """
     if not customer_id:
         return None
-    customer = next((row for row in _read("customers")
-                     if row["customer_id"] == customer_id), None)
+    customer = next(
+        (row for row in _read("customers") if row["customer_id"] == customer_id), None
+    )
     if customer is None:
         return None
 
@@ -286,14 +342,12 @@ def check_national_id(customer_id: str, national_id: str) -> bool:
     """Second verification factor, checked against the customer the phone
     number already identified - not looked up independently, so this can
     never itself identify who is asking."""
-    row = next((r for r in _read("customers")
-                if r["customer_id"] == customer_id), None)
+    row = next((r for r in _read("customers") if r["customer_id"] == customer_id), None)
     return bool(row) and row["national_id"] == national_id
 
 
 def get_card(card_id: str) -> dict | None:
-    return next((row for row in _read("cards")
-                 if row["card_id"] == card_id), None)
+    return next((row for row in _read("cards") if row["card_id"] == card_id), None)
 
 
 def card_events(customer_id: str | None = None, limit: int = 50) -> list[dict]:
@@ -306,8 +360,10 @@ def card_events(customer_id: str | None = None, limit: int = 50) -> list[dict]:
 
 # -- writes ---------------------------------------------------------------
 
-def set_card_status(card_id: str, action: str, session_id: str | None = None,
-                    actor: str = "customer") -> dict:
+
+def set_card_status(
+    card_id: str, action: str, session_id: str | None = None, actor: str = "customer"
+) -> dict:
     """Apply `action` to a card, or refuse and say why.
 
     The point of routing every change through one function is that the legal
@@ -323,12 +379,13 @@ def set_card_status(card_id: str, action: str, session_id: str | None = None,
         cards = _read("cards")
         card = next((c for c in cards if c["card_id"] == card_id), None)
         if card is None:
-            raise TransitionError("Tôi không tìm thấy thẻ đó trên hồ sơ của anh/chị ạ.")
+            raise TransitionError(
+                "Tôi không tìm thấy thẻ đó trên hồ sơ của quý khách ạ."
+            )
 
         current = card["status"]
         if current == to_status:
-            raise TransitionError(
-                f"Thẻ này hiện đã ở trạng thái {to_status} rồi ạ.")
+            raise TransitionError(f"Thẻ này hiện đã ở trạng thái {to_status} rồi ạ.")
         if current not in allowed_from:
             raise TransitionError(_refusal(current, action))
 
@@ -347,53 +404,83 @@ def set_card_status(card_id: str, action: str, session_id: str | None = None,
         # reading the file. The other order would log an action that never
         # happened, which is not.
         _write("cards", cards)
-        _append("card_events", {
-            "card_id": card_id, "customer_id": card["customer_id"],
-            "from_status": current, "to_status": to_status, "action": action,
-            "session_id": session_id, "actor": actor, "reference": reference,
-            "at": now,
-        })
+        _append(
+            "card_events",
+            {
+                "card_id": card_id,
+                "customer_id": card["customer_id"],
+                "from_status": current,
+                "to_status": to_status,
+                "action": action,
+                "session_id": session_id,
+                "actor": actor,
+                "reference": reference,
+                "at": now,
+            },
+        )
         if replacement:
-            _append("card_events", {
-                "card_id": replacement["card_id"],
-                "customer_id": card["customer_id"], "from_status": None,
-                "to_status": "inactive", "action": "issue_replacement",
-                "session_id": session_id, "actor": "system",
-                "reference": f"REP-{replacement['card_id'][-4:]}", "at": now,
-            })
+            _append(
+                "card_events",
+                {
+                    "card_id": replacement["card_id"],
+                    "customer_id": card["customer_id"],
+                    "from_status": None,
+                    "to_status": "inactive",
+                    "action": "issue_replacement",
+                    "session_id": session_id,
+                    "actor": "system",
+                    "reference": f"REP-{replacement['card_id'][-4:]}",
+                    "at": now,
+                },
+            )
 
     result = dict(card)
     result["reference"] = reference
     result["replacement"] = (
         {k: replacement[k] for k in ("card_id", "mask", "type", "status")}
-        if replacement else None)
+        if replacement
+        else None
+    )
     return result
 
 
 def _refusal(current: str, action: str) -> str:
     """Why a transition was refused, in words a customer can act on."""
     if current == "blocked":
-        return ("Thẻ này đã khoá do được báo mất hoặc bị đánh cắp, và thẻ đã "
-                "khoá vì lý do đó thì không mở lại được - đây là quy định bảo "
-                "mật, không phải giới hạn của tôi ở đây. Thẻ thay thế đã được "
-                "phát hành và sẽ tới trong 5-7 ngày làm việc ạ.")
+        return (
+            "Thẻ này đã khoá do được báo mất hoặc bị đánh cắp, và thẻ đã "
+            "khoá vì lý do đó thì không mở lại được - đây là quy định bảo "
+            "mật, không phải giới hạn của tôi ở đây. Thẻ thay thế đã được "
+            "phát hành và sẽ tới trong 5-7 ngày làm việc ạ."
+        )
     if current == "inactive" and action in ("freeze", "unfreeze"):
-        return ("Thẻ này chưa được kích hoạt nên chưa có gì để tạm khoá ạ. "
-                "Tôi có thể hướng dẫn anh/chị kích hoạt thẻ.")
+        return (
+            "Thẻ này chưa được kích hoạt nên chưa có gì để tạm khoá ạ. "
+            "Tôi có thể hướng dẫn quý khách kích hoạt thẻ."
+        )
     if current == "dormant" and action == "unfreeze":
-        return ("Thẻ này đang ở trạng thái ngủ đông chứ không phải tạm khoá. "
-                "Tôi hướng dẫn anh/chị kích hoạt lại nhé.")
+        return (
+            "Thẻ này đang ở trạng thái ngủ đông chứ không phải tạm khoá. "
+            "Tôi hướng dẫn quý khách kích hoạt lại nhé."
+        )
     if action == "unfreeze":
         return "Thẻ này không ở trạng thái tạm khoá nên không cần mở khoá ạ."
     if action == "activate":
         return "Thẻ này đã được kích hoạt rồi ạ."
-    return (f"Tôi không thực hiện được thao tác này với thẻ đang ở trạng "
-            f"thái {current} ạ.")
+    return (
+        f"Tôi không thực hiện được thao tác này với thẻ đang ở trạng "
+        f"thái {current} ạ."
+    )
 
 
 def _reference(action: str, card_id: str) -> str:
-    prefix = {"report_lost": "BLK", "freeze": "FRZ", "unfreeze": "UNF",
-              "activate": "ACT", "reactivate": "RAC"}[action]
+    prefix = {
+        "report_lost": "BLK",
+        "freeze": "FRZ",
+        "unfreeze": "UNF",
+        "activate": "ACT",
+        "reactivate": "RAC",
+    }[action]
     return f"{prefix}-{card_id[-4:]}-{datetime.now(timezone.utc):%m%d%H%M%S}"
 
 
@@ -413,10 +500,14 @@ def _build_replacement(cards: list[dict], card: dict, now: str) -> dict:
         candidate = f"CRD-{(base + step * 137) % 10000:04d}"
         if candidate not in taken:
             return {
-                "card_id": candidate, "customer_id": card["customer_id"],
-                "type": card["type"], "mask": f"****{candidate[-4:]}",
-                "status": "inactive", "linked_account": card["linked_account"],
-                "replaces": card["card_id"], "updated_at": now,
+                "card_id": candidate,
+                "customer_id": card["customer_id"],
+                "type": card["type"],
+                "mask": f"****{candidate[-4:]}",
+                "status": "inactive",
+                "linked_account": card["linked_account"],
+                "replaces": card["card_id"],
+                "updated_at": now,
             }
     raise TransitionError("Không cấp được số thẻ thay thế.")
 

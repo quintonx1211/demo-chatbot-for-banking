@@ -83,8 +83,13 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
     try:
         response = client.chat.completions.create(**kwargs)
     except Exception as exc:
-        return LLMResult(text="", generated=False, provider=NAME, model=model,
-                         error=classify_provider_error(exc))
+        return LLMResult(
+            text="",
+            generated=False,
+            provider=NAME,
+            model=model,
+            error=classify_provider_error(exc),
+        )
 
     choice = response.choices[0]
 
@@ -92,8 +97,9 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
     # message, with `content` left null - a different shape from Claude's
     # stop_reason, which is exactly why refusal handling lives per-adapter.
     if getattr(choice.message, "refusal", None):
-        return LLMResult(text="", generated=False, provider=NAME, model=model,
-                         error="model_refusal")
+        return LLMResult(
+            text="", generated=False, provider=NAME, model=model, error="model_refusal"
+        )
 
     text = (choice.message.content or "").strip()
     usage = response.usage

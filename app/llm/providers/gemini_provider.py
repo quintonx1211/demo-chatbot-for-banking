@@ -61,8 +61,11 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
         thinking_config=types.ThinkingConfig(
             thinking_budget=_THINKING_BUDGET.get(effort, 0)
         ),
-        **({"temperature": request.temperature}
-           if request.temperature is not None else {}),
+        **(
+            {"temperature": request.temperature}
+            if request.temperature is not None
+            else {}
+        ),
     )
 
     if request.messages:
@@ -82,21 +85,30 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
             model=model, contents=contents, config=config
         )
     except Exception as exc:
-        return LLMResult(text="", generated=False, provider=NAME, model=model,
-                         error=classify_provider_error(exc))
+        return LLMResult(
+            text="",
+            generated=False,
+            provider=NAME,
+            model=model,
+            error=classify_provider_error(exc),
+        )
 
     # Block point 1: the prompt never reached the model.
     feedback = getattr(response, "prompt_feedback", None)
     if feedback is not None and getattr(feedback, "block_reason", None):
-        return LLMResult(text="", generated=False, provider=NAME, model=model,
-                         error="model_refusal")
+        return LLMResult(
+            text="", generated=False, provider=NAME, model=model, error="model_refusal"
+        )
 
     # Block point 2: generation started, then the candidate was withheld.
     candidates = getattr(response, "candidates", None) or []
-    finish_reason = str(getattr(candidates[0], "finish_reason", "")) if candidates else ""
+    finish_reason = (
+        str(getattr(candidates[0], "finish_reason", "")) if candidates else ""
+    )
     if "SAFETY" in finish_reason or "RECITATION" in finish_reason:
-        return LLMResult(text="", generated=False, provider=NAME, model=model,
-                         error="model_refusal")
+        return LLMResult(
+            text="", generated=False, provider=NAME, model=model, error="model_refusal"
+        )
 
     text = (getattr(response, "text", None) or "").strip()
     usage = getattr(response, "usage_metadata", None)

@@ -29,35 +29,173 @@ _TOKEN_RE = re.compile(r"[\w']+", re.UNICODE)
 # coverage score of off-topic queries against arbitrary passages.
 _STOPWORDS = {
     # articles, copulas, prepositions, conjunctions
-    "a", "an", "the", "of", "to", "and", "or", "is", "are", "am", "be", "been",
-    "was", "were", "in", "on", "at", "it", "this", "that", "there", "here",
-    "for", "with", "from", "by", "as", "into", "about", "out", "up", "down",
-    "if", "then", "than", "so", "but",
+    "a",
+    "an",
+    "the",
+    "of",
+    "to",
+    "and",
+    "or",
+    "is",
+    "are",
+    "am",
+    "be",
+    "been",
+    "was",
+    "were",
+    "in",
+    "on",
+    "at",
+    "it",
+    "this",
+    "that",
+    "there",
+    "here",
+    "for",
+    "with",
+    "from",
+    "by",
+    "as",
+    "into",
+    "about",
+    "out",
+    "up",
+    "down",
+    "if",
+    "then",
+    "than",
+    "so",
+    "but",
     # question scaffolding
-    "what", "how", "when", "where", "who", "why", "which", "much", "many",
-    "do", "does", "did", "can", "could", "would", "will", "should", "need",
-    "want", "get", "got", "have", "has", "had", "any", "some", "all",
+    "what",
+    "how",
+    "when",
+    "where",
+    "who",
+    "why",
+    "which",
+    "much",
+    "many",
+    "do",
+    "does",
+    "did",
+    "can",
+    "could",
+    "would",
+    "will",
+    "should",
+    "need",
+    "want",
+    "get",
+    "got",
+    "have",
+    "has",
+    "had",
+    "any",
+    "some",
+    "all",
     # Temporal scaffolding. Same category as the question words above: they
     # appear in a question without being what it is about. "today" was letting
     # "what is the weather in Hanoi today" clear the relevance floor against a
     # document whose provenance note happens to say "a rate correct today may
     # not be correct next quarter" - one shared word, no shared subject.
-    "today", "tomorrow", "yesterday", "now", "currently", "still", "yet",
-    "already", "soon", "recently",
+    "today",
+    "tomorrow",
+    "yesterday",
+    "now",
+    "currently",
+    "still",
+    "yet",
+    "already",
+    "soon",
+    "recently",
     # pronouns and pleasantries
-    "i", "me", "my", "mine", "we", "us", "our", "you", "your", "they", "them",
-    "please", "hi", "hello", "hey", "thanks", "thank",
+    "i",
+    "me",
+    "my",
+    "mine",
+    "we",
+    "us",
+    "our",
+    "you",
+    "your",
+    "they",
+    "them",
+    "please",
+    "hi",
+    "hello",
+    "hey",
+    "thanks",
+    "thank",
     # Vietnamese. The same job as the English list above and for the same
     # reason: without it "là", "của" and "bao nhiêu" appear in nearly every
     # question, so an off-topic query still shares terms with every passage
     # and clears the coverage floor on function words alone.
-    "là", "và", "của", "cho", "với", "các", "những", "một", "này", "đó",
-    "thì", "mà", "ở", "tại", "trong", "ngoài", "khi", "nếu", "hoặc", "hay",
-    "được", "bị", "có", "không", "chưa", "đã", "sẽ", "đang", "rồi",
-    "tôi", "mình", "bạn", "em", "anh", "chị", "chúng", "ta", "họ",
-    "bao", "nhiêu", "gì", "nào", "sao", "đâu", "ai", "thế", "vậy",
-    "làm", "muốn", "cần", "phải", "nên", "để", "về", "từ", "đến", "theo",
-    "xin", "chào", "cảm", "ơn", "ạ", "nhé", "vui", "lòng",
+    "là",
+    "và",
+    "của",
+    "cho",
+    "với",
+    "các",
+    "những",
+    "một",
+    "này",
+    "đó",
+    "thì",
+    "mà",
+    "ở",
+    "tại",
+    "trong",
+    "ngoài",
+    "khi",
+    "nếu",
+    "hoặc",
+    "hay",
+    "được",
+    "bị",
+    "có",
+    "không",
+    "chưa",
+    "đã",
+    "sẽ",
+    "đang",
+    "rồi",
+    "tôi",
+    "mình",
+    "bạn",
+    "em",
+    "anh",
+    "chị",
+    "chúng",
+    "ta",
+    "họ",
+    "bao",
+    "nhiêu",
+    "gì",
+    "nào",
+    "sao",
+    "đâu",
+    "ai",
+    "thế",
+    "vậy",
+    "làm",
+    "muốn",
+    "cần",
+    "phải",
+    "nên",
+    "để",
+    "về",
+    "từ",
+    "đến",
+    "theo",
+    "xin",
+    "chào",
+    "cảm",
+    "ơn",
+    "ạ",
+    "nhé",
+    "vui",
+    "lòng",
 }
 
 # Very small stemmer: folds the plural/gerund forms that show up in the demo
@@ -129,7 +267,9 @@ class TfidfIndex:
         # duplicating that would be two places to drift.
         self._doc_lengths = [sum(terms.values()) for terms in self._doc_terms]
         self._avg_length = (
-            sum(self._doc_lengths) / len(self._doc_lengths) if self._doc_lengths else 0.0
+            sum(self._doc_lengths) / len(self._doc_lengths)
+            if self._doc_lengths
+            else 0.0
         )
         # BM25's idf is a different curve from the tf-idf one above: it is
         # probabilistic, and goes slightly negative for terms in most documents,
@@ -255,8 +395,11 @@ class TfidfIndex:
         # An amount a customer reads off their own statement is never the
         # topic; the words around it are.
         weights = {
-            t: (NUMERIC_TERM_WEIGHT if t.isdigit()
-                else self._idf.get(t, self._default_idf))
+            t: (
+                NUMERIC_TERM_WEIGHT
+                if t.isdigit()
+                else self._idf.get(t, self._default_idf)
+            )
             for t in query_terms
         }
         for pair in set(bigrams(tokens)):
@@ -268,8 +411,9 @@ class TfidfIndex:
             if any(part.isdigit() for part in pair.split("_")):
                 weights[pair] = NUMERIC_TERM_WEIGHT
             else:
-                weights[pair] = (self._idf.get(pair, self._default_idf)
-                                 * BIGRAM_COVERAGE_WEIGHT)
+                weights[pair] = (
+                    self._idf.get(pair, self._default_idf) * BIGRAM_COVERAGE_WEIGHT
+                )
         total = sum(weights.values())
         if total == 0.0:
             return [0.0] * len(self.documents)

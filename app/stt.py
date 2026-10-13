@@ -3,6 +3,7 @@
 vinai/PhoWhisper-medium is fine-tuned specifically for Vietnamese,
 giving noticeably better accuracy than plain Whisper.
 """
+
 from __future__ import annotations
 
 import logging
@@ -31,6 +32,7 @@ def _load():
         "automatic-speech-recognition",
         model=MODEL_ID,
         chunk_length_s=30,
+        generate_kwargs={"max_new_tokens": 448},
     )
     return _pipeline
 
@@ -40,7 +42,15 @@ def transcribe_wav(wav_bytes: bytes) -> str:
 
 
 def transcribe(audio_bytes: bytes, mime_type: str = "audio/wav") -> str:
-    """Transcribe audio bytes using PhoWhisper. Accepts wav, mp4, webm, ogg…"""
+    """Transcribe audio bytes using PhoWhisper. Accepts wav, mp4, webm, ogg…
+
+    Bản ghi rỗng/hỏng (vd không có micro) coi như IM LẶNG: trả "" thay vì ném lỗi
+    (tránh /api/stt trả 500; client vốn đã xử lý text rỗng).
+    """
+    # Quá nhỏ để là audio thật -> im lặng.
+    if not audio_bytes or len(audio_bytes) < 256:
+        return ""
+
     if "mp4" in mime_type or "m4a" in mime_type or "aac" in mime_type:
         ext = ".mp4"
     elif "ogg" in mime_type or "opus" in mime_type:
@@ -56,6 +66,24 @@ def transcribe(audio_bytes: bytes, mime_type: str = "audio/wav") -> str:
     try:
         result = pipe(tmp)
         return result["text"].strip()
+    except Exception as exc:
+        # Lỗi giải mã audio (blob hỏng) -> im lặng; lỗi khác (model...) vẫn ném ra.
+        msg = str(exc).lower()
+        if any(
+            k in msg
+            for k in (
+                "malformed",
+                "soundfile",
+                "format not recognised",
+                "format not recognized",
+                "could not",
+                "no such",
+                "invalid data",
+            )
+        ):
+            logger.warning("STT: audio không giải mã được (%s) - coi như im lặng", exc)
+            return ""
+        raise
     finally:
         os.unlink(tmp)
 
@@ -75,6 +103,7 @@ def warmup() -> bool:
 def available() -> bool:
     try:
         import transformers  # noqa: F401
+
         return True
     except ImportError:
         return False

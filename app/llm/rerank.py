@@ -70,15 +70,14 @@ def _build_request(query: str, candidates: list[RetrievedPassage]) -> LLMRequest
         # Truncated: the judge needs enough to tell what the passage covers, not
         # the whole passage, and this runs over ten of them per question.
         text = item.passage.text[:600]
-        blocks.append(
-            f"[{position}] ({item.passage.breadcrumb})\n{text}"
-        )
+        blocks.append(f"[{position}] ({item.passage.breadcrumb})\n{text}")
     return LLMRequest(
         system=RERANK_SYSTEM_PROMPT,
         user=(
             f"Customer question: {query}\n\n"
-            f"Passages:\n\n" + "\n\n".join(blocks) +
-            f"\n\nScore all {len(candidates)} passages."
+            f"Passages:\n\n"
+            + "\n\n".join(blocks)
+            + f"\n\nScore all {len(candidates)} passages."
         ),
         max_tokens=1200,
     )
@@ -115,15 +114,16 @@ def _parse_scores(text: str, expected: int) -> dict[int, int] | None:
     return scores or None
 
 
-def rerank(query: str, candidates: list[RetrievedPassage],
-           top_k: int = 3) -> tuple[list[RetrievedPassage], str]:
+def rerank(
+    query: str, candidates: list[RetrievedPassage], top_k: int = 3
+) -> tuple[list[RetrievedPassage], str]:
     """Reorder and filter candidates. Returns (results, note-for-the-audit-trail).
 
     Any failure - no provider, a refusal, unparseable output - falls back to the
     lexical order rather than dropping the turn. The note records which
     happened, so the audit trail never implies a rerank that did not occur.
     """
-    from . import active_provider, _effort  # local: avoids an import cycle
+    from . import _effort, active_provider  # local: avoids an import cycle
 
     if not candidates:
         return [], "rerank:no-candidates"

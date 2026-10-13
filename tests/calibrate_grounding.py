@@ -33,18 +33,24 @@ IN_SCOPE = [
 # Plausible-sounding answers that are NOT in the knowledge base. These are the
 # failure mode the gate exists to catch, and should score far below in-scope.
 HALLUCINATED = [
-    ("what are your fees for international transfers",
-     "Our premium international remittance service offers competitive exchange "
-     "rates with zero markup for Platinum members, and typically arrives within "
-     "30 minutes via our partner network in over 120 countries."),
-    ("how much is the overdraft fee",
-     "Overdraft protection is complimentary on all accounts and we never charge "
-     "a fee; we simply decline the transaction and send you a text alert so you "
-     "can top up at your convenience."),
-    ("how long does a mortgage application take",
-     "Most mortgage applications are approved instantly through our AI "
-     "underwriting engine, with funds released the same afternoon once you "
-     "e-sign the offer documents."),
+    (
+        "what are your fees for international transfers",
+        "Our premium international remittance service offers competitive exchange "
+        "rates with zero markup for Platinum members, and typically arrives within "
+        "30 minutes via our partner network in over 120 countries.",
+    ),
+    (
+        "how much is the overdraft fee",
+        "Overdraft protection is complimentary on all accounts and we never charge "
+        "a fee; we simply decline the transaction and send you a text alert so you "
+        "can top up at your convenience.",
+    ),
+    (
+        "how long does a mortgage application take",
+        "Most mortgage applications are approved instantly through our AI "
+        "underwriting engine, with funds released the same afternoon once you "
+        "e-sign the offer documents.",
+    ),
 ]
 
 
@@ -56,10 +62,12 @@ def main() -> int:
     print(f"Model    : {info['model'] or '-'}")
     if info["mode"] != "live":
         print(f"Note     : {info['detail']}")
-        print("           Scores below come from the extractive fallback, which "
-              "returns\n           source text verbatim and therefore scores near "
-              "1.00 by construction.\n           Configure a provider to calibrate "
-              "a real threshold.")
+        print(
+            "           Scores below come from the extractive fallback, which "
+            "returns\n           source text verbatim and therefore scores near "
+            "1.00 by construction.\n           Configure a provider to calibrate "
+            "a real threshold."
+        )
     print(f"Current threshold: {guardrails.MIN_GROUNDING}\n")
 
     print("IN-SCOPE (a correct answer should score high)")
@@ -95,18 +103,24 @@ def main() -> int:
     print(f"Highest bad     : {highest_bad:.2f}")
 
     if lowest_good <= highest_bad:
-        print("\nNO SEPARATION - the two populations overlap, so no single "
-              "threshold\nworks for this provider. Tighten the answer prompt "
-              "toward the source\nwording, or replace this metric with a "
-              "model-based faithfulness check.")
+        print(
+            "\nNO SEPARATION - the two populations overlap, so no single "
+            "threshold\nworks for this provider. Tighten the answer prompt "
+            "toward the source\nwording, or replace this metric with a "
+            "model-based faithfulness check."
+        )
         return 1
 
     suggested = round((lowest_good + highest_bad) / 2, 2)
-    print(f"\nSuggested MIN_GROUNDING: {suggested}  "
-          f"(midpoint of the gap {highest_bad:.2f}–{lowest_good:.2f})")
+    print(
+        f"\nSuggested MIN_GROUNDING: {suggested}  "
+        f"(midpoint of the gap {highest_bad:.2f}–{lowest_good:.2f})"
+    )
     if abs(suggested - guardrails.MIN_GROUNDING) > 0.05:
-        print(f"Current value {guardrails.MIN_GROUNDING} is off; update "
-              "app/guardrails.py.")
+        print(
+            f"Current value {guardrails.MIN_GROUNDING} is off; update "
+            "app/guardrails.py."
+        )
     return 0
 
 

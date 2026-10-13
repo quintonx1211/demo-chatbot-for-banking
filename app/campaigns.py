@@ -32,17 +32,20 @@ CAMPAIGN_PATH = Path(__file__).resolve().parent.parent / "data" / "campaigns.jso
 class Offer:
     campaign_id: str
     name: str
-    type: str            # activation | reactivation | cross_sell
-    body: str            # full message for explicit offer listing
-    hook: str            # short tagline for proactive callout
+    type: str  # activation | reactivation | cross_sell
+    body: str  # full message for explicit offer listing
+    hook: str  # short tagline for proactive callout
     cta: str
     deeplink: str
     context: dict
 
     def to_dict(self) -> dict:
         return {
-            "campaign_id": self.campaign_id, "name": self.name,
-            "type": self.type, "cta": self.cta, "deeplink": self.deeplink,
+            "campaign_id": self.campaign_id,
+            "name": self.name,
+            "type": self.type,
+            "cta": self.cta,
+            "deeplink": self.deeplink,
             "context": self.context,
         }
 
@@ -85,16 +88,18 @@ class CampaignBook:
             spec = self.campaigns.get(campaign_id)
             if not spec:
                 continue
-            offers.append(Offer(
-                campaign_id=campaign_id,
-                name=spec["name"],
-                type=spec.get("type", "cross_sell"),
-                body=self._body(spec, row.get("context", {})),
-                hook=spec.get("hook") or spec.get("offer") or spec["name"],
-                cta=spec.get("cta", ""),
-                deeplink=spec.get("deeplink", ""),
-                context=row.get("context", {}),
-            ))
+            offers.append(
+                Offer(
+                    campaign_id=campaign_id,
+                    name=spec["name"],
+                    type=spec.get("type", "cross_sell"),
+                    body=self._body(spec, row.get("context", {})),
+                    hook=spec.get("hook") or spec.get("offer") or spec["name"],
+                    cta=spec.get("cta", ""),
+                    deeplink=spec.get("deeplink", ""),
+                    context=row.get("context", {}),
+                )
+            )
         return offers
 
     @staticmethod

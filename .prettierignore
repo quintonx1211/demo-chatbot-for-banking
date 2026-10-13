@@ -1,0 +1,15 @@
+# Dữ liệu, tài sản nhị phân và thư mục sinh ra - không format
+data/
+voices/
+docs/
+design_handoff_banking_chat/
+.venv/
+__pycache__/
+.pytest_cache/
+.git/
+*.min.js
+*.min.css
+*.mp3
+*.wav
+*.svg
+favicon.svg

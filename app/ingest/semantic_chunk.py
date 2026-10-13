@@ -21,8 +21,6 @@ the measurement this is supposed to earn its way in with.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from .. import chunker
 from ..textmodel import TfidfIndex, tokenize
 
@@ -68,10 +66,10 @@ def _carry_overlap(finished_chunk: str) -> str:
     tail = finished_chunk[-OVERLAP_CHARS:]
     newline = tail.find("\n")
     if newline != -1:
-        tail = tail[newline + 1:]
+        tail = tail[newline + 1 :]
     else:
         space = tail.find(" ")
-        tail = tail[space + 1:] if space != -1 else ""
+        tail = tail[space + 1 :] if space != -1 else ""
     if tail.lstrip().startswith("|") and not tail.rstrip().endswith("|"):
         tail = ""
     return tail
@@ -100,8 +98,11 @@ def _semantic_pack(paragraphs: list[str]) -> list[str]:
         # The seam being cut is the one *after* this unit, i.e. between unit i
         # and unit i+1 - so it's only a candidate cut point once this unit is
         # actually in the chunk.
-        weak_seam = (i < len(similarities) and similarities[i] < 0.15
-                    and len(candidate) >= TARGET_CHARS * _MIN_FRACTION_BEFORE_CUT)
+        weak_seam = (
+            i < len(similarities)
+            and similarities[i] < 0.15
+            and len(candidate) >= TARGET_CHARS * _MIN_FRACTION_BEFORE_CUT
+        )
         at_target = len(candidate) >= TARGET_CHARS
 
         if current and (over_ceiling or (big_enough and (weak_seam or at_target))):
@@ -138,10 +139,12 @@ def semantic_chunk_document(text: str) -> list[chunker.Chunk]:
     for path, body in chunker._sections(normalised):
         leaf = path[-1] if path else "Introduction"
         for piece in _semantic_pack(chunker._paragraphs(body)):
-            result.append(chunker.Chunk(
-                text=piece,
-                heading=leaf,
-                heading_path=list(path),
-                index=len(result),
-            ))
+            result.append(
+                chunker.Chunk(
+                    text=piece,
+                    heading=leaf,
+                    heading_path=list(path),
+                    index=len(result),
+                )
+            )
     return result

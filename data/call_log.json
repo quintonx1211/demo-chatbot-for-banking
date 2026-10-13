@@ -1,0 +1,244 @@
+{
+  "calls": [
+    {
+      "id": "CALL-1ba925d12f",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:26:12",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-072d44a100",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:26:05",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-3d4c7d2e58",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:26:02",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-154d790d39",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:13:43",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-30d3f1d52e",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:13:23",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-9ec23389e8",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:13:02",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-fbd6b9119b",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:12:59",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-e47710be13",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:12:57",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-856a382582",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:12:29",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-5210ce4b85",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:12:29",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-a730807c02",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:12:28",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-34f3a15635",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:12:26",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-0737426de8",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:12:25",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-2a14ac5748",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:12:23",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-f445424fe9",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:10:53",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-26559f92f8",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-13 16:00:53",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-9b25320697",
+      "phone": "0842199388",
+      "agent_id": "CARD-INFINITE",
+      "agent_name": "CARD-INFINITE",
+      "status": "queued",
+      "created_at": "2026-09-28 13:30:22",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-adc883e12c",
+      "phone": "0842199388",
+      "agent_id": "CARD-SIGNATURE",
+      "agent_name": "CARD-SIGNATURE",
+      "status": "queued",
+      "created_at": "2026-09-28 13:30:22",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-e456d07806",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-09-28 13:30:22",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-97677362e0",
+      "phone": "0842199388",
+      "agent_id": "CARD-CLASSIC",
+      "agent_name": "CARD-CLASSIC",
+      "status": "queued",
+      "created_at": "2026-09-28 13:30:22",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-31dc929dde",
+      "phone": "0900000000",
+      "agent_id": "CARD-INFINITE",
+      "agent_name": "CARD-INFINITE",
+      "status": "queued",
+      "created_at": "2026-09-24 10:25:00",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-0568219202",
+      "phone": "0842199388",
+      "agent_id": "ops",
+      "agent_name": "Trợ lý Operation Support",
+      "status": "queued",
+      "created_at": "2026-09-22 16:22:31",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-46da90b02b",
+      "phone": "0842199388",
+      "agent_id": "ops",
+      "agent_name": "Trợ lý Operation Support",
+      "status": "queued",
+      "created_at": "2026-09-17 08:35:40",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-b3668c0837",
+      "phone": "0842199388",
+      "agent_id": "ops",
+      "agent_name": "Trợ lý Operation Support",
+      "status": "queued",
+      "created_at": "2026-09-17 08:32:50",
+      "transcript": null,
+      "summary": null
+    }
+  ]
+}

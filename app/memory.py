@@ -39,8 +39,8 @@ MAX_ENTRIES = 12
 
 @dataclass
 class Note:
-    kind: str                 # "topic" | "outcome" | "campaign"
-    label: str                # a topic or offer name, never a raw utterance
+    kind: str  # "topic" | "outcome" | "campaign"
+    label: str  # a topic or offer name, never a raw utterance
     detail: str = ""
     channel: str = "chat"
     at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -52,8 +52,11 @@ class Note:
     def to_dict(self) -> dict:
         age = datetime.now(timezone.utc) - self.at
         return {
-            "kind": self.kind, "label": self.label, "detail": self.detail,
-            "channel": self.channel, "at": self.at.isoformat(timespec="seconds"),
+            "kind": self.kind,
+            "label": self.label,
+            "detail": self.detail,
+            "channel": self.channel,
+            "at": self.at.isoformat(timespec="seconds"),
             "age_days": round(age.total_seconds() / 86400, 1),
         }
 
@@ -65,8 +68,14 @@ class CustomerMemory:
         self._lock = threading.RLock()
         self._notes: dict[str, list[Note]] = {}
 
-    def remember(self, customer_id: str | None, kind: str, label: str,
-                 detail: str = "", channel: str = "chat") -> None:
+    def remember(
+        self,
+        customer_id: str | None,
+        kind: str,
+        label: str,
+        detail: str = "",
+        channel: str = "chat",
+    ) -> None:
         """Record one fact. A null customer_id is a no-op, by rule 1."""
         if not customer_id or not label:
             return
@@ -81,8 +90,9 @@ class CustomerMemory:
                     note.detail = detail or note.detail
                     break
             else:
-                notes.append(Note(kind=kind, label=label, detail=detail,
-                                  channel=channel))
+                notes.append(
+                    Note(kind=kind, label=label, detail=detail, channel=channel)
+                )
             self._notes[customer_id] = notes[-MAX_ENTRIES:]
 
     def recall(self, customer_id: str | None) -> list[Note]:
@@ -102,14 +112,18 @@ class CustomerMemory:
         it unsettling, not helpful.
         """
         notes = self.recall(customer_id)
-        unresolved = [n for n in notes if n.kind == "outcome" and n.label == "unresolved"]
+        unresolved = [
+            n for n in notes if n.kind == "outcome" and n.label == "unresolved"
+        ]
         topics = [n for n in notes if n.kind == "topic"][:2]
         if unresolved and unresolved[0].detail:
-            return (f"Lần trước anh/chị có hỏi về {unresolved[0].detail} và "
-                    f"tôi đã chuyển cho đồng nghiệp hỗ trợ ạ.")
+            return (
+                f"Lần trước quý khách có hỏi về {unresolved[0].detail} và "
+                f"tôi đã chuyển cho đồng nghiệp hỗ trợ ạ."
+            )
         if topics:
             subjects = " and ".join(n.label for n in topics)
-            return f"Chào anh/chị. Lần trước tôi đã trao đổi về {subjects} ạ."
+            return f"Chào quý khách. Lần trước tôi đã trao đổi về {subjects} ạ."
         return ""
 
     def forget(self, customer_id: str | None = None) -> int:
@@ -137,7 +151,8 @@ class CustomerMemory:
         with self._lock:
             return {
                 cid: [n.to_dict() for n in self.recall(cid)]
-                for cid in list(self._notes) if self._notes[cid]
+                for cid in list(self._notes)
+                if self._notes[cid]
             }
 
 

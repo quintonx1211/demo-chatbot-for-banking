@@ -15,6 +15,7 @@ from threading import Lock
 
 from . import db, guardrails
 
+
 def find_customer(customer_id: str) -> dict | None:
     """Read a customer from the database, fresh, every time.
 
@@ -29,18 +30,19 @@ def find_customer(customer_id: str) -> dict | None:
 
 @dataclass
 class Message:
-    role: str            # "customer" | "assistant" | "agent" | "system"
+    role: str  # "customer" | "assistant" | "agent" | "system"
     text: str
     timestamp: float = field(default_factory=time.time)
-    author: str | None = None   # staff display name, on agent messages
+    author: str | None = None  # staff display name, on agent messages
 
 
 @dataclass
 class AuditEntry:
     """One row per turn. This is what a compliance reviewer reads."""
+
     turn: int
-    utterance: str          # redacted
-    route: str              # deterministic | rag | guardrail | escalation | agent
+    utterance: str  # redacted
+    route: str  # deterministic | rag | guardrail | escalation | agent
     intent: str
     confidence: float
     # Set when a human, not the assistant, produced this turn. Without it the
@@ -72,6 +74,11 @@ class Session:
         self.slots: dict[str, str] = {}
         # Consecutive turns where the flow re-prompted instead of advancing.
         self.flow_misses = 0
+
+        # Which agent in the workforce is currently serving this conversation
+        # (app/agents.py). Set by the router the first time a business intent is
+        # handled and updated on every transfer between agents; None until then.
+        self.current_agent_id: str | None = None
 
         # Escalation state.
         self.escalated = False
@@ -142,15 +149,23 @@ class Session:
         else `to_dict()` exposes to staff.
         """
         return [
-            {"role": m.role, "text": m.text,
-             "author": m.author, "timestamp": m.timestamp}
-            for m in self.messages[max(index, 0):]
+            {
+                "role": m.role,
+                "text": m.text,
+                "author": m.author,
+                "timestamp": m.timestamp,
+            }
+            for m in self.messages[max(index, 0) :]
         ]
 
     def transcript(self, limit: int | None = None) -> str:
         messages = self.messages[-limit:] if limit else self.messages
-        labels = {"customer": "Customer", "assistant": "Assistant",
-                  "agent": "Human agent", "system": "System"}
+        labels = {
+            "customer": "Customer",
+            "assistant": "Assistant",
+            "agent": "Human agent",
+            "system": "System",
+        }
         return "\n".join(f"{labels.get(m.role, m.role)}: {m.text}" for m in messages)
 
     # -- audit ------------------------------------------------------------

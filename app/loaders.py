@@ -38,9 +38,7 @@ def read_document(path: Path) -> str:
         return path.read_text(encoding="utf-8", errors="replace")
     if suffix == ".docx":
         return docx_to_markdown(path.read_bytes())
-    raise UnsupportedDocument(
-        f"{path.name}: only {', '.join(SUPPORTED)} are supported"
-    )
+    raise UnsupportedDocument(f"{path.name}: only {', '.join(SUPPORTED)} are supported")
 
 
 def decode_upload(filename: str, data: bytes) -> str:
@@ -61,6 +59,7 @@ def decode_upload(filename: str, data: bytes) -> str:
 
 
 # -- docx -----------------------------------------------------------------
+
 
 def _paragraph_text(paragraph: ET.Element) -> str:
     """Concatenate the runs in a paragraph, honouring explicit breaks and tabs."""
@@ -94,9 +93,7 @@ def _table_to_markdown(table: ET.Element) -> str:
     rows: list[list[str]] = []
     for row in table.findall(f"{_W}tr"):
         cells = [
-            " ".join(
-                _paragraph_text(p) for p in cell.findall(f"{_W}p")
-            ).strip()
+            " ".join(_paragraph_text(p) for p in cell.findall(f"{_W}p")).strip()
             for cell in row.findall(f"{_W}tc")
         ]
         if any(cells):
@@ -108,8 +105,10 @@ def _table_to_markdown(table: ET.Element) -> str:
     width = max(len(r) for r in rows)
     rows = [r + [""] * (width - len(r)) for r in rows]
 
-    lines = ["| " + " | ".join(rows[0]) + " |",
-             "| " + " | ".join(["---"] * width) + " |"]
+    lines = [
+        "| " + " | ".join(rows[0]) + " |",
+        "| " + " | ".join(["---"] * width) + " |",
+    ]
     lines += ["| " + " | ".join(r) + " |" for r in rows[1:]]
     return "\n".join(lines)
 

@@ -11,13 +11,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from eval_retrieval import IN_SCOPE, OUT_OF_SCOPE
+
 from app.retriever import (
     MIN_RELEVANCE,
     RELATIVE_CUTOFF,
     KnowledgeBase,
     reciprocal_rank_fusion,
 )
-from eval_retrieval import IN_SCOPE, OUT_OF_SCOPE
 
 
 @dataclass
@@ -39,47 +40,52 @@ def signals_for(kb: KnowledgeBase, query: str) -> Signals:
 # The gate (max coverage >= MIN_RELEVANCE) is applied outside, identically for
 # all of them, so these are compared purely on ordering and filtering.
 
+
 def s_baseline(sig: Signals, top_k: int) -> list[int]:
     """Coverage order, coverage-relative floor. What shipped originally."""
-    order = sorted(range(len(sig.coverage)),
-                   key=lambda i: (sig.coverage[i], sig.cosine[i]), reverse=True)
+    order = sorted(
+        range(len(sig.coverage)),
+        key=lambda i: (sig.coverage[i], sig.cosine[i]),
+        reverse=True,
+    )
     floor = max(sig.coverage) * RELATIVE_CUTOFF
     return [i for i in order[:top_k] if sig.coverage[i] >= floor]
 
 
 def s_rrf_coverage_floor(sig: Signals, top_k: int) -> list[int]:
     """RRF order, coverage-relative floor. The first attempt."""
-    fused = reciprocal_rank_fusion(
-        {"c": sig.coverage, "s": sig.cosine, "b": sig.bm25})
-    order = sorted(range(len(fused)), key=lambda i: (fused[i], sig.coverage[i]),
-                   reverse=True)
+    fused = reciprocal_rank_fusion({"c": sig.coverage, "s": sig.cosine, "b": sig.bm25})
+    order = sorted(
+        range(len(fused)), key=lambda i: (fused[i], sig.coverage[i]), reverse=True
+    )
     floor = max(sig.coverage) * RELATIVE_CUTOFF
     return [i for i in order[:top_k] if sig.coverage[i] >= floor]
 
 
 def s_rrf_only(sig: Signals, top_k: int) -> list[int]:
     """RRF order, no second filter - trust the fusion."""
-    fused = reciprocal_rank_fusion(
-        {"c": sig.coverage, "s": sig.cosine, "b": sig.bm25})
-    order = sorted(range(len(fused)), key=lambda i: (fused[i], sig.coverage[i]),
-                   reverse=True)
+    fused = reciprocal_rank_fusion({"c": sig.coverage, "s": sig.cosine, "b": sig.bm25})
+    order = sorted(
+        range(len(fused)), key=lambda i: (fused[i], sig.coverage[i]), reverse=True
+    )
     return [i for i in order[:top_k] if fused[i] > 0.0]
 
 
 def s_rrf_no_cosine(sig: Signals, top_k: int) -> list[int]:
     """Cosine and BM25 are both lexical; maybe cosine only adds correlated noise."""
     fused = reciprocal_rank_fusion({"c": sig.coverage, "b": sig.bm25})
-    order = sorted(range(len(fused)), key=lambda i: (fused[i], sig.coverage[i]),
-                   reverse=True)
+    order = sorted(
+        range(len(fused)), key=lambda i: (fused[i], sig.coverage[i]), reverse=True
+    )
     return [i for i in order[:top_k] if fused[i] > 0.0]
 
 
 def s_rrf_soft_floor(sig: Signals, top_k: int) -> list[int]:
     """RRF order with a much looser coverage floor - noise guard, not a ranker."""
-    fused = reciprocal_rank_fusion(
-        {"c": sig.coverage, "s": sig.cosine, "b": sig.bm25})
-    order = sorted(range(len(fused)), key=lambda i: (fused[i], sig.coverage[i]),
-                   reverse=True)
+    fused = reciprocal_rank_fusion({"c": sig.coverage, "s": sig.cosine, "b": sig.bm25})
+    order = sorted(
+        range(len(fused)), key=lambda i: (fused[i], sig.coverage[i]), reverse=True
+    )
     floor = max(sig.coverage) * 0.25
     return [i for i in order[:top_k] if sig.coverage[i] >= floor and fused[i] > 0.0]
 
@@ -106,11 +112,20 @@ def run(kb: KnowledgeBase, strategy, top_k: int = 3) -> dict:
 
     for question, expected in IN_SCOPE:
         sig = signals_for(kb, question)
-        indices = ([] if max(sig.coverage, default=0.0) < MIN_RELEVANCE
-                   else strategy(sig, top_k))
+        indices = (
+            []
+            if max(sig.coverage, default=0.0) < MIN_RELEVANCE
+            else strategy(sig, top_k)
+        )
         headings = [passages[i].heading for i in indices]
-        rank = next((r for r, h in enumerate(headings, 1)
-                     if h.lower().startswith(expected.lower()[:24])), None)
+        rank = next(
+            (
+                r
+                for r, h in enumerate(headings, 1)
+                if h.lower().startswith(expected.lower()[:24])
+            ),
+            None,
+        )
         if rank == 1:
             hits1 += 1
         if rank:
@@ -120,8 +135,11 @@ def run(kb: KnowledgeBase, strategy, top_k: int = 3) -> dict:
     rejected = 0
     for question in OUT_OF_SCOPE:
         sig = signals_for(kb, question)
-        indices = ([] if max(sig.coverage, default=0.0) < MIN_RELEVANCE
-                   else strategy(sig, top_k))
+        indices = (
+            []
+            if max(sig.coverage, default=0.0) < MIN_RELEVANCE
+            else strategy(sig, top_k)
+        )
         if not indices:
             rejected += 1
 
@@ -143,8 +161,10 @@ def main() -> int:
     print("-" * 66)
     for name, strategy in STRATEGIES.items():
         r = run(kb, strategy)
-        print(f"{name:34} {r['p1']:6.1%} {r['recall']:6.1%} "
-              f"{r['mrr']:7.3f} {r['reject']:7.1%}")
+        print(
+            f"{name:34} {r['p1']:6.1%} {r['recall']:6.1%} "
+            f"{r['mrr']:7.3f} {r['reject']:7.1%}"
+        )
     print()
     return 0
 

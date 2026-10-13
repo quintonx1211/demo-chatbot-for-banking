@@ -27,17 +27,26 @@
     "stay in code in every mode. This switch only chooses who proposes the",
     "intent, never who is allowed to act on it."
   ],
-  "router_mode": "nlu",
+  "router_mode": "shadow",
+
+  "_general_fallback": [
+    "true  -> câu KHÔNG có trong kho tri thức sẽ được trả lời bằng kiến thức",
+    "         chung của model (vẫn giữ persona 'tôi/quý khách' và chặn tư vấn",
+    "         đầu tư/thuế/pháp lý). Trả lời nhiều hơn, ít đẩy chuyên viên hơn.",
+    "false -> chỉ trả lời từ tài liệu đã duyệt; không có nguồn thì mời chuyên viên",
+    "         (an toàn nhất, không bao giờ nói ngoài tài liệu)."
+  ],
+  "general_fallback": false,
 
   "overrides": {
     "min_grounding": null,
-    "min_relevance": null,
+    "min_relevance": 0.3,
     "high_confidence": null
   },
 
   "presets": {
-    "strict":   { "min_grounding": 0.70, "min_relevance": 0.44, "high_confidence": 0.50 },
+    "strict": { "min_grounding": 0.7, "min_relevance": 0.44, "high_confidence": 0.5 },
     "balanced": { "min_grounding": 0.55, "min_relevance": 0.36, "high_confidence": 0.55 },
-    "relaxed":  { "min_grounding": 0.40, "min_relevance": 0.24, "high_confidence": 0.62 }
+    "relaxed": { "min_grounding": 0.4, "min_relevance": 0.24, "high_confidence": 0.62 }
   }
 }

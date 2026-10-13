@@ -49,8 +49,12 @@ class Topic:
     reasons: list[str]
 
     def to_dict(self) -> dict:
-        return {"label": self.label, "size": self.size,
-                "questions": self.questions[:6], "reasons": self.reasons[:3]}
+        return {
+            "label": self.label,
+            "size": self.size,
+            "questions": self.questions[:6],
+            "reasons": self.reasons[:3],
+        }
 
 
 def _jaccard(a: set[str], b: set[str]) -> float:
@@ -66,19 +70,19 @@ def _label(questions: list[str]) -> str:
         for term in set(tokenize(question)):
             counts[term] = counts.get(term, 0) + 1
     ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
-    top = [term for term, count in ranked[:3] if count > 1] or \
-          [term for term, _ in ranked[:3]]
+    top = [term for term, count in ranked[:3] if count > 1] or [
+        term for term, _ in ranked[:3]
+    ]
     return " / ".join(top) if top else "unclassified"
 
 
 def cluster_unresolved(sessions: list[Session]) -> dict:
     """Group everything the assistant failed to answer, most common first."""
-    entries: list[tuple[str, str]] = []   # (utterance, reason)
+    entries: list[tuple[str, str]] = []  # (utterance, reason)
     for session in sessions:
         for entry in session.audit:
             if entry.route in _UNRESOLVED and entry.utterance.strip():
-                entries.append((entry.utterance.strip(),
-                                entry.note or entry.route))
+                entries.append((entry.utterance.strip(), entry.note or entry.route))
 
     # De-duplicate identical questions but keep the count - a question asked
     # ten times is a bigger gap than ten different ones.
@@ -113,8 +117,9 @@ def cluster_unresolved(sessions: list[Session]) -> dict:
         # Weight by how often each was actually asked, not by distinct wordings.
         size = sum(len(tally[q]) for q in questions)
         reasons = sorted({r for q in questions for r in tally[q]})
-        topic = Topic(label=_label(questions), size=size,
-                      questions=questions, reasons=reasons)
+        topic = Topic(
+            label=_label(questions), size=size, questions=questions, reasons=reasons
+        )
         (topics if len(questions) >= MIN_CLUSTER_SIZE else singletons).append(topic)
 
     topics.sort(key=lambda t: -t.size)

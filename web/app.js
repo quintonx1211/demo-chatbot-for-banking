@@ -1,7 +1,16 @@
 const $ = (id) => document.getElementById(id);
 
-// One silent AudioContext buffer play unlocks the browser's autoplay policy.
-// Must be called synchronously inside a user-gesture handler (click/submit).
+// A 0.05s silent WAV. Playing it through an <audio> element inside a user
+// gesture "blesses" that exact element so later programmatic play() calls
+// (fired after the token stream finishes, outside any gesture) are allowed.
+const SILENT_WAV =
+  "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAA=";
+
+// One silent AudioContext buffer play unlocks WebAudio's autoplay policy; the
+// HTML5 <audio> elements we auto-play replies through need their OWN gesture
+// play to unlock in WebKit/Safari, which the AudioContext trick does not cover.
+// Both are primed here, so this MUST be called synchronously inside a
+// user-gesture handler (click/submit).
 let _audioUnlocked = false;
 function _unlockAudio() {
   if (_audioUnlocked) return;
@@ -15,9 +24,23 @@ function _unlockAudio() {
     src.start(0);
     setTimeout(() => ctx.close(), 500);
   } catch (e) {}
+  // ttsPlayer/streamPlayer are defined later at module load; by the time any
+  // gesture fires they exist, so referencing them here is safe.
+  [ttsPlayer, streamPlayer].forEach((el) => {
+    try {
+      el.src = SILENT_WAV;
+      const p = el.play();
+      if (p)
+        p.then(() => {
+          el.pause();
+          el.currentTime = 0;
+        }).catch(() => {});
+    } catch (e) {}
+  });
 }
 
 let sessionId = null;
+let _simGreeting = ""; // lời chào chờ phát khi khách bấm "Nghe" (gọi mô phỏng)
 let selectedSession = null;
 let selectedDoc = null;
 let staff = null;
@@ -44,9 +67,10 @@ retrieves poorly for all four.
 /* ---------- helpers ---------- */
 
 function escapeHtml(text) {
-  return String(text).replace(/[&<>"']/g, (c) => (
-    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-  ));
+  return String(text).replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
+  );
 }
 
 function render(text) {
@@ -64,8 +88,8 @@ async function api(path, options) {
   } catch {
     throw new Error(
       "Không kết nối được máy chủ - `python server.py` còn đang chạy không? " +
-      "API key nhập trong Cấu hình chỉ tồn tại trong tiến trình đó, nên phải " +
-      "nhập lại sau mỗi lần khởi động lại."
+        "API key nhập trong Cấu hình chỉ tồn tại trong tiến trình đó, nên phải " +
+        "nhập lại sau mỗi lần khởi động lại."
     );
   }
   const data = await response.json().catch(() => ({}));
@@ -73,14 +97,40 @@ async function api(path, options) {
   return data;
 }
 
-const postJson = (path, body) => api(path, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(body),
-});
+const postJson = (path, body) =>
+  api(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 
-const showError = (box, msg) => { box.textContent = msg; box.classList.remove("hidden"); };
-const clearError = (box) => { box.textContent = ""; box.classList.add("hidden"); };
+// POST có timeout (AbortController) - tránh STT/LLM treo làm kẹt "Đang xử lý".
+async function postJsonTimeout(path, body, ms = 60000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || `${path} → ${r.status}`);
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const showError = (box, msg) => {
+  box.textContent = msg;
+  box.classList.remove("hidden");
+};
+const clearError = (box) => {
+  box.textContent = "";
+  box.classList.add("hidden");
+};
 const pct = (n) => `${Math.round(n * 100)}%`;
 
 /** Build an element in one call - the transcript is assembled node by node so
@@ -142,27 +192,45 @@ class SyncedPlayer {
   notifyStreamEnd() {
     this.streamEnded = true;
     if (!this.active && !this.pipeline.length && this.onAllDone) {
-      const cb = this.onAllDone; this.onAllDone = null; cb();
+      const cb = this.onAllDone;
+      this.onAllDone = null;
+      cb();
     }
   }
 
-  _clearTimers() { this.wordTimers.forEach(clearTimeout); this.wordTimers = []; }
+  _clearTimers() {
+    this.wordTimers.forEach(clearTimeout);
+    this.wordTimers = [];
+  }
 
   async _advance() {
     if (!this.pipeline.length) {
       this.active = false;
       if (this.streamEnded && this.onAllDone) {
-        const cb = this.onAllDone; this.onAllDone = null; cb();
+        const cb = this.onAllDone;
+        this.onAllDone = null;
+        cb();
       }
       return;
     }
     this.active = true;
     const { urlPromise, onPlay } = this.pipeline.shift();
     const url = await urlPromise;
-    if (!this.active) { if (url) URL.revokeObjectURL(url); return; }
-    if (!url) { if (onPlay) onPlay(); this._advance(); return; }
+    if (!this.active) {
+      if (url) URL.revokeObjectURL(url);
+      return;
+    }
+    if (!url) {
+      if (onPlay) onPlay();
+      this._advance();
+      return;
+    }
 
-    if (ttsPlayingBtn) { ttsPlayer.pause(); resetSpeakBtn(ttsPlayingBtn); ttsPlayingBtn = null; }
+    if (ttsPlayingBtn) {
+      ttsPlayer.pause();
+      resetSpeakBtn(ttsPlayingBtn);
+      ttsPlayingBtn = null;
+    }
     const audio = new Audio();
     this.currentAudio = audio;
 
@@ -173,15 +241,23 @@ class SyncedPlayer {
       audio.src = url;
     });
     await ready;
-    if (!this.active) { URL.revokeObjectURL(url); this.currentAudio = null; return; }
+    if (!this.active) {
+      URL.revokeObjectURL(url);
+      this.currentAudio = null;
+      return;
+    }
 
     if (onPlay) onPlay();
     audio.play().catch((e) => console.warn("audio.play() blocked:", e.message));
     audio.onended = () => {
-      URL.revokeObjectURL(url); this.currentAudio = null; this._advance();
+      URL.revokeObjectURL(url);
+      this.currentAudio = null;
+      this._advance();
     };
     audio.onerror = () => {
-      URL.revokeObjectURL(url); this.currentAudio = null; this._advance();
+      URL.revokeObjectURL(url);
+      this.currentAudio = null;
+      this._advance();
     };
   }
 
@@ -190,10 +266,16 @@ class SyncedPlayer {
     this._clearTimers();
     this.pipeline = [];
     this.onAllDone = null;
-    if (this.currentAudio) { this.currentAudio.pause(); this.currentAudio.src = ""; this.currentAudio = null; }
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio.src = "";
+      this.currentAudio = null;
+    }
   }
 
-  get isPlaying() { return this.active; }
+  get isPlaying() {
+    return this.active;
+  }
 }
 
 let syncedPlayer = new SyncedPlayer();
@@ -203,11 +285,15 @@ let streamingAudio = null; // current auto-play TTS audio (full response)
 
 function showScreen(name) {
   ["customer", "login", "agent"].forEach((s) =>
-    $(`screen-${s}`).classList.toggle("hidden", s !== name));
-  $("brand-sub").textContent =
-    name === "agent" ? "Bảng điều khiển nhân viên" : "Trợ lý ảo";
+    $(`screen-${s}`).classList.toggle("hidden", s !== name)
+  );
+  $("brand-sub").textContent = name === "agent" ? "Bảng điều khiển nhân viên" : "Trợ lý ảo";
   $("nav-assistant").classList.toggle("active", name === "customer");
+  // The muted customer-nav entries are chrome for the customer mock; inside
+  // the console they are just noise, so the shell drops them there.
+  document.body.classList.toggle("console-mode", name === "agent");
   setRail(false);
+  setNav(false); // đóng drawer trái sau khi điều hướng (mobile)
 }
 
 /* ---------- live assistant status ---------- */
@@ -216,8 +302,9 @@ function showScreen(name) {
 // Derived from state rather than set at each call site, so the three inputs
 // can never disagree about what the line should say.
 let isSending = false;
+let _sendCount = 0;
 let rawMode = false;
-let handoff = null;      // { handled_by } once the customer is with a human
+let handoff = null; // { handled_by } once the customer is with a human
 
 function refreshChatStatus() {
   let text = "Trực tuyến";
@@ -227,8 +314,7 @@ function refreshChatStatus() {
     text = "Chế độ LLM thuần";
     tone = "alert";
   } else if (handoff) {
-    text = handoff.handled_by
-      ? `Đang với ${handoff.handled_by}` : "Đang chờ chuyên viên";
+    text = handoff.handled_by ? `Đang với ${handoff.handled_by}` : "Đang chờ chuyên viên";
     tone = "wait";
   }
   if (isSending) text = "Đang trả lời…";
@@ -238,13 +324,52 @@ function refreshChatStatus() {
 }
 
 function showPanel(name) {
-  ["dashboard", "queue", "kb", "settings"].forEach((p) =>
-    $(`panel-${p}`).classList.toggle("hidden", p !== name));
-  document.querySelectorAll(".subtab").forEach((t) =>
-    t.classList.toggle("active", t.dataset.panel === name));
-  const load = { dashboard: refreshDashboard, queue: refreshQueue,
-                 kb: refreshKb, settings: () => { refreshProviders(); refreshTtsStatus(); } };
+  ["dashboard", "queue", "kb", "settings", "voice", "agents", "calls"].forEach((p) =>
+    $(`panel-${p}`).classList.toggle("hidden", p !== name)
+  );
+  document
+    .querySelectorAll(".subtab")
+    .forEach((t) => t.classList.toggle("active", t.dataset.panel === name));
+  $("subtab-select").value = name; // giữ dropdown (mobile) đồng bộ với tab
+  const load = {
+    dashboard: refreshDashboard,
+    queue: refreshQueue,
+    kb: refreshKb,
+    settings: () => {
+      refreshProviders();
+      refreshTtsStatus();
+    },
+    voice: refreshTtsStatus,
+    agents: refreshAgents,
+    calls: refreshCallList,
+  };
   if (load[name]) load[name]();
+}
+
+// Nhật ký cuộc gọi (panel Gọi khách).
+async function refreshCallList() {
+  const box = $("call-list");
+  if (!box) return;
+  try {
+    const data = await api("/api/voice/calls");
+    const calls = data.calls || [];
+    if (!calls.length) {
+      box.innerHTML = '<p class="hint">Chưa có cuộc gọi nào.</p>';
+      return;
+    }
+    box.innerHTML = calls
+      .map(
+        (c) => `
+      <div class="call-item">
+        <div><strong>${escapeHtml(c.phone || "(không SĐT)")}</strong>
+          <span class="hint"> · ${escapeHtml(c.agent_name || c.agent_id || "")}</span></div>
+        <div class="hint">${escapeHtml(c.created_at || "")} · ${escapeHtml(c.status || "")}</div>
+      </div>`
+      )
+      .join("");
+  } catch (e) {
+    box.innerHTML = '<p class="hint">Không tải được nhật ký cuộc gọi.</p>';
+  }
 }
 
 /* ---------- voice (TTS/STT) ---------- */
@@ -255,7 +380,8 @@ function showPanel(name) {
 let ttsAvailable = false;
 let sttAvailable = false;
 const canRecord = Boolean(
-  navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder
+);
 
 function updateVoiceUI() {
   const mic = $("mic-btn");
@@ -270,7 +396,9 @@ function updateVoiceUI() {
   // mid-conversation greys out replies already on screen, not just future
   // ones - a button that plays nothing on click is worse than one visibly
   // disabled.
-  document.querySelectorAll(".speak-btn").forEach((b) => { b.disabled = !ttsAvailable; });
+  document.querySelectorAll(".speak-btn").forEach((b) => {
+    b.disabled = !ttsAvailable;
+  });
   const vt = $("voice-toggle");
   if (vt) {
     vt.textContent = voiceEnabled ? "🔊" : "🔇";
@@ -286,7 +414,26 @@ function updateVoiceUI() {
 // Played through a single <audio> element rather than one per bubble, so
 // starting a second reply's audio stops the first instead of overlapping it.
 const ttsPlayer = new Audio();
+// Persistent element for auto-play (the read-aloud of each reply). Reused
+// every turn - and primed in _unlockAudio() - so that unlike a fresh
+// `new Audio()` each turn, its play() is not blocked once the token stream
+// pushes it past the browser's user-activation window. See _unlockAudio().
+const streamPlayer = new Audio();
 let ttsPlayingBtn = null;
+
+// WebAudio graph for the voice-call orb: an analyser tapped off streamPlayer so
+// the orb can react to the bot's TTS. Created lazily on the first call (see
+// _ensureTtsAnalyser). IMPORTANT: once createMediaElementSource() runs, ALL
+// streamPlayer audio - including the chat box auto-play - is routed through this
+// context, so if it ever gets suspended, chat playback goes silent. Declared up
+// here (not next to the call code) so the chat auto-play path can resume it.
+let _ttsCtx = null,
+  _ttsAnalyser = null,
+  _ttsSrcNode = null,
+  _ttsData = null;
+function _resumeTtsCtxIfAny() {
+  if (_ttsCtx && _ttsCtx.state === "suspended") _ttsCtx.resume().catch(() => {});
+}
 
 function resetSpeakBtn(btn) {
   btn.textContent = "🔊";
@@ -294,8 +441,12 @@ function resetSpeakBtn(btn) {
 }
 
 async function playTts(text, btn) {
-  _unlockAudio();  // synchronous, inside click gesture
-  if (streamingAudio) { streamingAudio.pause(); streamingAudio.src = ""; streamingAudio = null; }
+  _unlockAudio(); // synchronous, inside click gesture
+  if (streamingAudio) {
+    streamingAudio.pause();
+    streamingAudio.src = "";
+    streamingAudio = null;
+  }
   syncedPlayer.stop();
   if (ttsPlayingBtn === btn) {
     ttsPlayer.pause();
@@ -323,7 +474,11 @@ async function playTts(text, btn) {
     btn.textContent = "⏸";
     btn.classList.add("playing");
     await ttsPlayer.play();
-    ttsPlayer.onended = () => { resetSpeakBtn(btn); ttsPlayingBtn = null; URL.revokeObjectURL(url); };
+    ttsPlayer.onended = () => {
+      resetSpeakBtn(btn);
+      ttsPlayingBtn = null;
+      URL.revokeObjectURL(url);
+    };
   } catch (error) {
     resetSpeakBtn(btn);
     ttsPlayingBtn = null;
@@ -383,9 +538,47 @@ let recordedChunks = [];
 let recordingTimer = null;
 const RECORDING_MAX_MS = 9500;
 
+// Convert spoken Vietnamese digit-words to numerals when 4+ appear consecutively.
+// Threshold of 4 avoids false-positives in ordinary sentences ("một người", "năm nay").
+const _VI_DIGIT = {
+  không: 0,
+  khong: 0,
+  kong: 0,
+  một: 1,
+  mot: 1,
+  hai: 2,
+  ba: 3,
+  bốn: 4,
+  bon: 4,
+  bón: 4,
+  năm: 5,
+  nam: 5,
+  sáu: 6,
+  sau: 6,
+  bảy: 7,
+  bay: 7,
+  tám: 8,
+  tam: 8,
+  chín: 9,
+  chin: 9,
+};
+const _VI_DIGIT_RE = new RegExp(`(?:(?:${Object.keys(_VI_DIGIT).join("|")})\\s*){4,}`, "gi");
+function _viDigitsToNum(text) {
+  return text.replace(_VI_DIGIT_RE, (m) =>
+    m
+      .trim()
+      .split(/\s+/)
+      .map((w) => {
+        const d = _VI_DIGIT[w.toLowerCase()];
+        return d !== undefined ? String(d) : w;
+      })
+      .join("")
+  );
+}
+
 // Web Speech API tiếng Việt đôi khi transcribe dấu câu thành từ ("phấy" = dấu phẩy)
 function cleanStt(t) {
-  return t
+  return _viDigitsToNum(t)
     .replace(/\b(phấy|phẩy|chấm|dấu phẩy|dấu chấm)\b\.?/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim();
@@ -394,55 +587,57 @@ function cleanStt(t) {
 // Strip Markdown formatting before sending to TTS so the voice engine
 // never reads raw symbols like **bold** or # Heading aloud.
 function stripMarkdownForTts(text) {
-  return text
-    // Fenced code blocks - remove entirely
-    .replace(/```[\s\S]*?```/g, "")
-    // Markdown links → keep label only
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    // Bold + italic combined (***)
-    .replace(/\*{3}([^*]+)\*{3}/g, "$1")
-    // Bold (**)
-    .replace(/\*{2}([^*]+)\*{2}/g, "$1")
-    // Italic (*) - avoid matching stray asterisks inside numbers
-    .replace(/\*([^*\n]+)\*/g, "$1")
-    // Underline bold (__) and italic (_)
-    .replace(/_{2}([^_]+)_{2}/g, "$1")
-    .replace(/_([^_\n]+)_/g, "$1")
-    // Inline code
-    .replace(/`([^`]+)`/g, "$1")
-    // ATX headings (# ## ###…)
-    .replace(/^#{1,6}\s+(.+)$/gm, "$1")
-    // Horizontal rules → natural pause
-    .replace(/^[-*_]{3,}\s*$/gm, ".")
-    // Blockquotes
-    .replace(/^>\s*/gm, "")
-    // Unordered list bullets (-, *, +, •)
-    .replace(/^[ \t]*[-*+•]\s+/gm, "")
-    // Ordered list numbers
-    .replace(/^[ \t]*\d+[.)]\s+/gm, "")
-    // Paragraph breaks → spoken pause
-    .replace(/\n{2,}/g, ". ")
-    // Remaining newlines → space
-    .replace(/\n/g, " ")
-    // A sentence that already ended in punctuation before the paragraph
-    // break just picked up a doubled ".." or ".!" - collapse it back to one.
-    .replace(/([.!?,;:])\.\s/g, "$1 ")
-    // Collapse extra spaces
-    .replace(/ {2,}/g, " ")
-    // Expand Vietnamese banking abbreviations so TTS reads them naturally
-    .replace(/CMND\s*\/\s*CCCD/gi, "chứng minh nhân dân hoặc căn cước công dân")
-    .replace(/CCCD\s*\/\s*CMND/gi, "căn cước công dân hoặc chứng minh nhân dân")
-    .replace(/\bCMND\b/g, "chứng minh nhân dân")
-    .replace(/\bCCCD\b/g, "căn cước công dân")
-    .trim();
+  return (
+    text
+      // Fenced code blocks - remove entirely
+      .replace(/```[\s\S]*?```/g, "")
+      // Markdown links → keep label only
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+      // Bold + italic combined (***)
+      .replace(/\*{3}([^*]+)\*{3}/g, "$1")
+      // Bold (**)
+      .replace(/\*{2}([^*]+)\*{2}/g, "$1")
+      // Italic (*) - avoid matching stray asterisks inside numbers
+      .replace(/\*([^*\n]+)\*/g, "$1")
+      // Underline bold (__) and italic (_)
+      .replace(/_{2}([^_]+)_{2}/g, "$1")
+      .replace(/_([^_\n]+)_/g, "$1")
+      // Inline code
+      .replace(/`([^`]+)`/g, "$1")
+      // ATX headings (# ## ###…)
+      .replace(/^#{1,6}\s+(.+)$/gm, "$1")
+      // Horizontal rules → natural pause
+      .replace(/^[-*_]{3,}\s*$/gm, ".")
+      // Blockquotes
+      .replace(/^>\s*/gm, "")
+      // Unordered list bullets (-, *, +, •)
+      .replace(/^[ \t]*[-*+•]\s+/gm, "")
+      // Ordered list numbers
+      .replace(/^[ \t]*\d+[.)]\s+/gm, "")
+      // Paragraph breaks → spoken pause
+      .replace(/\n{2,}/g, ". ")
+      // Remaining newlines → space
+      .replace(/\n/g, " ")
+      // A sentence that already ended in punctuation before the paragraph
+      // break just picked up a doubled ".." or ".!" - collapse it back to one.
+      .replace(/([.!?,;:])\.\s/g, "$1 ")
+      // Collapse extra spaces
+      .replace(/ {2,}/g, " ")
+      // Expand Vietnamese banking abbreviations so TTS reads them naturally
+      .replace(/CMND\s*\/\s*CCCD/gi, "chứng minh nhân dân hoặc căn cước công dân")
+      .replace(/CCCD\s*\/\s*CMND/gi, "căn cước công dân hoặc chứng minh nhân dân")
+      .replace(/\bCMND\b/g, "chứng minh nhân dân")
+      .replace(/\bCCCD\b/g, "căn cước công dân")
+      .trim()
+  );
 }
 
 let recognition = null;
-let recognitionFinalText = '';
+let recognitionFinalText = "";
 let audioCtxForMic = null;
 let waveformAnimId = null;
 let silenceStart = null;
-const SILENCE_THRESHOLD = 8;      // RMS amplitude 0-100; below = silence
+const SILENCE_THRESHOLD = 8; // RMS amplitude 0-100; below = silence
 const SILENCE_DURATION_MS = 3000; // stop after 3s of silence
 
 function _startWaveform(stream) {
@@ -460,30 +655,40 @@ function _startWaveform(stream) {
     const bufLen = analyser.frequencyBinCount;
     const data = new Uint8Array(bufLen);
     silenceStart = null;
+    let hasSpoken = false; // đã có tiếng nói thật chưa
 
     const draw = () => {
       analyser.getByteTimeDomainData(data);
 
       // RMS for silence detection
       let sum = 0;
-      for (let i = 0; i < bufLen; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
+      for (let i = 0; i < bufLen; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+      }
       const rms = Math.sqrt(sum / bufLen) * 100;
 
       const dot = $("silence-dot");
       const statusEl = $("stt-status");
-      if (rms < SILENCE_THRESHOLD) {
+      if (rms >= SILENCE_THRESHOLD) {
+        hasSpoken = true;
+        silenceStart = null;
+        if (dot) dot.style.background = "#ef4444";
+        if (statusEl) statusEl.textContent = "Đang nghe…";
+      } else if (hasSpoken) {
+        // Chỉ tính im lặng SAU khi khách đã bắt đầu nói - tránh cắt trên khoảng
+        // lặng đầu (khách chưa kịp mở lời) khiến STT chỉ nhận được im lặng.
         if (!silenceStart) silenceStart = Date.now();
         const elapsed = Date.now() - silenceStart;
         if (statusEl) statusEl.textContent = "Đang nghe…";
-        if (dot) dot.style.background = `hsl(${Math.round(40 * (1 - elapsed / SILENCE_DURATION_MS))}, 80%, 50%)`;
+        if (dot)
+          dot.style.background = `hsl(${Math.round(40 * (1 - elapsed / SILENCE_DURATION_MS))}, 80%, 50%)`;
         if (elapsed >= SILENCE_DURATION_MS) {
           if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
           return;
         }
-      } else {
-        silenceStart = null;
-        if (dot) dot.style.background = "#ef4444";
-        if (statusEl) statusEl.textContent = "Đang nghe…";
+      } else if (statusEl) {
+        statusEl.textContent = "Đang nghe…"; // chờ khách mở lời
       }
 
       // Draw waveform
@@ -503,12 +708,20 @@ function _startWaveform(stream) {
       waveformAnimId = requestAnimationFrame(draw);
     };
     draw();
-  } catch (e) { /* AudioContext unavailable */ }
+  } catch (e) {
+    /* AudioContext unavailable */
+  }
 }
 
 function _stopWaveform() {
-  if (waveformAnimId) { cancelAnimationFrame(waveformAnimId); waveformAnimId = null; }
-  if (audioCtxForMic) { audioCtxForMic.close().catch(() => {}); audioCtxForMic = null; }
+  if (waveformAnimId) {
+    cancelAnimationFrame(waveformAnimId);
+    waveformAnimId = null;
+  }
+  if (audioCtxForMic) {
+    audioCtxForMic.close().catch(() => {});
+    audioCtxForMic = null;
+  }
   silenceStart = null;
   $("waveform-bar").classList.add("hidden");
 }
@@ -517,7 +730,10 @@ async function toggleRecording() {
   // Barge-in: stop bot speech/stream when user presses mic
   if (syncedPlayer.isPlaying || streamController) {
     syncedPlayer.stop();
-    if (streamController) { streamController.abort(); streamController = null; }
+    if (streamController) {
+      streamController.abort();
+      streamController = null;
+    }
     await hideTyping();
     isSending = false;
     refreshChatStatus();
@@ -547,14 +763,17 @@ async function toggleRecording() {
     recognition.onresult = (event) => {
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) recognitionFinalText += cleanStt(event.results[i][0].transcript);
+        if (event.results[i].isFinal)
+          recognitionFinalText += cleanStt(event.results[i][0].transcript);
         else interim = event.results[i][0].transcript;
       }
       $("input").value = recognitionFinalText + interim;
       updateSendState();
     };
     recognition.onerror = () => {};
-    try { recognition.start(); } catch (e) {}
+    try {
+      recognition.start();
+    } catch (e) {}
   }
 
   // Waveform visualizer + silence detection
@@ -563,13 +782,20 @@ async function toggleRecording() {
 
   recordedChunks = [];
   mediaRecorder = new MediaRecorder(stream);
-  mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordedChunks.push(e.data); };
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data.size) recordedChunks.push(e.data);
+  };
   mediaRecorder.onstop = () => {
     stream.getTracks().forEach((track) => track.stop());
     $("mic-btn").classList.remove("recording");
     clearTimeout(recordingTimer);
     _stopWaveform();
-    if (recognition) { try { recognition.stop(); } catch (e) {} recognition = null; }
+    if (recognition) {
+      try {
+        recognition.stop();
+      } catch (e) {}
+      recognition = null;
+    }
     handleRecording(new Blob(recordedChunks, { type: mediaRecorder.mimeType }));
   };
   mediaRecorder.start();
@@ -584,7 +810,13 @@ async function handleRecording(blob) {
   mic.disabled = true;
   const original = mic.textContent;
   mic.textContent = "⏳";
+  const sendCountSnapshot = _sendCount;
   try {
+    if (!blob.size) {
+      if (!$("input").value)
+        addMessage("system", "Không nhận dạng được giọng nói, anh/chị vui lòng gõ câu hỏi giúp.");
+      return;
+    }
     let audio_b64, mime_type;
     try {
       // Try WAV conversion (Chrome/Edge/Firefox)
@@ -602,12 +834,11 @@ async function handleRecording(blob) {
       mime_type = blob.type || "audio/mp4";
     }
     const data = await postJson("/api/stt", { audio_b64, mime_type });
-    if (data.text) {
+    // Only fill input if user hasn't submitted a message while STT was processing
+    if (data.text && _sendCount === sendCountSnapshot) {
       $("input").value = data.text;
       $("input").focus();
       updateSendState();
-    } else if (!$("input").value) {
-      addMessage("system", "Không nhận dạng được giọng nói, anh/chị vui lòng gõ câu hỏi giúp.");
     }
   } catch (error) {
     if (!$("input").value) {
@@ -624,8 +855,10 @@ async function handleRecording(blob) {
 // Screen readers get told who is speaking; sighted users get the bubble side,
 // colour and avatar, which carry the same information.
 const SPEAKER = {
-  customer: "Anh/chị nói", assistant: "Trợ lý trả lời",
-  agent: "Chuyên viên trả lời", system: "Hệ thống",
+  customer: "Anh/chị nói",
+  assistant: "Trợ lý trả lời",
+  agent: "Chuyên viên trả lời",
+  system: "Hệ thống",
 };
 
 // Never scrollIntoView - it moves the page, not just the transcript.
@@ -640,14 +873,34 @@ function bubble(text) {
 }
 
 function clockNow() {
-  return new Date().toLocaleTimeString("vi-VN",
-    { hour: "2-digit", minute: "2-digit" });
+  return new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
 }
 
+// Static, data-free markup, so building the icon via innerHTML is safe here.
+const BOT_ICON =
+  '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" ' +
+  'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+  'stroke-linejoin="round" aria-hidden="true">' +
+  '<rect x="4" y="8" width="16" height="11" rx="3"/>' +
+  '<path d="M12 8V4"/><circle cx="12" cy="3" r="1.3"/>' +
+  '<circle cx="9" cy="13" r="1.1"/><circle cx="15" cy="13" r="1.1"/>' +
+  '<path d="M9.5 16.5h5"/></svg>';
+
+// Icon hình người cho avatar khách (thay cho chữ "K"). Static, data-free.
+const PERSON_ICON =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" ' +
+  'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+  'stroke-linejoin="round" aria-hidden="true">' +
+  '<circle cx="12" cy="8" r="3.4"/>' +
+  '<path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>';
+
 function avatarFor(role) {
-  if (role === "customer") return el("span", "avatar sm me", "B");   // "Bạn"
-  if (role === "agent") return el("span", "avatar sm", "NV");        // nhân viên
-  return el("span", "avatar sm bot", "L");
+  if (role === "customer") return el("span", "avatar sm me", "B"); // "Bạn"
+  if (role === "agent") return el("span", "avatar sm", "NV"); // nhân viên
+  const bot = el("span", "avatar sm bot"); // trợ lý ảo
+  bot.innerHTML = BOT_ICON;
+  bot.setAttribute("aria-label", "Trợ lý ảo");
+  return bot;
 }
 
 function addMessage(role, text, meta, author) {
@@ -687,8 +940,7 @@ function addMessage(role, text, meta, author) {
     // messaging app uses to mean "delivered". Decorative here - there is no
     // delivery receipt behind it - but its absence is what makes a chat demo
     // feel unfinished.
-    body.appendChild(el("div", "msg-time",
-      role === "customer" ? `${clockNow()} ✓✓` : clockNow()));
+    body.appendChild(el("div", "msg-time", role === "customer" ? `${clockNow()} ✓✓` : clockNow()));
   }
 
   // Read-aloud is offered per reply, not as a global auto-play toggle: a
@@ -710,6 +962,28 @@ function addMessage(role, text, meta, author) {
   // demo is meant to look like the product, not the instrumentation. The
   // inspector is the one place that owns them now.
 
+  $("messages").appendChild(wrap);
+  scrollTranscript();
+}
+
+// Ảnh khách gửi từ thư viện. Hiển thị phía client - server chưa nhận ảnh - nên
+// bong bóng chỉ chứa ảnh, cùng khung tin nhắn như addMessage cho đồng bộ.
+function addImageMessage(dataUrl, name) {
+  const wrap = el("div", "msg customer");
+  wrap.appendChild(el("span", "vh", `${SPEAKER.customer}: `));
+  wrap.appendChild(avatarFor("customer"));
+  const body = el("div", "msg-body");
+  wrap.appendChild(body);
+
+  const bubbleEl = el("div", "bubble");
+  const img = el("img", "chat-image");
+  img.src = dataUrl;
+  img.alt = name || "Ảnh đã gửi";
+  img.loading = "lazy";
+  bubbleEl.appendChild(img);
+  body.appendChild(bubbleEl);
+
+  body.appendChild(el("div", "msg-time", `${clockNow()} ✓✓`));
   $("messages").appendChild(wrap);
   scrollTranscript();
 }
@@ -767,8 +1041,13 @@ function spokenAmount(amount) {
   return text;
 }
 
-const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2)
-  .map((word) => word[0].toUpperCase()).join("");
+const initials = (name) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0].toUpperCase())
+    .join("");
 
 // A flow reached straight away and the same flow reached through the
 // verification sub-flow report different notes, and both render the same
@@ -794,8 +1073,14 @@ function splitFlowText(text, pattern) {
   }
   return {
     intro: lines.slice(0, first).join("\n").trim(),
-    rows: lines.slice(first, lastMatch + 1).map((line) => line.match(pattern)).filter(Boolean),
-    tail: lines.slice(lastMatch + 1).join("\n").trim(),
+    rows: lines
+      .slice(first, lastMatch + 1)
+      .map((line) => line.match(pattern))
+      .filter(Boolean),
+    tail: lines
+      .slice(lastMatch + 1)
+      .join("\n")
+      .trim(),
   };
 }
 
@@ -857,8 +1142,7 @@ function transactionCard(text) {
     row.appendChild(body);
 
     const value = el("span", "txn-amount", `${sign}${amount}`);
-    value.setAttribute("aria-label",
-      `${credit ? "Ghi có" : "Ghi nợ"} ${spokenAmount(amount)}`);
+    value.setAttribute("aria-label", `${credit ? "Ghi có" : "Ghi nợ"} ${spokenAmount(amount)}`);
     row.appendChild(value);
 
     card.appendChild(row);
@@ -951,14 +1235,19 @@ function updateInspector(data) {
     // The unverified market-reference documents have to be visibly different
     // here. A competitor fee schedule listed in the same style as the bank's
     // own policy is the misattribution the KB-MKT- headers exist to prevent.
-    html += '<div class="source-list">' + sources.map((s) => {
-      const unverified = (s.citation || "").includes("KB-MKT-");
-      return `<div class="source-item${unverified ? " unverified" : ""}">
+    html +=
+      '<div class="source-list">' +
+      sources
+        .map((s) => {
+          const unverified = (s.citation || "").includes("KB-MKT-");
+          return `<div class="source-item${unverified ? " unverified" : ""}">
         <span class="ic">${unverified ? "🌐" : "📄"}</span>
         <span>${escapeHtml(s.breadcrumb || s.citation)}
-          ${unverified ? '<em>Tham khảo thị trường - chưa được ngân hàng thẩm định</em>' : ""}
+          ${unverified ? "<em>Tham khảo thị trường - chưa được ngân hàng thẩm định</em>" : ""}
         </span></div>`;
-    }).join("") + "</div>";
+        })
+        .join("") +
+      "</div>";
   } else if (data.route !== "deterministic" && data.route !== "agent") {
     html += '<p class="empty">Không có tài liệu nào được dẫn cho câu trả lời này.</p>';
   }
@@ -986,14 +1275,18 @@ function renderTrace(steps) {
     $("trace").innerHTML = '<p class="empty">-</p>';
     return;
   }
-  $("trace").innerHTML = steps.map((s) => `
+  $("trace").innerHTML = steps
+    .map(
+      (s) => `
     <div class="trace-step ${s.decisive ? "decisive" : ""}">
       <div class="trace-head">
         <span class="trace-stage">${escapeHtml(s.stage)}</span>
         <span>${escapeHtml(s.outcome)}</span>
       </div>
       ${s.detail ? `<div class="trace-detail">${escapeHtml(s.detail)}</div>` : ""}
-    </div>`).join("");
+    </div>`
+    )
+    .join("");
 }
 
 /* ---------- architecture toggle (demo lever) ---------- */
@@ -1001,8 +1294,7 @@ function renderTrace(steps) {
 function applyRawMode(enabled) {
   $("raw-toggle").checked = enabled;
   $("arch-toggle-box").classList.toggle("raw", enabled);
-  $("arch-toggle-title").textContent =
-    enabled ? "Chế độ LLM thuần" : "Kiến trúc đầy đủ";
+  $("arch-toggle-title").textContent = enabled ? "Chế độ LLM thuần" : "Kiến trúc đầy đủ";
   $("arch-toggle-hint").textContent = enabled
     ? "Định tuyến, guardrail, truy xuất và kiểm tra dẫn nguồn đang bị bỏ qua trong hội thoại này."
     : "Định tuyến, guardrail, truy xuất và kiểm tra dẫn nguồn đều đang bật.";
@@ -1022,74 +1314,12 @@ async function toggleRawMode(enabled) {
   }
 }
 
-/* ---------- demo script (safety net for live demos) ---------- */
-
-let scriptName = null;
-let scriptStep = 0;
-let scriptTotal = 0;
-
-// Reflects whatever the server last reported for this session - called both
-// after start/stop and after every chat turn, so a script that runs out
-// mid-conversation clears the UI on its own instead of staying "armed" after
-// the router has already stopped enforcing it.
-function applyScriptState(name, step, total) {
-  scriptName = name || null;
-  scriptStep = step || 0;
-  scriptTotal = total || 0;
-
-  $("script-toggle-title").textContent = scriptName
-    ? `Kịch bản demo: đang chạy (${scriptStep}/${scriptTotal})`
-    : "Kịch bản demo: tắt";
-  $("script-select").disabled = Boolean(scriptName);
-  $("script-start-btn").classList.toggle("hidden", Boolean(scriptName));
-  $("script-stop-btn").classList.toggle("hidden", !scriptName);
-  $("script-banner").classList.toggle("hidden", !scriptName);
-  if (scriptName) {
-    const opt = $("script-select").selectedOptions[0];
-    $("script-banner-title").textContent =
-      `Chế độ kịch bản demo - ${opt ? opt.textContent : scriptName} (${scriptStep}/${scriptTotal})`;
-  }
-}
-
-async function refreshScriptList() {
-  try {
-    const data = await api("/api/demo-script");
-    const select = $("script-select");
-    select.innerHTML = (data.scripts || [])
-      .map((s) => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.label)} (${s.steps} lượt)</option>`)
-      .join("");
-  } catch (_) {
-    // Staff-only endpoint; a failure here just leaves the picker empty.
-  }
-}
-
-async function startScript() {
-  const name = $("script-select").value;
-  if (!name) return;
-  try {
-    const data = await postJson("/api/demo-script/start", { session_id: sessionId, name });
-    sessionId = data.session_id;
-    applyScriptState(data.script_name, data.script_step, data.script_total);
-  } catch (error) {
-    addMessage("system", `Could not start script: ${error.message}`);
-  }
-}
-
-async function stopScript() {
-  try {
-    const data = await postJson("/api/demo-script/stop", { session_id: sessionId });
-    sessionId = data.session_id;
-    applyScriptState(data.script_name, 0, 0);
-  } catch (error) {
-    addMessage("system", `Could not stop script: ${error.message}`);
-  }
-}
-
 async function send(message) {
   if (!message.trim()) return;
   if (voiceEnabled && ttsAvailable) _unlockAudio();
   addMessage("customer", message);
   $("input").value = "";
+  _sendCount++;
   $("send").disabled = true;
   showTyping();
   isSending = true;
@@ -1115,7 +1345,8 @@ async function send(message) {
     await hideTyping();
     streamMsg = addStreamingMessage();
     const useVoice = voiceEnabled && ttsAvailable;
-    if (useVoice) streamMsg.bubbleEl.innerHTML = '<div class="typing-bubble"><i></i><i></i><i></i></div>';
+    if (useVoice)
+      streamMsg.bubbleEl.innerHTML = '<div class="typing-bubble"><i></i><i></i><i></i></div>';
 
     // Word-by-word text reveal at 250ms/word
     // Track position in fullText (not a rebuilt string) so newlines and markdown
@@ -1125,13 +1356,20 @@ async function send(message) {
     let pendingWordCount = 0;
     let wordRevealTimer = null;
     let pendingFinalMeta = null;
+    // ms per word. Default typewriter cadence; in voice mode this is retuned to
+    // the real audio length (see onloadedmetadata) so the caption tracks the
+    // voice instead of finishing seconds ahead of it.
+    let wordIntervalMs = 250;
 
     function doFinalizeMsg(m) {
       if (m.route === "agent") {
         streamMsg.wrap.remove();
-        addMessage("system", m.handled_by
-          ? `Đã gửi đến ${m.handled_by}.`
-          : "Đã gửi vào hàng chờ chuyên viên - sẽ có người tiếp nhận sớm.");
+        addMessage(
+          "system",
+          m.handled_by
+            ? `Đã gửi đến ${m.handled_by}.`
+            : "Đã gửi vào hàng chờ chuyên viên - sẽ có người tiếp nhận sớm."
+        );
       } else {
         finalizeStreamingMessage(streamMsg.wrap, streamMsg.body, fullText, m);
       }
@@ -1145,7 +1383,11 @@ async function send(message) {
     function revealNext() {
       if (!pendingWordCount) {
         wordRevealTimer = null;
-        if (pendingFinalMeta) { const m = pendingFinalMeta; pendingFinalMeta = null; doFinalizeMsg(m); }
+        if (pendingFinalMeta) {
+          const m = pendingFinalMeta;
+          pendingFinalMeta = null;
+          doFinalizeMsg(m);
+        }
         return;
       }
       pendingWordCount--;
@@ -1154,7 +1396,7 @@ async function send(message) {
         streamMsg.bubbleEl.innerHTML = render(fullText.slice(0, revealedChars));
         scrollTranscript();
       }
-      wordRevealTimer = setTimeout(revealNext, 250);
+      wordRevealTimer = setTimeout(revealNext, wordIntervalMs);
     }
     function queueText(text) {
       const words = text.trim().split(/\s+/).filter(Boolean);
@@ -1171,7 +1413,9 @@ async function send(message) {
       if (m.in_handoff) startPolling();
 
       if (m.route === "agent") {
-        clearTimeout(wordRevealTimer); wordRevealTimer = null; pendingWordCount = 0;
+        clearTimeout(wordRevealTimer);
+        wordRevealTimer = null;
+        pendingWordCount = 0;
         doFinalizeMsg(m);
       } else if (useVoice) {
         // Voice on: text deferred — revealNext calls doFinalizeMsg when words drain
@@ -1180,8 +1424,11 @@ async function send(message) {
         pendingFinalMeta = m;
         setTimeout(() => {
           if (pendingFinalMeta === m) {
-            clearTimeout(wordRevealTimer); wordRevealTimer = null; pendingWordCount = 0;
-            pendingFinalMeta = null; doFinalizeMsg(m);
+            clearTimeout(wordRevealTimer);
+            wordRevealTimer = null;
+            pendingWordCount = 0;
+            pendingFinalMeta = null;
+            doFinalizeMsg(m);
           }
         }, 30000);
       } else {
@@ -1203,7 +1450,11 @@ async function send(message) {
         const line = part.trim();
         if (!line.startsWith("data: ")) continue;
         let ev;
-        try { ev = JSON.parse(line.slice(6)); } catch { continue; }
+        try {
+          ev = JSON.parse(line.slice(6));
+        } catch {
+          continue;
+        }
 
         if (ev.token !== undefined) {
           fullText += ev.token;
@@ -1213,12 +1464,19 @@ async function send(message) {
           const m = ev.meta;
           sessionId = m.session_id;
           applyRawMode(Boolean(m.raw_mode));
-          applyScriptState(m.script_name, m.script_step, m.script_total);
           finalizeMeta(m);
 
           if (useVoice && fullText.trim() && m.route !== "agent") {
-            if (streamingAudio) { streamingAudio.pause(); streamingAudio.src = ""; streamingAudio = null; }
-            if (ttsPlayingBtn) { ttsPlayer.pause(); resetSpeakBtn(ttsPlayingBtn); ttsPlayingBtn = null; }
+            if (streamingAudio) {
+              streamingAudio.pause();
+              streamingAudio.src = "";
+              streamingAudio = null;
+            }
+            if (ttsPlayingBtn) {
+              ttsPlayer.pause();
+              resetSpeakBtn(ttsPlayingBtn);
+              ttsPlayingBtn = null;
+            }
             fetch("/api/tts", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1227,14 +1485,28 @@ async function send(message) {
               .then((r) => (r.ok ? r.blob() : null))
               .then((b) => (b ? URL.createObjectURL(b) : null))
               .then((url) => {
-                if (!url) { queueText(fullText); return; }
-                const audio = new Audio();
+                if (!url) {
+                  queueText(fullText);
+                  return;
+                }
+                const audio = streamPlayer; // persistent, gesture-primed element
                 streamingAudio = audio;
                 audio.onloadedmetadata = () => {
+                  _resumeTtsCtxIfAny(); // tránh chat mất tiếng sau cuộc gọi
                   audio.play().catch((e) => console.warn("audio.play() blocked:", e.message));
+                  // Retune the reveal cadence to the real clip length so the
+                  // caption finishes with the voice, not ~9s before it.
+                  const words = fullText.trim().split(/\s+/).filter(Boolean).length;
+                  const dur = audio.duration;
+                  if (words > 0 && isFinite(dur) && dur > 0) {
+                    wordIntervalMs = Math.min(1000, Math.max(60, (dur * 1000) / words));
+                  }
                   queueText(fullText);
                 };
-                audio.onended = () => { URL.revokeObjectURL(url); if (streamingAudio === audio) streamingAudio = null; };
+                audio.onended = () => {
+                  URL.revokeObjectURL(url);
+                  if (streamingAudio === audio) streamingAudio = null;
+                };
                 audio.onerror = () => {
                   URL.revokeObjectURL(url);
                   if (streamingAudio === audio) streamingAudio = null;
@@ -1242,7 +1514,9 @@ async function send(message) {
                 };
                 audio.src = url;
               })
-              .catch(() => { if (!revealedChars) queueText(fullText); });
+              .catch(() => {
+                if (!revealedChars) queueText(fullText);
+              });
           }
         } else if (ev.error) {
           throw new Error(ev.error);
@@ -1250,7 +1524,11 @@ async function send(message) {
       }
     }
   } catch (error) {
-    if (streamingAudio) { streamingAudio.pause(); streamingAudio.src = ""; streamingAudio = null; }
+    if (streamingAudio) {
+      streamingAudio.pause();
+      streamingAudio.src = "";
+      streamingAudio = null;
+    }
     if (error.name === "AbortError") return;
     await hideTyping();
     if (streamMsg && !fullText) streamMsg.wrap.remove();
@@ -1342,7 +1620,8 @@ async function pollForAgent() {
   if (!sessionId) return;
   try {
     const data = await api(
-      `/api/chat/poll?session_id=${encodeURIComponent(sessionId)}&since=${renderedCount}`);
+      `/api/chat/poll?session_id=${encodeURIComponent(sessionId)}&since=${renderedCount}`
+    );
     for (const m of data.messages) {
       if (m.role === "agent") addMessage("agent", m.text, null, m.author);
     }
@@ -1365,7 +1644,56 @@ function statTile(label, value, sub, tone) {
   </div>`;
 }
 
+// The bot-control strip reads /api/health so the dashboard leads with what an
+// operator actually controls: whether the bot is answering, on which model,
+// and with which voice - before any of the metrics below.
+async function renderBotControl() {
+  const grid = $("bot-status-grid");
+  try {
+    const h = await api("/api/health");
+    const kb = h.knowledge_base || {};
+    const live = h.mode === "live";
+    grid.innerHTML = [
+      botStatusTile(
+        "Trạng thái bot",
+        live ? "Đang hoạt động" : "Ngoại tuyến",
+        live ? "Trợ lý ảo đang trả lời" : h.detail || "chưa cấu hình model",
+        live ? "ok" : "warn"
+      ),
+      botStatusTile(
+        "Giọng nói (TTS)",
+        h.tts_available ? "Sẵn sàng" : "Không khả dụng",
+        h.tts_available ? "bot đọc được câu trả lời" : "bot chỉ trả lời văn bản",
+        h.tts_available ? "ok" : "warn"
+      ),
+      botStatusTile(
+        "Nhận giọng nói (STT)",
+        h.stt_available ? "Sẵn sàng" : "Không khả dụng",
+        h.stt_available ? "khách nói chuyện trực tiếp được" : "khách chỉ gõ phím",
+        h.stt_available ? "ok" : "warn"
+      ),
+      botStatusTile(
+        "Kho tri thức",
+        `${kb.documents ?? "-"} tài liệu`,
+        `${kb.passages ?? "-"} đoạn trích đang được truy xuất`,
+        "ok"
+      ),
+    ].join("");
+  } catch {
+    grid.innerHTML = '<p class="empty">Không đọc được trạng thái hệ thống.</p>';
+  }
+}
+
+function botStatusTile(label, value, sub, tone) {
+  return `<div class="bot-status ${tone}">
+    <span class="bs-label">${escapeHtml(label)}</span>
+    <span class="bs-value"><i class="dot"></i>${escapeHtml(value)}</span>
+    <span class="bs-sub">${escapeHtml(sub)}</span>
+  </div>`;
+}
+
 async function refreshDashboard() {
+  renderBotControl();
   const data = await api("/api/dashboard");
   const m = data.metrics;
 
@@ -1374,45 +1702,76 @@ async function refreshDashboard() {
     `được tính từ chính tiến trình đang chạy`;
 
   const median = m.median_latency_ms;
-  const latency = median >= 1000 ? `${(median / 1000).toFixed(1)}s` : `${median} ms`;
+  const latency =
+    median >= 1000 ? `${(median / 1000).toFixed(1)}s` : median === 0 ? "< 1 ms" : `${median} ms`;
 
   $("stat-grid").innerHTML = [
-    statTile("Tỷ lệ tự xử lý", pct(m.deflection_rate),
-             `${m.deflected} được giải quyết không cần nhân viên`, "good"),
-    statTile("Thời gian phản hồi trung vị", latency,
-             `mốc tổng đài truyền thống ${m.baseline_response_seconds}s`, "good"),
-    statTile("Câu trả lời có dẫn nguồn", pct(m.grounding_rate),
-             `${m.grounded_answers}/${m.knowledge_answers} câu trả lời tra cứu`),
-    statTile("Chuyển cho nhân viên", String(m.escalated),
-             "mỗi ca đều có bản tóm tắt bàn giao"),
-    statTile("Yêu cầu bị chặn theo quy định", String(m.guardrail_blocks),
-             "từ chối trước khi model xử lý"),
-    statTile("Thời gian nhân viên tiết kiệm được", `${(m.estimated_minutes_saved / 60).toFixed(1)} h`,
-             `ước tính · ${m.assumptions.handle_minutes_per_deflected_conversation} phút/hội thoại`,
-             "estimate"),
+    statTile(
+      "Tỷ lệ tự xử lý",
+      pct(m.deflection_rate),
+      `${m.deflected} được giải quyết không cần nhân viên`,
+      "good"
+    ),
+    statTile(
+      "Thời gian phản hồi trung vị",
+      latency,
+      `mốc tổng đài truyền thống ${m.baseline_response_seconds}s`,
+      "good"
+    ),
+    statTile(
+      "Câu trả lời có dẫn nguồn",
+      pct(m.grounding_rate),
+      `${m.grounded_answers}/${m.knowledge_answers} câu trả lời tra cứu`
+    ),
+    statTile("Chuyển cho nhân viên", String(m.escalated), "mỗi ca đều có bản tóm tắt bàn giao"),
+    statTile(
+      "Yêu cầu bị chặn theo quy định",
+      String(m.guardrail_blocks),
+      "từ chối trước khi model xử lý"
+    ),
+    statTile(
+      "Thời gian nhân viên tiết kiệm được",
+      `${(m.estimated_minutes_saved / 60).toFixed(1)} h`,
+      `ước tính · ${m.assumptions.handle_minutes_per_deflected_conversation} phút/hội thoại`,
+      "estimate"
+    ),
   ].join("");
 
   const total = Object.values(m.route_mix).reduce((a, b) => a + b, 0) || 1;
-  $("route-bars").innerHTML = Object.entries(m.route_mix).map(([route, n]) => `
+  $("route-bars").innerHTML =
+    Object.entries(m.route_mix)
+      .map(
+        ([route, n]) => `
     <div class="bar-row">
       <span class="bar-label"><span class="chip ${route}">${route}</span></span>
       <span class="bar"><i class="${route}" style="width:${(n / total) * 100}%"></i></span>
       <span class="bar-n">${n}</span>
-    </div>`).join("") +
-    `<p class="hint" style="margin:12px 0 0">${escapeHtml(m.assumptions.note)}</p>`;
+    </div>`
+      )
+      .join("") + `<p class="hint" style="margin:12px 0 0">${escapeHtml(m.assumptions.note)}</p>`;
 
-  $("activity").innerHTML = data.activity.map((a) => `
+  $("activity").innerHTML =
+    data.activity
+      .map(
+        (a) => `
     <button class="queue-item ${a.escalated ? "alert" : ""}" data-id="${escapeHtml(a.session_id)}">
       <strong>${escapeHtml(a.last_utterance || "(không có tin nhắn)")}</strong>
       <small>${escapeHtml(a.customer_name || "chưa xác định")} · ${a.turns} lượt ·
         route gần nhất <b>${escapeHtml(a.last_route)}</b> · ${a.age_seconds}s trước</small>
       ${a.escalated ? `<small>đã chuyển nhân viên - ${escapeHtml(a.reason || "")}</small>` : ""}
-    </button>`).join("") ||
+    </button>`
+      )
+      .join("") ||
     '<p class="empty">Chưa có hội thoại nào. Dùng "Nạp dữ liệu demo", hoặc chat thử với vai khách hàng.</p>';
 
-  $("activity").querySelectorAll(".queue-item").forEach((b) => {
-    b.onclick = () => { showPanel("queue"); openSession(b.dataset.id); };
-  });
+  $("activity")
+    .querySelectorAll(".queue-item")
+    .forEach((b) => {
+      b.onclick = () => {
+        showPanel("queue");
+        openSession(b.dataset.id);
+      };
+    });
 
   $("queue-count").textContent = data.queue.length;
   $("queue-count").classList.toggle("zero", data.queue.length === 0);
@@ -1422,95 +1781,102 @@ async function refreshDashboard() {
     `${t.total_unresolved || 0} lượt chưa trả lời được, ${t.distinct_questions || 0} câu hỏi khác nhau`;
   $("topics").innerHTML =
     (t.topics.length
-      ? t.topics.map((c) => `
+      ? t.topics
+          .map(
+            (c) => `
           <div class="topic">
             <div class="row-between">
               <strong>${escapeHtml(c.label)}</strong>
               <span class="chip escalation">${c.size}x</span>
             </div>
             <ul>${c.questions.map((q) => `<li>${escapeHtml(q)}</li>`).join("")}</ul>
-          </div>`).join("")
-      : '<p class="empty">Chưa có khoảng trống lặp lại nào - mọi câu chưa trả lời được đến giờ đều là ca đơn lẻ.</p>')
-    + (t.singletons.length
-      ? `<p class="hint" style="margin-top:10px">Và ${t.singletons.length} câu hỏi đơn lẻ khác: `
-        + t.singletons.map((c) => escapeHtml(c.questions[0])).join("; ") + "</p>"
+          </div>`
+          )
+          .join("")
+      : '<p class="empty">Chưa có khoảng trống lặp lại nào - mọi câu chưa trả lời được đến giờ đều là ca đơn lẻ.</p>') +
+    (t.singletons.length
+      ? `<div class="topic-singletons">
+          <p class="hint">Và ${t.singletons.length} câu hỏi đơn lẻ khác:</p>
+          <ul>${t.singletons.map((c) => `<li>${escapeHtml(c.questions[0])}</li>`).join("")}</ul>
+         </div>`
       : "");
 
   const p = data.policy || {};
-  $("policy-box").innerHTML = [
-    ["Mức độ nghiêm ngặt", p.strictness], ["Nguồn cấu hình", p.source],
-    ["Ngưỡng dẫn nguồn", p.min_grounding], ["Ngưỡng liên quan", p.min_relevance],
-    ["Ngưỡng nhận diện ý định", p.high_confidence],
-  ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
-   + '<p class="hint" style="margin:10px 0 0">Càng cao thì càng hay từ chối, càng ít sai. '
-   + 'Càng thấp thì trả lời nhiều hơn, sai nhiều hơn. Sửa trong config.json; áp dụng khi tải lại.</p>';
+  $("policy-box").innerHTML =
+    [
+      ["Mức độ nghiêm ngặt", p.strictness],
+      ["Nguồn cấu hình", p.source],
+      ["Ngưỡng dẫn nguồn", p.min_grounding],
+      ["Ngưỡng liên quan", p.min_relevance],
+      ["Ngưỡng nhận diện ý định", p.high_confidence],
+    ]
+      .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`)
+      .join("") +
+    '<p class="hint" style="margin:10px 0 0">Càng cao thì càng hay từ chối, càng ít sai. ' +
+    "Càng thấp thì trả lời nhiều hơn, sai nhiều hơn. Sửa trong config.json; áp dụng khi tải lại.</p>";
 
   const c = data.campaigns || {};
-  $("campaign-box").innerHTML = [
-    ["Chương trình", c.campaigns], ["Khách hàng được nhắm tới", c.customers_targeted],
-    ["Nguồn dữ liệu", c.source], ["Tuổi dữ liệu", c.age_hours != null ? `${c.age_hours} giờ` : "-"],
-  ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
-   + '<p class="hint" style="margin:10px 0 0">Trích xuất CRM qua đêm. Điều kiện tham gia được '
-   + 'đọc từ dữ liệu, không suy diễn - ngân hàng quyết định ai được nhắm tới.</p>';
+  $("campaign-box").innerHTML =
+    [
+      ["Chương trình", c.campaigns],
+      ["Khách hàng được nhắm tới", c.customers_targeted],
+      ["Nguồn dữ liệu", c.source],
+      ["Tuổi dữ liệu", c.age_hours != null ? `${c.age_hours} giờ` : "-"],
+    ]
+      .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`)
+      .join("") +
+    '<p class="hint" style="margin:10px 0 0">Trích xuất CRM qua đêm. Điều kiện tham gia được ' +
+    "đọc từ dữ liệu, không suy diễn - ngân hàng quyết định ai được nhắm tới.</p>";
 
   const mem = data.memory || {};
-  $("memory-box").innerHTML = [
-    ["Khách hàng được ghi nhớ", mem.customers], ["Ghi chú lưu lại", mem.notes],
-    ["Thời hạn lưu", mem.ttl_days != null ? `${mem.ttl_days} ngày` : "-"],
-    ["Lưu trữ", mem.retains],
-  ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
-   + '<p class="hint" style="margin:10px 0 0">Chỉ ghi sau khi đã xác thực, '
-   + 'và xoá cùng với các phiên hội thoại.</p>';
-
-  const rt = data.router || {};
-  $("router-mode").textContent = `chế độ: ${rt.mode || "nlu"}`;
-  if (!rt.comparisons) {
-    $("router-box").innerHTML = rt.mode === "nlu"
-      ? '<p class="empty">Chỉ dùng bộ phân loại lexical. Đặt "router_mode": "shadow" '
-        + 'trong config.json để bắt đầu thu thập số liệu so sánh.</p>'
-      : '<p class="empty">Chưa có lượt nào được so sánh.</p>';
-  } else {
-    $("router-box").innerHTML =
-      [["Số lượt so sánh", rt.comparisons],
-       ["Trùng khớp", `${rt.agreements} (${pct(rt.agreement_rate)})`],
-       ["Lệch", rt.comparisons - rt.agreements]]
-        .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`)
-        .join("")
-      + (rt.disagreements.length
-        ? `<table class="events" style="margin-top:10px"><thead><tr>
-             <th>Câu hỏi</th><th>Lexical</th><th>LLM</th><th>Đã dùng</th></tr></thead><tbody>`
-          + rt.disagreements.map((d) => `<tr>
-              <td>${escapeHtml(d.text)}</td>
-              <td>${escapeHtml(d.lexical)} <em>${d.lexical_confidence ?? ""}</em></td>
-              <td>${escapeHtml(d.llm)} <em>${d.llm_confidence ?? ""}</em></td>
-              <td>${escapeHtml(d.used)}</td></tr>`).join("")
-          + "</tbody></table>"
-        : "");
-  }
+  $("memory-box").innerHTML =
+    [
+      ["Khách hàng được ghi nhớ", mem.customers],
+      ["Ghi chú lưu lại", mem.notes],
+      ["Thời hạn lưu", mem.ttl_days != null ? `${mem.ttl_days} ngày` : "-"],
+      ["Lưu trữ", mem.retains],
+    ]
+      .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`)
+      .join("") +
+    '<p class="hint" style="margin:10px 0 0">Chỉ ghi sau khi đã xác thực, ' +
+    "và xoá cùng với các phiên hội thoại.</p>";
 
   const dbs = data.database || {};
   const byStatus = dbs.cards_by_status || {};
-  $("db-box").innerHTML = [
-    ["Khách hàng", dbs.customers], ["Thẻ", dbs.cards],
-    ["Thay đổi trạng thái thẻ", dbs.card_events],
-  ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("")
-   + Object.entries(byStatus).map(([k, v]) =>
-       `<div class="kv"><span>&nbsp;&nbsp;${escapeHtml(k)}</span><span>${v}</span></div>`).join("")
-   + '<p class="hint" style="margin:10px 0 0">sqlite, được nạp lại bởi Xoá toàn bộ phiên '
-   + 'và Nạp dữ liệu demo.</p>';
+  $("db-box").innerHTML =
+    [
+      ["Khách hàng", dbs.customers],
+      ["Thẻ", dbs.cards],
+      ["Thay đổi trạng thái thẻ", dbs.card_events],
+    ]
+      .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`)
+      .join("") +
+    Object.entries(byStatus)
+      .map(
+        ([k, v]) =>
+          `<div class="kv"><span>&nbsp;&nbsp;${escapeHtml(k)}</span><span>${v}</span></div>`
+      )
+      .join("") +
+    '<p class="hint" style="margin:10px 0 0">sqlite, được nạp lại bởi Xoá toàn bộ phiên ' +
+    "và Nạp dữ liệu demo.</p>";
 
   const events = data.card_events || [];
   $("card-events").innerHTML = events.length
     ? `<table class="events"><thead><tr><th>Card</th><th>Transition</th>
-        <th>Action</th><th>By</th><th>Ref</th><th>When</th></tr></thead><tbody>`
-      + events.map((e) => `<tr>
+        <th>Action</th><th>By</th><th>Ref</th><th>When</th></tr></thead><tbody>` +
+      events
+        .map(
+          (e) => `<tr>
           <td><code>${escapeHtml(e.card_id)}</code></td>
           <td>${escapeHtml(e.from_status || "-")} &rarr; <b>${escapeHtml(e.to_status)}</b></td>
           <td>${escapeHtml(e.action)}</td>
           <td>${escapeHtml(e.actor)}</td>
           <td>${escapeHtml(e.reference || "-")}</td>
           <td>${escapeHtml((e.at || "").replace("T", " ").replace("+00:00", ""))}</td>
-        </tr>`).join("") + "</tbody></table>"
+        </tr>`
+        )
+        .join("") +
+      "</tbody></table>"
     : '<p class="empty">No card actions yet. Block or freeze a card in the customer chat and it appears here.</p>';
 }
 
@@ -1521,17 +1887,24 @@ async function refreshQueue() {
   $("queue-count").textContent = data.sessions.length;
   $("queue-count").classList.toggle("zero", data.sessions.length === 0);
 
-  $("queue").innerHTML = data.sessions.map((s) => `
+  $("queue").innerHTML =
+    data.sessions
+      .map(
+        (s) => `
     <button class="queue-item alert ${s.session_id === selectedSession ? "active" : ""}"
             data-id="${escapeHtml(s.session_id)}">
       <strong>${escapeHtml(s.customer_name || "Khách chưa xác định")}</strong>
       <small>${s.turns} lượt · ${s.verified ? "đã xác thực" : "chưa xác thực"}</small>
       <small>${escapeHtml(s.reason || "")}</small>
-    </button>`).join("") || '<p class="empty">Không có ca nào đang chờ.</p>';
+    </button>`
+      )
+      .join("") || '<p class="empty">Không có ca nào đang chờ.</p>';
 
-  $("queue").querySelectorAll(".queue-item").forEach((b) => {
-    b.onclick = () => openSession(b.dataset.id);
-  });
+  $("queue")
+    .querySelectorAll(".queue-item")
+    .forEach((b) => {
+      b.onclick = () => openSession(b.dataset.id);
+    });
 }
 
 async function openSession(id) {
@@ -1543,17 +1916,20 @@ async function openSession(id) {
 
   const data = await postJson("/api/summary", { session_id: id });
   $("summary").innerHTML = render(data.summary);
-  $("summary-source").textContent = data.generated
-    ? `viết bởi ${data.model}` : "mẫu offline";
+  $("summary-source").textContent = data.generated ? `viết bởi ${data.model}` : "mẫu offline";
   $("transcript").textContent = data.transcript;
   $("handled-by").textContent = data.handled_by ? `đang xử lý bởi ${data.handled_by}` : "";
-  $("audit").innerHTML = data.audit.map((row) => `
+  $("audit").innerHTML = data.audit
+    .map(
+      (row) => `
     <div class="audit-row">
       <span class="turn">#${row.turn}</span>
       <span class="chip ${row.route}">${row.route}</span>
       <span class="utt" title="${escapeHtml(row.utterance)}">${escapeHtml(row.utterance)}</span>
       <span class="turn">${row.actor ? escapeHtml(row.actor) + " · " : ""}${row.latency_ms}ms</span>
-    </div>`).join("");
+    </div>`
+    )
+    .join("");
   refreshQueue();
 }
 
@@ -1585,18 +1961,25 @@ async function refreshKb() {
   $("kb-stats").textContent =
     `${data.stats.passages} đoạn trích có thể truy xuất trong ${data.stats.documents} tài liệu`;
 
-  $("kb-list").innerHTML = data.documents.map((d) => `
+  $("kb-list").innerHTML =
+    data.documents
+      .map(
+        (d) => `
     <button class="queue-item ${d.filename === selectedDoc ? "active" : ""}"
             data-name="${escapeHtml(d.filename)}">
       <strong>${escapeHtml(d.title)}</strong>
       <small>${escapeHtml(d.filename)} · ${escapeHtml(d.format)}</small>
       <small>${d.passages} đoạn · ${(d.bytes / 1024).toFixed(1)} KB</small>
-    </button>`).join("") ||
+    </button>`
+      )
+      .join("") ||
     '<p class="empty">Chưa có tài liệu. Mọi câu hỏi về kiến thức sẽ được chuyển tiếp.</p>';
 
-  $("kb-list").querySelectorAll(".queue-item").forEach((b) => {
-    b.onclick = () => openDoc(b.dataset.name);
-  });
+  $("kb-list")
+    .querySelectorAll(".queue-item")
+    .forEach((b) => {
+      b.onclick = () => openDoc(b.dataset.name);
+    });
 }
 
 async function openDoc(filename) {
@@ -1609,13 +1992,30 @@ async function openDoc(filename) {
   $("kb-edit").classList.toggle("hidden", !data.editable);
   $("kb-passage-count").textContent = `${data.passages.length} đoạn trích`;
   $("kb-raw").textContent = data.content;
-  $("kb-passages").innerHTML = data.passages.map((p) => `
+  $("kb-passages").innerHTML = data.passages
+    .map(
+      (p) => `
     <div class="passage">
       <h4>${escapeHtml(p.heading)}</h4>
       <div class="cite">${escapeHtml(p.breadcrumb || p.citation)}</div>
       <p>${escapeHtml(p.text.slice(0, 320))}${p.text.length > 320 ? "…" : ""}</p>
-    </div>`).join("");
+    </div>`
+    )
+    .join("");
   refreshKb();
+
+  // Hiệu ứng "kéo xuống": khung xem trượt từ trên xuống + mờ dần mỗi lần mở.
+  // Xoá rồi gán lại class (sau khi ép reflow) để animation chạy lại từ đầu.
+  const view = $("kb-view");
+  view.classList.remove("kb-reveal");
+  void view.offsetWidth;
+  view.classList.add("kb-reveal");
+
+  // Trên điện thoại khung xem/sửa nằm bên dưới danh sách, nên tự cuộn xuống để
+  // thấy tài liệu vừa chọn ngay. Desktop hiển thị cạnh nhau nên bỏ qua.
+  if (window.matchMedia("(max-width: 767px)").matches) {
+    requestAnimationFrame(() => view.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
 }
 
 function openEditor(filename, content) {
@@ -1634,7 +2034,8 @@ async function saveDoc() {
   $("kb-save").disabled = true;
   try {
     const data = await postJson("/api/kb/upload", {
-      filename: $("kb-filename").value, content: $("kb-content").value,
+      filename: $("kb-filename").value,
+      content: $("kb-content").value,
     });
     $("kb-editor").classList.add("hidden");
     await refreshKb();
@@ -1648,7 +2049,12 @@ async function saveDoc() {
 
 async function deleteDoc() {
   if (!selectedDoc) return;
-  if (!confirm(`Xoá ${selectedDoc}? Các đoạn trích từ tài liệu này sẽ ngừng được truy xuất ngay lập tức.`)) return;
+  if (
+    !confirm(
+      `Xoá ${selectedDoc}? Các đoạn trích từ tài liệu này sẽ ngừng được truy xuất ngay lập tức.`
+    )
+  )
+    return;
   await postJson("/api/kb/delete", { filename: selectedDoc });
   selectedDoc = null;
   $("kb-view").classList.add("hidden");
@@ -1677,7 +2083,8 @@ async function uploadFile(file) {
   $("kb-drop").classList.add("busy");
   try {
     const data = await postJson("/api/kb/upload", {
-      filename: file.name, file_base64: await readAsBase64(file),
+      filename: file.name,
+      file_base64: await readAsBase64(file),
     });
     await refreshKb();
     await openDoc(data.document.filename);
@@ -1695,32 +2102,49 @@ async function refreshProviders() {
   const data = await api("/api/providers");
   const active = data.active;
 
-  $("provider-list").innerHTML = data.providers.map((p) => {
-    const status = p.available ? "sẵn sàng"
-      : !p.sdk_installed ? `pip install ${p.package}`
-      : `chưa có key - đặt ${p.env_key}`;
-    return `<button class="queue-item ${active.provider === p.name ? "active" : ""}"
+  $("provider-list").innerHTML = data.providers
+    .map((p) => {
+      const status = p.available
+        ? "sẵn sàng"
+        : !p.sdk_installed
+          ? `pip install ${p.package}`
+          : "chưa sẵn sàng";
+      return `<button class="queue-item ${active.provider === p.name ? "active" : ""}"
               data-name="${escapeHtml(p.name)}">
       <strong>${escapeHtml(p.name)}${active.provider === p.name ? " · đang dùng" : ""}</strong>
       <small>${escapeHtml(p.default_model)}</small>
-      <small>${escapeHtml(status)}${p.key_masked ? ` · key ${escapeHtml(p.key_masked)}` : ""}</small>
+      <small>${escapeHtml(status)}</small>
     </button>`;
-  }).join("");
+    })
+    .join("");
 
-  $("provider-list").querySelectorAll(".queue-item").forEach((b) => {
-    b.onclick = () => { $("cfg-provider").value = b.dataset.name; $("cfg-key").focus(); };
-  });
+  $("provider-list")
+    .querySelectorAll(".queue-item")
+    .forEach((b) => {
+      b.onclick = () => {
+        $("cfg-provider").value = b.dataset.name;
+        refreshProviders();
+      };
+    });
 
-  const rows = [["Chế độ", active.mode], ["Nhà cung cấp", active.provider || "-"],
-                ["Model", active.model || "-"], ["Mức suy luận", active.effort || "-"]];
+  const rows = [
+    ["Chế độ", active.mode],
+    ["Nhà cung cấp", active.provider || "-"],
+    ["Model", active.model || "-"],
+    ["Mức suy luận", active.effort || "-"],
+  ];
   if (active.tone) rows.push(["Văn phong", active.tone]);
-  rows.push(["Nhiệt độ",
+  rows.push([
+    "Nhiệt độ",
     active.temperature === null || active.temperature === undefined
-      ? "mặc định của nhà cung cấp" : String(active.temperature)]);
+      ? "mặc định của nhà cung cấp"
+      : String(active.temperature),
+  ]);
   if (active.endpoint) rows.push(["Điểm cuối", active.endpoint]);
   if (active.detail) rows.push(["Chi tiết", active.detail]);
-  $("active-config").innerHTML = rows.map(([k, v]) =>
-    `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`).join("");
+  $("active-config").innerHTML = rows
+    .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`)
+    .join("");
 
   if (active.requested) $("cfg-provider").value = active.requested;
   if (active.effort) $("cfg-effort").value = active.effort;
@@ -1728,27 +2152,24 @@ async function refreshProviders() {
   // Left blank when unset, because blank is what means "provider default" on
   // the way back in. Writing a number here would silently pin it.
   $("cfg-temp").value =
-    active.temperature === null || active.temperature === undefined
-      ? "" : active.temperature;
+    active.temperature === null || active.temperature === undefined ? "" : active.temperature;
   const selected = data.providers.find((p) => p.name === $("cfg-provider").value);
-  $("cfg-key-hint").textContent = selected && selected.key_set
-    ? `- ${selected.key_masked} stored; blank keeps it` : "- stored in memory only";
   $("cfg-model").placeholder = selected ? selected.default_model : "";
 }
 
-async function saveConfig(clearKey) {
+async function saveConfig() {
   clearError($("cfg-error"));
   $("cfg-save").disabled = true;
   try {
     const body = {
-      provider: $("cfg-provider").value, model: $("cfg-model").value,
-      effort: $("cfg-effort").value, base_url: $("cfg-base").value,
-      tone: $("cfg-tone").value, temperature: $("cfg-temp").value,
+      provider: $("cfg-provider").value,
+      model: $("cfg-model").value,
+      effort: $("cfg-effort").value,
+      base_url: $("cfg-base").value,
+      tone: $("cfg-tone").value,
+      temperature: $("cfg-temp").value,
     };
-    if (clearKey) body.api_key = "";
-    else if ($("cfg-key").value.trim()) body.api_key = $("cfg-key").value;
     await postJson("/api/providers", body);
-    $("cfg-key").value = "";
     await refreshProviders();
     await refreshHealth();
   } catch (error) {
@@ -1758,35 +2179,80 @@ async function saveConfig(clearKey) {
   }
 }
 
+// ElevenLabs (Voice 2) và VieNeu (Voice 1) đều có nhiều giọng để chọn; gtts thì không.
+const TTS_HAS_VOICES = (p) => p === "ElevenLabs" || p === "VieNeu";
+
 function updateTtsVoiceFieldVisibility() {
-  $("tts-voice-field").classList.toggle("hidden", $("tts-provider").value !== "vbee");
+  $("tts-voice-field").classList.toggle("hidden", !TTS_HAS_VOICES($("tts-provider").value));
 }
 
-async function refreshTtsStatus() {
+// The voice list comes from the server, not the markup - so a voice configured
+// outside this UI (e.g. in .env) still shows up selected instead of leaving
+// the dropdown blank.
+function fillVoiceOptions(selectEl, voices, current) {
+  const opts = Object.entries(voices || {}).map(
+    ([id, label]) => `<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`
+  );
+  if (current && !(voices || {})[current]) {
+    opts.unshift(`<option value="${escapeHtml(current)}">Giọng hiện tại (tuỳ chỉnh)</option>`);
+  }
+  selectEl.innerHTML = opts.join("");
+  if (current) selectEl.value = current;
+}
+
+let _ttsWarmupRetries = 0;
+async function refreshTtsStatus(_retry) {
+  if (!_retry) _ttsWarmupRetries = 0; // mỗi lần mở panel: bắt đầu lại chuỗi retry
   const data = await api("/api/tts/provider");
   // Đồng bộ cả Settings panel lẫn chat bar
   $("tts-provider").value = data.provider;
-  if (data.vbee_voice) $("tts-voice").value = data.vbee_voice;
+  fillVoiceOptions($("tts-voice"), data.voices, data.voice);
   updateTtsVoiceFieldVisibility();
   // Chat bar
   $("tts-bar-provider").value = data.provider;
-  $("tts-bar-voice").classList.toggle("hidden", data.provider !== "vbee");
-  if (data.vbee_voice) $("tts-bar-voice").value = data.vbee_voice;
+  $("tts-bar-voice").classList.toggle("hidden", !TTS_HAS_VOICES(data.provider));
+  fillVoiceOptions($("tts-bar-voice"), data.voices, data.voice);
 
-  const parts = [];
-  parts.push(data.vbee_available ? "Voice 2: đã cấu hình key" : "Voice 2: chưa có key");
-  parts.push(data.gtts_available ? "Voice 1: đã cài" : "Voice 1: chưa cài (pip install gtts)");
-  $("tts-status").textContent = parts.join(" · ");
+  // VieNeu tải model ~10s đầu (lần đầu có thể lâu hơn) -> danh sách giọng rỗng lúc
+  // mới mở. Tự thử lại đến khi service sẵn sàng (~40s), khỏi phải chuyển provider.
+  const empty = Object.keys(data.voices || {}).length === 0;
+  if (TTS_HAS_VOICES(data.provider) && empty) {
+    // Placeholder cho biết đang chờ, thay vì dropdown trống trơn.
+    const hint =
+      data.provider === "VieNeu" ? "Đang khởi động VieNeu, chờ giọng…" : "Chưa có giọng khả dụng";
+    $("tts-voice").innerHTML = `<option disabled selected>${hint}</option>`;
+    $("tts-bar-voice").innerHTML = `<option disabled selected>${hint}</option>`;
+    if (_ttsWarmupRetries < 20) {
+      _ttsWarmupRetries++;
+      setTimeout(() => refreshTtsStatus(true), 2000);
+    }
+  }
+
+  // Cùng nhãn với dropdown ở trên: VieNeu = Voice 1, ElevenLabs = Voice 2,
+  // gtts = Voice 3.
+  $("tts-status").innerHTML = [
+    data.vieneu_available
+      ? '<span class="pill live">Voice 1 · sẵn sàng</span>'
+      : '<span class="pill offline">Voice 1 · chưa chạy service</span>',
+    data.elevenlabs_available
+      ? '<span class="pill live">Voice 2 · sẵn sàng</span>'
+      : '<span class="pill offline">Voice 2 · chưa có key</span>',
+    data.gtts_available
+      ? '<span class="pill live">Voice 3 · sẵn sàng</span>'
+      : '<span class="pill offline">Voice 3 · chưa cài</span>',
+  ].join(" ");
 }
 
 async function saveTtsFromChatBar() {
   try {
     await postJson("/api/tts/provider", {
       provider: $("tts-bar-provider").value,
-      vbee_voice: $("tts-bar-voice").value,
+      voice: $("tts-bar-voice").value,
     });
     await refreshTtsStatus();
-  } catch { /* silent — chat bar không có chỗ hiển thị lỗi */ }
+  } catch {
+    /* silent — chat bar không có chỗ hiển thị lỗi */
+  }
 }
 
 async function saveTtsConfig() {
@@ -1795,7 +2261,7 @@ async function saveTtsConfig() {
   try {
     await postJson("/api/tts/provider", {
       provider: $("tts-provider").value,
-      vbee_voice: $("tts-voice").value,
+      voice: $("tts-voice").value,
     });
     await refreshTtsStatus();
     await refreshHealth();
@@ -1804,6 +2270,119 @@ async function saveTtsConfig() {
   } finally {
     $("tts-save").disabled = false;
   }
+}
+
+/* ---------- workforce (agents + skillsets) ---------- */
+// Master–detail: a list of agents on the left, and the selected agent's skills
+// + on/off switch on the right. Selection is kept across refreshes so saving
+// does not bounce the admin back to the first agent.
+
+let _agents = [];
+let _selectedAgentId = null;
+
+async function refreshAgents() {
+  clearError($("agents-error"));
+  try {
+    _agents = (await api("/api/agents")).agents;
+  } catch (error) {
+    showError($("agents-error"), error.message);
+    return;
+  }
+  if (!_agents.some((a) => a.id === _selectedAgentId)) {
+    _selectedAgentId = _agents.length ? _agents[0].id : null;
+  }
+  renderAgentList();
+  renderAgentDetail();
+}
+
+function renderAgentList() {
+  const list = $("agents-list");
+  list.textContent = "";
+  _agents.forEach((agent) => {
+    const on = agent.skills.filter((s) => s.on).length;
+    const item = el("button", "agent-list-item" + (agent.id === _selectedAgentId ? " active" : ""));
+    item.type = "button";
+    item.appendChild(el("span", "agent-list-name", agent.name));
+    const meta = agent.enabled ? `${on}/${agent.skills.length} kỹ năng bật` : "đã tắt";
+    item.appendChild(el("span", "agent-list-meta", meta));
+    item.onclick = () => {
+      _selectedAgentId = agent.id;
+      renderAgentList();
+      renderAgentDetail();
+    };
+    list.appendChild(item);
+  });
+}
+
+function renderAgentDetail() {
+  const box = $("agent-detail");
+  box.textContent = "";
+  const agent = _agents.find((a) => a.id === _selectedAgentId);
+  if (!agent) {
+    box.appendChild(el("p", "hint", "Chọn một agent để cấu hình."));
+    return;
+  }
+
+  const head = el("div", "row-between");
+  const title = el("div");
+  title.appendChild(el("h3", null, agent.name));
+  title.appendChild(el("span", "hint", `Skillset: ${agent.skillset_label}`));
+  head.appendChild(title);
+
+  // Whole-agent on/off. An agent switched off owns none of its skills, so the
+  // router falls its intents through to another agent (or to a human).
+  const enableLabel = el("label", "field agent-enable");
+  const enableCb = el("input");
+  enableCb.type = "checkbox";
+  enableCb.checked = agent.enabled;
+  enableLabel.appendChild(enableCb);
+  enableLabel.appendChild(el("span", null, "Agent hoạt động"));
+  head.appendChild(enableLabel);
+  box.appendChild(head);
+
+  box.appendChild(el("p", "hint", "Chọn những nghiệp vụ agent này được phép xử lý:"));
+  const skills = el("div", "agent-skills");
+  const boxes = agent.skills.map((skill) => {
+    const row = el("label", "field");
+    const cb = el("input");
+    cb.type = "checkbox";
+    cb.checked = skill.on;
+    cb.dataset.skill = skill.id;
+    row.appendChild(cb);
+    row.appendChild(el("span", null, skill.display_name));
+    skills.appendChild(row);
+    return cb;
+  });
+  box.appendChild(skills);
+
+  const foot = el("div", "row-gap");
+  const save = el("button", "primary small", "Lưu");
+  const status = el("span", "hint");
+  foot.appendChild(save);
+  foot.appendChild(status);
+  box.appendChild(foot);
+
+  save.onclick = async () => {
+    save.disabled = true;
+    status.textContent = "Đang lưu...";
+    try {
+      const enabled_skills = boxes.filter((c) => c.checked).map((c) => c.dataset.skill);
+      const res = await postJson(`/api/agents/${agent.id}`, {
+        enabled: enableCb.checked,
+        enabled_skills,
+      });
+      // Reflect the saved state back into the list (skill counts, on/off badge).
+      const idx = _agents.findIndex((a) => a.id === agent.id);
+      if (idx >= 0) _agents[idx] = res.agent;
+      renderAgentList();
+      status.textContent = "Đã lưu ✓";
+    } catch (error) {
+      status.textContent = "";
+      showError($("agents-error"), error.message);
+    } finally {
+      save.disabled = false;
+    }
+  };
 }
 
 /* ---------- auth ---------- */
@@ -1818,10 +2397,17 @@ function renderStaff() {
   $("view-customer-btn").classList.toggle("hidden", !staff);
   $("view-console-btn").classList.toggle("hidden", !staff);
   $("arch-toggle-box").classList.toggle("hidden", !staff);
-  $("script-toggle-box").classList.toggle("hidden", !staff);
+  // "Quản lý Agent" is an admin-only surface. Hidden in the DOM for anyone
+  // else, but that is only cosmetic - /api/agents itself returns 403 to a
+  // non-admin, which is the control that actually matters (auth.py:10).
+  const isAdmin = Boolean(staff && staff.role === "admin");
+  $("subtab-agents").classList.toggle("hidden", !isAdmin);
+  $("subtab-select-agents").hidden = !isAdmin; // mục tương ứng trong dropdown
+  // "Gọi khách" cũng là màn hình chỉ dành cho admin - hiện cùng lúc với "Quản lý Agent".
+  $("subtab-calls").classList.toggle("hidden", !isAdmin);
+  $("subtab-select-calls").hidden = !isAdmin;
   if (staff) {
     $("staff-pill").textContent = `${staff.display_name} · ${staff.role}`;
-    refreshScriptList();
   }
 }
 
@@ -1835,7 +2421,8 @@ async function login(event) {
   clearError($("login-error"));
   try {
     const data = await postJson("/api/auth/login", {
-      username: $("login-user").value, password: $("login-pass").value,
+      username: $("login-user").value,
+      password: $("login-pass").value,
     });
     staff = data.staff;
     $("login-pass").value = "";
@@ -1848,11 +2435,9 @@ async function login(event) {
 }
 
 async function logout() {
-  // Leave no live conversation stuck in raw mode or a demo script behind a
-  // sign-out - both endpoints that turn them off require staff, so they
-  // have to happen first.
+  // Leave no live conversation stuck in raw mode behind a sign-out - the
+  // endpoint that turns it off requires staff, so it has to happen first.
   if ($("raw-toggle").checked) await toggleRawMode(false);
-  if (scriptName) await stopScript();
   await postJson("/api/auth/logout", {});
   staff = null;
   renderStaff();
@@ -1864,8 +2449,9 @@ async function logout() {
 async function refreshHealth() {
   const h = await api("/api/health");
   const pill = $("mode-pill");
-  pill.textContent = h.mode === "live" ? `${h.provider}: ${h.model}` : "Model: ngoại tuyến";
-  pill.title = h.detail || `mức suy luận: ${h.effort}`;
+  // Ẩn tên provider/model khỏi UI - chỉ hiện trạng thái trực tuyến/ngoại tuyến.
+  pill.textContent = h.mode === "live" ? "Trực tuyến" : "Ngoại tuyến";
+  pill.title = h.mode === "live" ? "Trợ lý ảo đang hoạt động" : "Trợ lý ảo ngoại tuyến";
   pill.className = `pill ${h.mode}`;
 
   ttsAvailable = Boolean(h.tts_available);
@@ -1878,15 +2464,40 @@ async function refreshHealth() {
 // The context rail is the only drawer in the app: below 1024px it stops being
 // a column and slides in from the right. Wider than that the CSS keeps it in
 // flow and this is inert.
+// The scrim shows whenever either drawer is open, and fades via its .show class.
+function syncScrim() {
+  const anyOpen =
+    $("context-rail").classList.contains("open") || $("sidenav").classList.contains("open");
+  $("nav-scrim").classList.toggle("show", anyOpen);
+}
+
 function setRail(open) {
   $("context-rail").classList.toggle("open", open);
-  $("nav-scrim").hidden = !open;
+  syncScrim();
+}
+
+// Left drawer (sidenav) on mobile - opened by the ☰ buttons so login/console
+// are reachable on a phone. Shares the scrim overlay with the context rail.
+function setNav(open) {
+  $("sidenav").classList.toggle("open", open);
+  syncScrim();
 }
 
 $("rail-toggle").onclick = () => setRail(!$("context-rail").classList.contains("open"));
-$("nav-scrim").onclick = () => setRail(false);
+document.querySelectorAll(".nav-toggle").forEach((b) => {
+  b.onclick = () => setNav(!$("sidenav").classList.contains("open"));
+});
+$("nav-scrim").onclick = () => {
+  setRail(false);
+  setNav(false);
+};
 $("nav-assistant").onclick = () => showScreen("customer");
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") setRail(false); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    setRail(false);
+    setNav(false);
+  }
+});
 
 // A mock, by request: the banking app this chat sits inside owns the
 // destination, so the control is real and focusable but goes nowhere.
@@ -1902,27 +2513,210 @@ $("talk-to-person").onclick = () => send("Tôi muốn gặp nhân viên");
 /* ---------- wiring ---------- */
 
 $("raw-toggle").onchange = (e) => toggleRawMode(e.target.checked);
-$("script-start-btn").onclick = startScript;
-$("script-stop-btn").onclick = stopScript;
 
-$("composer").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
+$("composer").onsubmit = (e) => {
+  e.preventDefault();
+  send($("input").value);
+};
 $("input").oninput = updateSendState;
+
+/* ---------- bảng emoji ---------- */
+// Bộ emoji phổ biến, chia nhóm. Chèn vào ô nhập tại vị trí con trỏ.
+const EMOJI_GROUPS = [
+  [
+    "Cảm xúc",
+    [
+      "😀",
+      "😁",
+      "😂",
+      "🤣",
+      "😊",
+      "😍",
+      "😘",
+      "😎",
+      "🤔",
+      "😅",
+      "😇",
+      "🙂",
+      "😉",
+      "😌",
+      "😢",
+      "😭",
+      "😡",
+      "😱",
+      "🥰",
+      "🤗",
+    ],
+  ],
+  [
+    "Cử chỉ",
+    [
+      "👍",
+      "👎",
+      "👌",
+      "🙏",
+      "👏",
+      "🙌",
+      "💪",
+      "👋",
+      "🤝",
+      "✌️",
+      "🤞",
+      "👆",
+      "👉",
+      "💁",
+      "🙇",
+      "🫶",
+      "✍️",
+      "🤷",
+      "👀",
+      "🫡",
+    ],
+  ],
+  [
+    "Ngân hàng",
+    [
+      "💰",
+      "💵",
+      "💴",
+      "💳",
+      "🏦",
+      "🧾",
+      "📈",
+      "📉",
+      "💸",
+      "🪙",
+      "📊",
+      "🔒",
+      "✅",
+      "⚠️",
+      "⭐",
+      "🎁",
+      "📌",
+      "📞",
+      "✉️",
+      "⏰",
+    ],
+  ],
+  [
+    "Khác",
+    [
+      "❤️",
+      "🔥",
+      "🎉",
+      "✨",
+      "💯",
+      "☕",
+      "🍀",
+      "🚀",
+      "📱",
+      "💡",
+      "❓",
+      "❗",
+      "👇",
+      "🕐",
+      "🌟",
+      "💬",
+      "🏆",
+      "🎯",
+      "📝",
+      "🙏🏻",
+    ],
+  ],
+];
+
+let _emojiBuilt = false;
+function buildEmojiPanel() {
+  if (_emojiBuilt) return;
+  const panel = $("emoji-panel");
+  EMOJI_GROUPS.forEach(([label, list]) => {
+    panel.appendChild(el("div", "emoji-cat", label));
+    const grid = el("div", "emoji-grid");
+    list.forEach((ch) => {
+      const btn = el("button", null, ch);
+      btn.type = "button";
+      btn.onclick = () => {
+        insertAtCursor($("input"), ch);
+        toggleEmojiPanel(false);
+      };
+      grid.appendChild(btn);
+    });
+    panel.appendChild(grid);
+  });
+  _emojiBuilt = true;
+}
+
+function insertAtCursor(input, text) {
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  input.value = input.value.slice(0, start) + text + input.value.slice(end);
+  const pos = start + text.length;
+  input.setSelectionRange(pos, pos);
+  input.focus();
+  updateSendState();
+}
+
+function toggleEmojiPanel(show) {
+  const panel = $("emoji-panel");
+  const next = show ?? panel.classList.contains("hidden");
+  if (next) buildEmojiPanel();
+  panel.classList.toggle("hidden", !next);
+  $("emoji-btn").setAttribute("aria-expanded", String(next));
+}
+
+$("emoji-btn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  toggleEmojiPanel();
+});
+// Bấm ra ngoài thì đóng bảng.
+document.addEventListener("click", (e) => {
+  const panel = $("emoji-panel");
+  if (panel.classList.contains("hidden")) return;
+  if (!panel.contains(e.target) && e.target !== $("emoji-btn")) toggleEmojiPanel(false);
+});
+
+/* ---------- gửi ảnh từ thư viện ---------- */
+// Xử lý phía client: đọc ảnh thành data URL rồi hiện trong khung chat.
+$("image-btn").addEventListener("click", () => $("image-file").click());
+$("image-file").addEventListener("change", (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ""; // cho phép chọn lại cùng một ảnh
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    addMessage("system", "Chỉ hỗ trợ gửi tệp ảnh.");
+    return;
+  }
+  const MAX = 8 * 1024 * 1024; // 8MB
+  if (file.size > MAX) {
+    addMessage("system", "Ảnh quá lớn (tối đa 8MB).");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => addImageMessage(reader.result, file.name);
+  reader.onerror = () => addMessage("system", "Không đọc được ảnh đã chọn.");
+  reader.readAsDataURL(file);
+});
 
 // Starting over drops the server-side session too. Clearing only the visible
 // transcript would leave the customer talking to a conversation they cannot
 // see - including any pending verification or handoff.
 function newConversation() {
   syncedPlayer.stop();
-  if (streamController) { streamController.abort(); streamController = null; }
+  if (streamController) {
+    streamController.abort();
+    streamController = null;
+  }
   sessionId = null;
   renderedCount = 0;
-  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
   hideTyping();
   $("messages").innerHTML = "";
   renderChatActions({});
   renderHandoff(null);
-  $("inspector").innerHTML =
-    '<p class="empty">Gửi một câu hỏi để xem nguồn.</p>';
+  $("inspector").innerHTML = '<p class="empty">Gửi một câu hỏi để xem nguồn.</p>';
   $("trace").innerHTML = '<p class="empty">-</p>';
   setRailUser(false);
   startTranscript();
@@ -1937,21 +2731,65 @@ document.querySelectorAll("[data-demo]").forEach((node) => {
   node.addEventListener("click", (e) => e.preventDefault());
 });
 
-$("login-btn").onclick = () => { showScreen("login"); $("login-pass").focus(); };
+$("login-btn").onclick = () => {
+  showScreen("login");
+  $("login-pass").focus();
+};
 $("login-cancel").onclick = () => showScreen("customer");
 $("login-form").onsubmit = login;
 $("logout").onclick = logout;
 $("view-customer-btn").onclick = () => showScreen("customer");
-$("view-console-btn").onclick = () => { showScreen("agent"); showPanel("dashboard"); };
+$("view-console-btn").onclick = () => {
+  showScreen("agent");
+  showPanel("dashboard");
+};
 
 document.querySelectorAll(".subtab").forEach((t) => {
   t.onclick = () => showPanel(t.dataset.panel);
 });
+$("subtab-select").onchange = () => showPanel($("subtab-select").value);
 
 $("dash-refresh").onclick = refreshDashboard;
+$("bc-goto-settings").onclick = () => showPanel("settings");
+$("bc-goto-voice").onclick = () => showPanel("voice");
+
+// Preview plays through the same /api/tts endpoint customers hear, so it
+// applies the selected voice first - what the operator hears is what ships.
+$("tts-preview").onclick = async () => {
+  const btn = $("tts-preview");
+  btn.disabled = true;
+  try {
+    await postJson("/api/tts/provider", {
+      provider: $("tts-provider").value,
+      voice: $("tts-voice").value,
+    });
+    await refreshTtsStatus();
+    const resp = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: "Xin chào, tôi là trợ lý ảo của ABC Bank. Tôi có thể giúp gì cho anh chị hôm nay?",
+      }),
+    });
+    if (!resp.ok) throw new Error("TTS không khả dụng");
+    const url = URL.createObjectURL(await resp.blob());
+    const audio = new Audio(url);
+    audio.onended = () => URL.revokeObjectURL(url);
+    await audio.play();
+  } catch (error) {
+    showError($("tts-error"), error.message);
+  } finally {
+    btn.disabled = false;
+  }
+};
 $("clear-btn").onclick = async () => {
-  if (!confirm("Xoá toàn bộ hội thoại trong tiến trình này? " +
-               "Bảng điều khiển sẽ về 0 và các bản ghi hội thoại sẽ mất.")) return;
+  if (
+    !confirm(
+      "Xoá toàn bộ hội thoại trong tiến trình này? " +
+        "Bảng điều khiển sẽ về 0 và các bản ghi hội thoại sẽ mất."
+    )
+  )
+    return;
   const d = await postJson("/api/sessions/clear", {});
   sessionId = null;
   renderedCount = 0;
@@ -1963,8 +2801,12 @@ $("clear-btn").onclick = async () => {
 };
 $("seed-btn").onclick = async () => {
   $("seed-btn").disabled = true;
-  try { await postJson("/api/replay", {}); await refreshDashboard(); }
-  finally { $("seed-btn").disabled = false; }
+  try {
+    await postJson("/api/replay", {});
+    await refreshDashboard();
+  } finally {
+    $("seed-btn").disabled = false;
+  }
 };
 
 $("regen").onclick = () => selectedSession && openSession(selectedSession);
@@ -1977,7 +2819,9 @@ $("kb-cancel").onclick = () => {
   $("kb-editor").classList.add("hidden");
   (selectedDoc ? $("kb-view") : $("kb-empty")).classList.remove("hidden");
 };
-$("kb-template").onclick = () => { $("kb-content").value = KB_TEMPLATE; };
+$("kb-template").onclick = () => {
+  $("kb-content").value = KB_TEMPLATE;
+};
 $("kb-save").onclick = saveDoc;
 $("kb-delete").onclick = deleteDoc;
 $("kb-edit").onclick = async () => {
@@ -1986,29 +2830,28 @@ $("kb-edit").onclick = async () => {
 };
 
 const drop = $("kb-drop");
-["dragenter", "dragover"].forEach((n) => drop.addEventListener(n, (e) => {
-  e.preventDefault(); drop.classList.add("over");
-}));
-["dragleave", "drop"].forEach((n) => drop.addEventListener(n, (e) => {
-  e.preventDefault(); drop.classList.remove("over");
-}));
+["dragenter", "dragover"].forEach((n) =>
+  drop.addEventListener(n, (e) => {
+    e.preventDefault();
+    drop.classList.add("over");
+  })
+);
+["dragleave", "drop"].forEach((n) =>
+  drop.addEventListener(n, (e) => {
+    e.preventDefault();
+    drop.classList.remove("over");
+  })
+);
 drop.addEventListener("drop", (e) => uploadFile(e.dataTransfer.files[0]));
 drop.onclick = () => $("kb-file").click();
 
-$("cfg-save").onclick = () => saveConfig(false);
-$("cfg-clear").onclick = () => saveConfig(true);
+$("cfg-save").onclick = () => saveConfig();
 $("cfg-provider").onchange = refreshProviders;
-$("cfg-key-toggle").onclick = () => {
-  const f = $("cfg-key");
-  const hidden = f.type === "password";
-  f.type = hidden ? "text" : "password";
-  $("cfg-key-toggle").textContent = hidden ? "Ẩn" : "Hiện";
-};
 
 $("tts-save").onclick = saveTtsConfig;
 $("tts-provider").onchange = updateTtsVoiceFieldVisibility;
 $("tts-bar-provider").onchange = () => {
-  $("tts-bar-voice").classList.toggle("hidden", $("tts-bar-provider").value !== "vbee");
+  $("tts-bar-voice").classList.toggle("hidden", !TTS_HAS_VOICES($("tts-bar-provider").value));
   saveTtsFromChatBar();
 };
 $("tts-bar-voice").onchange = saveTtsFromChatBar;
@@ -2033,16 +2876,24 @@ function startTranscript() {
   // and it reappears with every new conversation, which fine print never did.
   const notice = el("div", "chat-notice");
   notice.appendChild(el("span", "ic", "🔒"));
-  notice.appendChild(el("p", null,
-    "Trợ lý chỉ trả lời dựa trên tài liệu đã được ngân hàng thẩm định. "
-    + "Không bao giờ cung cấp mã OTP, mã PIN hay số thẻ đầy đủ cho bất kỳ ai."));
+  notice.appendChild(
+    el(
+      "p",
+      null,
+      "Trợ lý chỉ trả lời dựa trên tài liệu đã được ngân hàng thẩm định. " +
+        "Không bao giờ cung cấp mã OTP, mã PIN hay số thẻ đầy đủ cho bất kỳ ai."
+    )
+  );
   $("messages").appendChild(notice);
 
   $("messages").appendChild(el("div", "day-divider", "Hôm nay"));
-  addMessage("assistant",
-    "**Trợ lý ảo ABC Bank** hân hạnh được phục vụ quý khách. Tôi có thể hỗ trợ quý khách "
-    + "kiểm tra số dư và giao dịch, khoá hoặc mở khoá thẻ, tra cứu hồ sơ vay, và giải đáp "
-    + "về sản phẩm, biểu phí của ngân hàng.\n\nQuý khách cần hỗ trợ gì ạ?");
+  addMessage(
+    "assistant",
+    "**Trợ lý ảo ABC Bank** hân hạnh được phục vụ quý khách. Tôi có thể hỗ trợ " +
+      "quý khách kiểm tra số dư và giao dịch, khóa hoặc mở khóa thẻ, tra cứu hồ sơ " +
+      "vay, và giải đáp về sản phẩm, biểu phí của ngân hàng.\n\n" +
+      "Quý khách cần hỗ trợ gì ạ?"
+  );
 }
 
 // Whether this session has passed the identity check, so the demo shows
@@ -2056,7 +2907,8 @@ function startTranscript() {
 function setRailUser(verified) {
   $("rail-user").textContent = verified ? "Khách hàng" : "Khách";
   $("rail-user-sub").textContent = verified ? "Đã xác thực" : "Chưa xác thực";
-  $("rail-avatar").textContent = verified ? "✓" : "K";
+  if (verified) $("rail-avatar").textContent = "✓";
+  else $("rail-avatar").innerHTML = PERSON_ICON;
 }
 
 /* ================================================================
@@ -2066,30 +2918,40 @@ function setRailUser(verified) {
    ================================================================ */
 
 let callModeActive = false;
-let callState      = "idle";
-let callTimer      = null;
-let callSeconds    = 0;
-let callRecorder   = null;
-let callChunks     = [];
+let callState = "idle";
+let callTimer = null;
+let callSeconds = 0;
+let callRecorder = null;
+let callChunks = [];
 let callSilenceAnimId = null;
-let callAudioCtx   = null;
-let callMuted      = false;
+let callAudioCtx = null;
+let callMuted = false;
 
-const CALL_SILENCE_MS = 1500;   // dừng thu âm sau 1.5s im lặng (ngắn hơn chế độ thủ công 3s)
-const CALL_MAX_MS     = 10000;  // giới hạn an toàn tối đa mỗi lượt ghi
+const CALL_SILENCE_MS = 1500; // dừng thu âm sau 1.5s im lặng (ngắn hơn chế độ thủ công 3s)
+const CALL_MAX_MS = 10000; // giới hạn an toàn tối đa mỗi lượt ghi
 
 function _setCallState(state) {
   callState = state;
-  const wrap  = $("call-avatar-wrap");
+  const wrap = $("call-avatar-wrap");
   const label = $("call-state-label");
   if (!wrap || !label) return;
   wrap.dataset.state = state;
-  label.textContent = {
-    connecting: "Đang kết nối…",
-    listening:  "Đang nghe…",
-    processing: "Đang xử lý…",
-    speaking:   "Đang trả lời…",
-  }[state] || "";
+  const phone = wrap.dataset.mode === "phone";
+  const labels = phone
+    ? {
+        ringing: "Cuộc gọi đến…",
+        connecting: "Đang kết nối…",
+        listening: "Đã kết nối",
+        processing: "…",
+        speaking: "Đang nói…",
+      }
+    : {
+        connecting: "Đang kết nối…",
+        listening: "Đang nghe…",
+        processing: "Đang xử lý…",
+        speaking: "Đang trả lời…",
+      };
+  label.textContent = labels[state] || "";
 }
 
 function _callTimerStart() {
@@ -2102,7 +2964,168 @@ function _callTimerStart() {
     $("call-timer").textContent = `${m}:${s}`;
   }, 1000);
 }
-function _callTimerStop() { clearInterval(callTimer); callTimer = null; }
+function _callTimerStop() {
+  clearInterval(callTimer);
+  callTimer = null;
+}
+
+// ORB WEBGL kiểu ElevenLabs: cầu gradient noise + fresnel, nảy theo âm thanh
+// (orbLevel 0..1). WebGL thuần; lỗi -> fallback CSS orb.
+let orbGL = null; // context + shader, khởi tạo 1 lần rồi giữ lại
+let orbRaf = 0;
+let orbRunning = false;
+let orbLevel = 0; // mức âm, đặt từ VAD (nghe) + TTS analyser (nói)
+
+const _ORB_VERT = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.0,1.0); }`;
+const _ORB_FRAG = `
+precision highp float;
+uniform vec2  uRes;
+uniform float uTime;
+uniform float uLevel;   // âm lượng 0..1
+uniform float uActive;  // 0 idle .. 1 đang nghe/nói
+float hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
+float noise(vec2 p){
+  vec2 i=floor(p), f=fract(p);
+  float a=hash(i), b=hash(i+vec2(1.0,0.0)), c=hash(i+vec2(0.0,1.0)), d=hash(i+vec2(1.0,1.0));
+  vec2 u=f*f*(3.0-2.0*f);
+  return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);
+}
+float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.0; a*=0.5; } return v; }
+void main(){
+  vec2 uv=(gl_FragCoord.xy - 0.5*uRes)/min(uRes.x,uRes.y);
+  float r=length(uv);
+  float radius=0.40 + uLevel*0.05;
+  float core=smoothstep(radius, radius-0.03, r);      // đĩa cầu (mềm mép)
+  float z=sqrt(max(0.0, radius*radius - r*r));
+  vec3  n=normalize(vec3(uv, z+1e-4));
+  float t=uTime*0.15 + uActive*uTime*0.12;
+  float f =fbm(uv*2.4 + vec2(t,-t) + uLevel*1.4);
+  float f2=fbm(uv*3.7 - vec2(t*0.7,t*0.5) + f);
+  vec3 cA=vec3(0.10,0.46,0.42);    // teal sáng
+  vec3 cB=vec3(0.16,0.72,0.58);    // teal-green
+  vec3 cC=vec3(0.34,0.96,0.86);    // aqua rực
+  vec3 cD=vec3(0.42,0.72,0.98);    // xanh dương sáng
+  vec3 col=mix(cA,cB,smoothstep(0.15,0.6,f));
+  col=mix(col,cC,smoothstep(0.4,0.95,f2));
+  col=mix(col,cD,smoothstep(0.6,1.0,f*f2)*0.7);
+  float light=clamp(dot(n, normalize(vec3(-0.35,0.55,0.78))),0.0,1.0);
+  col*=0.72+0.5*light;                                 // ánh sáng cầu (nhiều ambient hơn)
+  col+=vec3(0.10,0.20,0.20)*(1.0-r/radius);            // luminosity lõi mềm
+  float fres=pow(1.0-clamp(z/radius,0.0,1.0),2.2);
+  col+=fres*vec3(0.55,0.95,0.95)*(0.45+uLevel*0.5);    // viền bóng fresnel
+  col*=1.05+uLevel*0.4;                                 // sáng theo âm
+  float glow=smoothstep(radius+0.16, radius, r);       // quầng sáng ngoài
+  float alpha=max(core, glow*0.30);
+  gl_FragColor=vec4(col*alpha, alpha);                 // premultiplied
+}`;
+
+function _orbCompile(gl, type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.warn("[orb] shader lỗi:", gl.getShaderInfoLog(s));
+    return null;
+  }
+  return s;
+}
+
+// Khởi tạo context + shader 1 lần rồi giữ lại (KHÔNG loseContext, để mở lại không
+// rơi về CSS orb). Trả false nếu WebGL không dùng được.
+function _orbInit() {
+  if (orbGL) return true;
+  const canvas = $("vs-orb-canvas");
+  if (!canvas) return false;
+  let gl;
+  try {
+    gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+  } catch (_) {}
+  if (!gl) {
+    console.warn("[orb] không có WebGL → dùng CSS orb");
+    return false;
+  }
+
+  const vs = _orbCompile(gl, gl.VERTEX_SHADER, _ORB_VERT);
+  const fs = _orbCompile(gl, gl.FRAGMENT_SHADER, _ORB_FRAG);
+  if (!vs || !fs) return false;
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.warn("[orb] link lỗi:", gl.getProgramInfoLog(prog));
+    return false;
+  }
+  gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, "p");
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // premultiplied alpha
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const size = 208;
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+
+  orbGL = {
+    gl,
+    canvas,
+    t0: performance.now(),
+    smooth: 0,
+    U: {
+      res: gl.getUniformLocation(prog, "uRes"),
+      time: gl.getUniformLocation(prog, "uTime"),
+      level: gl.getUniformLocation(prog, "uLevel"),
+      active: gl.getUniformLocation(prog, "uActive"),
+    },
+  };
+  return true;
+}
+
+function _orbStart() {
+  const wrap = $("call-avatar-wrap");
+  if (!wrap) return;
+  if (!_orbInit()) return; // WebGL fail -> giữ CSS orb (không gl-active)
+  wrap.classList.add("gl-active"); // ẩn CSS orb, hiện canvas
+  if (orbRunning) return; // đã chạy rồi thì thôi
+  orbRunning = true;
+  orbGL.smooth = 0;
+
+  const { gl, canvas, U } = orbGL;
+  const render = () => {
+    if (!orbRunning || !orbGL) return;
+    orbGL.smooth += (orbLevel - orbGL.smooth) * 0.18;
+    const st = wrap.dataset.state || "idle";
+    const active = st === "listening" || st === "speaking" ? 1 : 0;
+    const now = performance.now() - orbGL.t0;
+    const breathe = 0.06 * (0.5 + 0.5 * Math.sin(now / 900));
+    gl.uniform2f(U.res, canvas.width, canvas.height);
+    gl.uniform1f(U.time, now / 1000);
+    gl.uniform1f(U.level, Math.min(orbGL.smooth + breathe * active + 0.02, 1));
+    gl.uniform1f(U.active, active);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    orbRaf = requestAnimationFrame(render);
+  };
+  render();
+}
+
+function _orbStop() {
+  orbRunning = false;
+  if (orbRaf) {
+    cancelAnimationFrame(orbRaf);
+    orbRaf = 0;
+  }
+  const wrap = $("call-avatar-wrap");
+  if (wrap) wrap.classList.remove("gl-active");
+  orbLevel = 0;
+  // KHÔNG loseContext: giữ context để lần mở lại dùng lại được ngay.
+}
 
 // ---- public: start / stop ----
 
@@ -2110,7 +3133,7 @@ async function startCall() {
   if (!sttAvailable || !canRecord || callModeActive) return;
   _unlockAudio();
   callModeActive = true;
-  callMuted      = false;
+  callMuted = false;
 
   // Ensure TTS auto-plays during call
   if (!voiceEnabled) {
@@ -2122,32 +3145,172 @@ async function startCall() {
   $("call-mute-btn").querySelector(".vs-icon-active").classList.remove("hidden");
   $("call-mute-btn").querySelector(".vs-icon-muted").classList.add("hidden");
   $("call-mute-btn").classList.remove("muted");
+  const w = $("call-avatar-wrap");
+  if (w) w.dataset.mode = "voice"; // chế độ orb (khách bấm 📞), không phải phone
+  $("call-overlay").classList.remove("phone");
   $("call-overlay").classList.remove("hidden");
   const lmEl = $("call-last-msg");
-  if (lmEl) { lmEl.textContent = ""; lmEl.classList.add("hidden"); }
+  if (lmEl) {
+    lmEl.textContent = "";
+    lmEl.classList.add("hidden");
+  }
   _setCallState("connecting");
   _callTimerStart();
+  _orbStart(); // orb WebGL kiểu ElevenLabs
 
-  await new Promise(r => setTimeout(r, 350)); // let overlay render
+  await new Promise((r) => setTimeout(r, 350)); // let overlay render
   if (callModeActive) _callStartListening();
 }
 
 function stopCall() {
   callModeActive = false;
-  callMuted      = false;
+  callMuted = false;
 
   if (callRecorder && callRecorder.state === "recording") callRecorder.stop();
-  callRecorder = null; callChunks = [];
+  callRecorder = null;
+  callChunks = [];
 
-  if (callSilenceAnimId) { cancelAnimationFrame(callSilenceAnimId); callSilenceAnimId = null; }
-  if (callAudioCtx)      { callAudioCtx.close().catch(() => {}); callAudioCtx = null; }
+  if (callSilenceAnimId) {
+    cancelAnimationFrame(callSilenceAnimId);
+    callSilenceAnimId = null;
+  }
+  if (callAudioCtx) {
+    callAudioCtx.close().catch(() => {});
+    callAudioCtx = null;
+  }
 
   // Stop any TTS that was playing for the call
-  if (streamingAudio) { streamingAudio.pause(); streamingAudio.src = ""; streamingAudio = null; }
+  if (streamingAudio) {
+    streamingAudio.pause();
+    streamingAudio.src = "";
+    streamingAudio = null;
+  }
+
+  // Reset mức âm để orb thu về mức nghỉ (phòng khi cắt giữa lúc bot đang nói).
+  const wrap = $("call-avatar-wrap");
+  if (wrap) wrap.style.setProperty("--vs-level", 0);
+  _orbStop();
 
   _callTimerStop();
+  const ca = $("call-actions");
+  if (ca) {
+    ca.classList.add("hidden");
+    ca.innerHTML = "";
+  }
   $("call-overlay").classList.add("hidden");
+  $("call-overlay").classList.remove("phone");
   _setCallState("idle");
+}
+
+// Cuộc gọi cross-sell MÔ PHỎNG (demo): admin nhập danh xưng + tên + dòng thẻ ->
+// mở màn hình gọi ngay trên máy này, bot chào theo tên rồi cross-sell. Không
+// quay số thật - dùng lại đúng pipeline voice + core bot.
+async function startSimCall() {
+  if (callModeActive) return;
+  const phone = $("call-phone").value.trim();
+  const title = $("call-title").value;
+  const name = $("call-name").value.trim();
+  const cardEl = document.querySelector('input[name="call-card"]:checked');
+  const card = cardEl ? cardEl.value : "CARD-PLATINUM";
+  clearError($("call-error"));
+  if (!name) {
+    showError($("call-error"), "Vui lòng nhập tên khách hàng.");
+    return;
+  }
+  if (!sttAvailable || !canRecord) {
+    showError(
+      $("call-error"),
+      "Cần micro + STT để hội thoại giọng nói. Kiểm tra quyền micro trên trình duyệt."
+    );
+    return;
+  }
+
+  let data;
+  try {
+    data = await postJson("/api/voice/call/sim", { phone, title, name, card_id: card });
+  } catch (e) {
+    showError($("call-error"), "Không tạo được cuộc gọi: " + (e.message || e));
+    return;
+  }
+
+  sessionId = data.session_id;
+  _simGreeting = data.greeting;
+  refreshCallList(); // cập nhật nhật ký cuộc gọi vừa tạo
+  showScreen("customer");
+  $("messages").innerHTML = "";
+
+  _unlockAudio();
+  callModeActive = true;
+  callMuted = false;
+  if (!voiceEnabled) {
+    voiceEnabled = true;
+    localStorage.setItem("voiceEnabled", "true");
+    updateVoiceUI();
+  }
+  $("call-mute-btn").querySelector(".vs-icon-active").classList.remove("hidden");
+  $("call-mute-btn").querySelector(".vs-icon-muted").classList.add("hidden");
+  $("call-mute-btn").classList.remove("muted");
+
+  // Giao diện GỌI ĐẾN kiểu iPhone: NGÂN HÀNG gọi đến khách. Chỉ đổ chuông với nút
+  // Nghe/Từ chối; bấm Nghe (answerSimCall) mới kết nối + bot chào + cross-sell.
+  const wrap = $("call-avatar-wrap");
+  if (wrap) wrap.dataset.mode = "phone";
+  $("call-overlay").classList.add("phone");
+  $("call-callee-name").textContent = "Ngân hàng ABC";
+  $("call-callee-phone").textContent = "";
+  $("call-callee-phone").classList.add("hidden");
+  $("call-callee-avatar").textContent = "🏦";
+  const lm0 = $("call-last-msg");
+  if (lm0) {
+    lm0.textContent = "";
+    lm0.classList.add("hidden");
+  }
+  $("call-timer").textContent = "00:00";
+  $("call-overlay").classList.remove("hidden");
+  _setCallState("ringing"); // đổ chuông: hiện nút Nghe / Từ chối
+}
+
+// Bấm NGHE: kết nối -> bot chào (giọng) -> nghe khách trả lời -> cross-sell.
+async function answerSimCall() {
+  if (!callModeActive || callState !== "ringing") return;
+  // Mở khoá audio NGAY trong cử chỉ bấm "Nghe": phát 1 file lặng trên chính phần
+  // tử sẽ dùng để đọc TTS. Sau vài await (kết nối + tải audio) thì "user gesture"
+  // đã hết hiệu lực, nên phải "kích hoạt" phần tử audio tại đây, nếu không trình
+  // duyệt chặn play() -> không nghe thấy tiếng bot.
+  try {
+    streamPlayer.src = SILENT_WAV;
+    const pr = streamPlayer.play();
+    if (pr)
+      pr.then(() => {
+        streamPlayer.pause();
+        streamPlayer.currentTime = 0;
+      }).catch(() => {});
+  } catch (e) {}
+  _setCallState("connecting");
+  _callTimerStart();
+  await new Promise((r) => setTimeout(r, 400));
+  if (!callModeActive) return;
+
+  addMessage("assistant", _simGreeting);
+  const lm = $("call-last-msg");
+  if (lm) {
+    const p = _simGreeting.replace(/\s+/g, " ");
+    lm.textContent = p.slice(0, 160) + (p.length > 160 ? "…" : "");
+    lm.classList.remove("hidden");
+  }
+  if (ttsAvailable && callModeActive) {
+    _setCallState("speaking");
+    await _playTtsForCall(stripMarkdownForTts(_simGreeting));
+  }
+  if (callModeActive) {
+    _setCallState("listening");
+    _callStartListening();
+  }
+}
+
+// Bấm TỪ CHỐI: kết thúc cuộc gọi ngay.
+function declineSimCall() {
+  stopCall();
 }
 
 // ---- recording loop ----
@@ -2156,10 +3319,13 @@ async function _callStartListening() {
   if (!callModeActive || callMuted) return;
   _setCallState("listening");
 
+  let maxRms = 0; // đỉnh âm lượng để chẩn đoán "mic có bắt được tiếng không"
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    console.log("[voice] ✅ mic OK — đang nghe…");
   } catch (e) {
+    console.error("[voice] ❌ getUserMedia lỗi:", e && e.name, e && e.message);
     stopCall();
     addMessage("system", "Không truy cập được micro — cuộc gọi kết thúc.");
     return;
@@ -2168,53 +3334,76 @@ async function _callStartListening() {
   // Voice-activity detection (silence → auto-stop)
   try {
     callAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source   = callAudioCtx.createMediaStreamSource(stream);
+    const source = callAudioCtx.createMediaStreamSource(stream);
     const analyser = callAudioCtx.createAnalyser();
     analyser.fftSize = 512;
     analyser.smoothingTimeConstant = 0.85;
     source.connect(analyser);
     const bufLen = analyser.frequencyBinCount;
-    const data   = new Uint8Array(bufLen);
+    const data = new Uint8Array(bufLen);
     let localSilence = null;
+    let hasSpoken = false; // đã có tiếng nói thật chưa
 
     const tick = () => {
       if (!callModeActive) return;
       analyser.getByteTimeDomainData(data);
       let sum = 0;
-      for (let i = 0; i < bufLen; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
+      for (let i = 0; i < bufLen; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+      }
       const rms = Math.sqrt(sum / bufLen) * 100;
+      if (rms > maxRms) maxRms = rms;
 
-      // Animate the inner avatar ring with live voice amplitude
-      const inner = document.querySelector(".call-avatar-circle");
-      if (inner) inner.style.transform = callState === "listening"
-        ? `scale(${1 + Math.min(rms / 120, 0.18)})` : "";
+      // Orb nảy theo âm lượng giọng nói khách (CSS orb + WebGL orb).
+      const wrap = $("call-avatar-wrap");
+      orbLevel = Math.min(rms / 70, 1);
+      if (wrap) wrap.style.setProperty("--vs-level", orbLevel);
 
-      if (rms < SILENCE_THRESHOLD) {
+      if (rms >= SILENCE_THRESHOLD) {
+        hasSpoken = true;
+        localSilence = null;
+      } else if (hasSpoken) {
+        // Chỉ đếm im lặng SAU khi khách đã nói (tránh cắt trên khoảng lặng đầu).
         if (!localSilence) localSilence = Date.now();
         if (Date.now() - localSilence >= CALL_SILENCE_MS) {
           if (callRecorder && callRecorder.state === "recording") callRecorder.stop();
-          return; // don't schedule next frame
+          return;
         }
-      } else {
-        localSilence = null;
       }
+      // Chưa nói: không đếm im lặng, để CALL_MAX_MS làm chốt an toàn.
       callSilenceAnimId = requestAnimationFrame(tick);
     };
     callSilenceAnimId = requestAnimationFrame(tick);
-  } catch (_) { /* no VAD — rely on max-duration timeout */ }
+  } catch (_) {
+    /* no VAD — rely on max-duration timeout */
+  }
 
-  callChunks  = [];
+  callChunks = [];
   callRecorder = new MediaRecorder(stream);
-  callRecorder.ondataavailable = (e) => { if (e.data.size) callChunks.push(e.data); };
+  callRecorder.ondataavailable = (e) => {
+    if (e.data.size) callChunks.push(e.data);
+  };
   callRecorder.onstop = () => {
-    stream.getTracks().forEach(t => t.stop());
-    if (callSilenceAnimId) { cancelAnimationFrame(callSilenceAnimId); callSilenceAnimId = null; }
-    if (callAudioCtx)      { callAudioCtx.close().catch(() => {}); callAudioCtx = null; }
+    stream.getTracks().forEach((t) => t.stop());
+    if (callSilenceAnimId) {
+      cancelAnimationFrame(callSilenceAnimId);
+      callSilenceAnimId = null;
+    }
+    if (callAudioCtx) {
+      callAudioCtx.close().catch(() => {});
+      callAudioCtx = null;
+    }
     const inner = document.querySelector(".call-avatar-circle");
     if (inner) inner.style.transform = "";
 
     if (!callModeActive || callMuted) return; // stopped intentionally
     const blob = new Blob(callChunks, { type: callRecorder.mimeType });
+    console.log(
+      `[voice] ghi âm xong — blob ${blob.size} bytes (${blob.type || "?"}), ` +
+        `đỉnh âm lượng maxRms=${maxRms.toFixed(1)} (ngưỡng nói=${SILENCE_THRESHOLD})` +
+        (maxRms < SILENCE_THRESHOLD ? " ⚠️ MIC KHÔNG BẮT ĐƯỢC TIẾNG" : "")
+    );
     _callHandleBlob(blob);
   };
   callRecorder.start();
@@ -2229,22 +3418,67 @@ async function _callHandleBlob(blob) {
 
   try {
     let audio_b64, mime_type;
+    let ctx = null;
     try {
+      // Mã hoá WAV ở client; decodeAudioData có thể treo -> đua timeout 5s.
       const Ctx = window.AudioContext || window.webkitAudioContext;
-      const ctx = new Ctx();
+      ctx = new Ctx();
       await ctx.resume();
-      const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
-      const wav = encodeWav(buf);
-      ctx.close();
+      const decoded = await Promise.race([
+        ctx.decodeAudioData(await blob.arrayBuffer()),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("decode timeout 5s")), 5000)),
+      ]);
+      const wav = encodeWav(decoded);
       audio_b64 = await blobToBase64(wav);
-      mime_type  = "audio/wav";
-    } catch {
+      mime_type = "audio/wav";
+      console.log("[voice] mã hoá WAV client OK");
+    } catch (e) {
+      // Dự phòng bình thường: gửi blob thô, server giải mã bằng ffmpeg. STT vẫn đúng.
       audio_b64 = await blobToBase64(blob);
-      mime_type  = blob.type || "audio/mp4";
+      mime_type = blob.type || "audio/mp4";
+      console.log(
+        "[voice] gửi blob thô cho server giải mã:",
+        mime_type,
+        "(client không decode được:",
+        (e && e.message) + ")"
+      );
+    } finally {
+      if (ctx) {
+        try {
+          ctx.close();
+        } catch (_) {}
+      } // đóng, tránh rò AudioContext
     }
 
-    const sttData = await postJson("/api/stt", { audio_b64, mime_type });
-    const text    = cleanStt(sttData.text || "");
+    const _t0 = performance.now();
+    console.log(
+      "[voice] gửi STT… (audio",
+      Math.round((audio_b64.length * 0.75) / 1024),
+      "KB,",
+      mime_type,
+      ")"
+    );
+    let sttData;
+    try {
+      sttData = await postJsonTimeout("/api/stt", { audio_b64, mime_type }, 45000);
+    } catch (e) {
+      console.error(
+        `[voice] ❌ STT treo/lỗi sau ${((performance.now() - _t0) / 1000).toFixed(1)}s:`,
+        e.message
+      );
+      addMessage("system", "Nhận diện giọng nói quá lâu hoặc lỗi — đang nghe lại.");
+      if (callModeActive) {
+        _setCallState("listening");
+        _callStartListening();
+      }
+      return;
+    }
+    const text = cleanStt(sttData.text || "");
+    console.log(
+      `[voice] STT xong sau ${((performance.now() - _t0) / 1000).toFixed(1)}s →`,
+      JSON.stringify(sttData.text || ""),
+      text ? "✅ nhận được" : "⚠️ RỖNG (im lặng/không giải mã được)"
+    );
 
     if (!text || !callModeActive) {
       // Silence or empty — restart listening immediately (no chat bubble)
@@ -2253,28 +3487,42 @@ async function _callHandleBlob(blob) {
     }
 
     await _callSendMessage(text);
-  } catch (_) {
-    if (callModeActive) { _setCallState("listening"); _callStartListening(); }
+  } catch (err) {
+    console.error("[voice] ❌ lỗi xử lý lượt nói:", err && err.message);
+    if (callModeActive) {
+      _setCallState("listening");
+      _callStartListening();
+    }
   }
 }
 
 async function _callSendMessage(text) {
   if (!text.trim() || !callModeActive) return;
+  const ca = $("call-actions");
+  if (ca) {
+    ca.classList.add("hidden");
+    ca.innerHTML = "";
+  } // xoá nút của lượt trước
   addMessage("customer", text);
   showTyping();
 
   let fullText = "";
-  let meta     = null;
+  let meta = null;
 
+  const _tc = performance.now();
+  console.log("[voice] gửi câu hỏi tới bot (LLM)…");
+  const _ctrl = new AbortController();
+  const _timer = setTimeout(() => _ctrl.abort(), 60000); // bot trả lời quá 60s -> huỷ
   try {
     const resp = await fetch("/api/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ session_id: sessionId, message: text }),
+      signal: _ctrl.signal,
     });
     if (!resp.ok) throw new Error(`${resp.status}`);
 
-    const reader  = resp.body.getReader();
+    const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buf = "";
 
@@ -2294,7 +3542,6 @@ async function _callSendMessage(text) {
             meta = ev.meta;
             sessionId = meta.session_id;
             applyRawMode(Boolean(meta.raw_mode));
-            applyScriptState(meta.script_name, meta.script_step, meta.script_total);
             setRailUser(meta.verified);
             renderChatActions(meta);
             renderHandoff(meta.in_handoff ? { handled_by: meta.handled_by || null } : null);
@@ -2305,11 +3552,25 @@ async function _callSendMessage(text) {
         } catch (_) {}
       }
     }
-  } catch (_) {
+  } catch (err) {
+    clearTimeout(_timer);
+    console.error(
+      `[voice] ❌ bot treo/lỗi sau ${((performance.now() - _tc) / 1000).toFixed(1)}s:`,
+      err && (err.name === "AbortError" ? "quá 60s - đã huỷ" : err.message)
+    );
     await hideTyping();
-    if (callModeActive) { _setCallState("listening"); _callStartListening(); }
+    addMessage("system", "Bot phản hồi quá lâu — đang nghe lại.");
+    if (callModeActive) {
+      _setCallState("listening");
+      _callStartListening();
+    }
     return;
   }
+  clearTimeout(_timer);
+  console.log(
+    `[voice] bot trả lời xong sau ${((performance.now() - _tc) / 1000).toFixed(1)}s`,
+    fullText.trim() ? `(${fullText.trim().length} ký tự)` : "(RỖNG)"
+  );
 
   await hideTyping();
 
@@ -2331,31 +3592,119 @@ async function _callSendMessage(text) {
     }
   }
 
+  // Bot vừa đề nghị kết nối chuyên viên -> hiện 2 nút Có/Không ngay trên màn gọi.
+  renderCallActions(meta);
+
   if (callModeActive) {
     _setCallState("listening");
     _callStartListening();
   }
 }
 
+// Nút hành động trong cuộc gọi (hiện tại: đề nghị kết nối chuyên viên). Khách có
+// thể BẤM hoặc trả lời bằng giọng - cả hai đều gửi qua _callSendMessage.
+function renderCallActions(meta) {
+  const box = $("call-actions");
+  if (!box) return;
+  if (meta && meta.offer_escalation && callModeActive) {
+    box.innerHTML =
+      '<span class="vs-action-label">Kết nối anh/chị với chuyên viên nhé?</span>' +
+      '<button class="primary" data-say="có">Có, kết nối giúp tôi</button>' +
+      '<button class="ghost" data-say="không, cảm ơn">Không, tiếp tục hỗ trợ</button>';
+    box.classList.remove("hidden");
+    box.querySelectorAll("[data-say]").forEach((b) => {
+      b.onclick = () => {
+        box.classList.add("hidden");
+        box.innerHTML = "";
+        // Dừng ghi âm đang chờ để khỏi gửi trùng, rồi gửi lựa chọn.
+        callMuted = true;
+        if (callRecorder && callRecorder.state === "recording") callRecorder.stop();
+        callMuted = false;
+        _callSendMessage(b.dataset.say);
+      };
+    });
+  } else {
+    box.classList.add("hidden");
+    box.innerHTML = "";
+  }
+}
+
+// Analyser cho tiếng bot để orb nảy theo. Tạo 1 lần (createMediaElementSource chỉ
+// gọi được 1 lần/phần tử); nối source → analyser → loa để vẫn nghe được.
+function _ensureTtsAnalyser() {
+  if (_ttsAnalyser) return true;
+  try {
+    _ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+    _ttsSrcNode = _ttsCtx.createMediaElementSource(streamPlayer);
+    _ttsAnalyser = _ttsCtx.createAnalyser();
+    _ttsAnalyser.fftSize = 512;
+    _ttsAnalyser.smoothingTimeConstant = 0.8;
+    _ttsSrcNode.connect(_ttsAnalyser);
+    _ttsAnalyser.connect(_ttsCtx.destination);
+    _ttsData = new Uint8Array(_ttsAnalyser.frequencyBinCount);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // Returns a promise that resolves only after TTS audio has finished playing.
 async function _playTtsForCall(text) {
   return new Promise((resolve) => {
-    if (streamingAudio) { streamingAudio.pause(); streamingAudio.src = ""; streamingAudio = null; }
+    if (streamingAudio) {
+      streamingAudio.pause();
+      streamingAudio.src = "";
+      streamingAudio = null;
+    }
     fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     })
-      .then(r => (r.ok ? r.blob() : null))
-      .then(b => (b ? URL.createObjectURL(b) : null))
-      .then(url => {
-        if (!url) { resolve(); return; }
-        const audio = new Audio();
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((b) => (b ? URL.createObjectURL(b) : null))
+      .then((url) => {
+        if (!url) {
+          resolve();
+          return;
+        }
+        const audio = streamPlayer; // persistent, gesture-primed element
         streamingAudio = audio;
+
+        // Quả cầu nảy theo âm lượng tiếng bot (kiểu ChatGPT voice).
+        let orbAnimId = null;
+        const driveOrb = () => {
+          if (!streamingAudio || !callModeActive || !_ttsAnalyser) return;
+          _ttsAnalyser.getByteTimeDomainData(_ttsData);
+          let sum = 0;
+          for (let i = 0; i < _ttsData.length; i++) {
+            const v = (_ttsData[i] - 128) / 128;
+            sum += v * v;
+          }
+          const rms = Math.sqrt(sum / _ttsData.length) * 100;
+          const wrap = $("call-avatar-wrap");
+          orbLevel = Math.min(rms / 45, 1);
+          if (wrap) wrap.style.setProperty("--vs-level", orbLevel);
+          orbAnimId = requestAnimationFrame(driveOrb);
+        };
+
         const finish = () => {
           URL.revokeObjectURL(url);
           if (streamingAudio === audio) streamingAudio = null;
+          if (orbAnimId) {
+            cancelAnimationFrame(orbAnimId);
+            orbAnimId = null;
+          }
+          const wrap = $("call-avatar-wrap");
+          orbLevel = 0;
+          if (wrap) wrap.style.setProperty("--vs-level", 0); // cầu thu về mức nghỉ
           resolve();
+        };
+        audio.onplay = () => {
+          if (_ensureTtsAnalyser()) {
+            if (_ttsCtx.state === "suspended") _ttsCtx.resume().catch(() => {});
+            orbAnimId = requestAnimationFrame(driveOrb);
+          }
         };
         audio.onended = finish;
         audio.onerror = finish;
@@ -2392,6 +3741,9 @@ function _callToggleMute() {
 $("call-btn").addEventListener("click", startCall);
 $("call-end-btn").addEventListener("click", stopCall);
 $("call-mute-btn").addEventListener("click", _callToggleMute);
+$("call-start").addEventListener("click", startSimCall);
+$("call-accept-btn").addEventListener("click", answerSimCall);
+$("call-decline-btn").addEventListener("click", declineSimCall);
 
 (async function init() {
   updateSendState();
@@ -2399,5 +3751,9 @@ $("call-mute-btn").addEventListener("click", _callToggleMute);
   await refreshHealth();
   await refreshStaff();
   startTranscript();
-  if (staff) { showScreen("agent"); showPanel("dashboard"); }
+  refreshTtsStatus(); // nạp danh sách giọng (thanh chat) ngay khi mở web, không đợi mở Cấu hình
+  if (staff) {
+    showScreen("agent");
+    showPanel("dashboard");
+  }
 })();

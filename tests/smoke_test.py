@@ -33,59 +33,78 @@ SCENARIOS: list[tuple[str, list[str], str, bool]] = [
     (
         "Deterministic flow with identity verification",
         ["xin chào", "số dư của tôi còn bao nhiêu?", *cred("travel_offer")],
-        "deterministic", True,
+        "deterministic",
+        True,
     ),
     (
         "Card block - two-step confirmation, writes to the record",
         ["tôi làm mất thẻ ghi nợ", *cred("multi_card"), "ghi nợ", "có"],
-        "deterministic", True,
+        "deterministic",
+        True,
     ),
     (
         "Freeze then unfreeze - the reversible path",
-        ["tạm khoá thẻ giúp tôi", *cred("loan_in_review"), "có",
-         "mở khoá thẻ giúp tôi", "có"],
-        "deterministic", True,
+        [
+            "tạm khoá thẻ giúp tôi",
+            *cred("loan_in_review"),
+            "có",
+            "mở khoá thẻ giúp tôi",
+            "có",
+        ],
+        "deterministic",
+        True,
     ),
     (
         "Loan status lookup",
         ["hồ sơ vay của tôi đến đâu rồi?", *cred("loan_in_review")],
-        "deterministic", True,
+        "deterministic",
+        True,
     ),
     (
         "RAG-grounded answer from the knowledge base",
         ["chuyển tiền quốc tế phí bao nhiêu?"],
-        "rag", False,
+        "rag",
+        False,
     ),
     (
         "Guardrail - restricted topic refused before any model call",
         ["tôi có nên đầu tư tiết kiệm vào cổ phiếu công nghệ không?"],
-        "guardrail", False,
+        "guardrail",
+        False,
     ),
     (
         "Handoff offered - no supporting passage, customer decides",
         ["ngân hàng có bảo hiểm cây trồng cho vườn nho ở Bồ Đào Nha không?"],
-        "escalation_offered", False,
+        "escalation_offered",
+        False,
     ),
     (
         "Handoff accepted - the offer is taken up",
         ["ngân hàng có bảo hiểm cây trồng cho vườn nho ở Bồ Đào Nha không?", "có"],
-        "escalation", False,
+        "escalation",
+        False,
     ),
     (
         "Handoff declined - assistant carries on",
-        ["ngân hàng có bảo hiểm cây trồng cho vườn nho ở Bồ Đào Nha không?", "không, cảm ơn",
-         "chi nhánh mở cửa mấy giờ?"],
-        "rag", False,
+        [
+            "ngân hàng có bảo hiểm cây trồng cho vườn nho ở Bồ Đào Nha không?",
+            "không, cảm ơn",
+            "chi nhánh mở cửa mấy giờ?",
+        ],
+        "rag",
+        False,
     ),
     (
         "@agent goes straight to a human",
         ["@agent tôi bị trừ tiền hai lần"],
-        "escalation", False,
+        "escalation",
+        False,
     ),
     (
         "Escalation - customer asks for a human",
         ["cho tôi gặp nhân viên"],
-        "escalation", False,
+        "escalation",
+        False,
     ),
 ]
 
@@ -102,21 +121,28 @@ def main() -> int:
         for turn in turns:
             result = router.handle_turn(session, turn)
             print(f"\n  > {turn}")
-            print(f"    [{result.route} | {result.intent} @ "
-                  f"{result.confidence:.2f} | {result.latency_ms}ms]")
+            print(
+                f"    [{result.route} | {result.intent} @ "
+                f"{result.confidence:.2f} | {result.latency_ms}ms]"
+            )
             for line in result.text.splitlines():
                 print(f"    {line}")
             if result.sources:
-                print("    sources: " +
-                      ", ".join(f"{s['citation']} ({s['score']})" for s in result.sources))
+                print(
+                    "    sources: "
+                    + ", ".join(
+                        f"{s['citation']} ({s['score']})" for s in result.sources
+                    )
+                )
 
         problems = []
         if result.route != expected_route:
-            problems.append(
-                f"expected route '{expected_route}', got '{result.route}'")
+            problems.append(f"expected route '{expected_route}', got '{result.route}'")
         if must_verify and not session.verified:
-            problems.append("identity was never verified - the flow ran its "
-                            "failure path, which the route alone cannot detect")
+            problems.append(
+                "identity was never verified - the flow ran its "
+                "failure path, which the route alone cannot detect"
+            )
 
         status = "FAIL" if problems else "PASS"
         failures += bool(problems)
@@ -124,9 +150,12 @@ def main() -> int:
         print(f"\n  {status} - {detail}")
 
         if session.escalated:
-            print(f"\n  Handover brief:\n"
-                  + "\n".join(f"    {l}" for l in
-                              (session.escalation_summary or "").splitlines()))
+            print(
+                "\n  Handover brief:\n"
+                + "\n".join(
+                    f"    {l}" for l in (session.escalation_summary or "").splitlines()
+                )
+            )
 
     print(f"\n{'=' * 74}")
     print(f"{len(SCENARIOS) - failures}/{len(SCENARIOS)} scenarios passed.")

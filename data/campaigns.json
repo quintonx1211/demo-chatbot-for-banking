@@ -92,6 +92,17 @@
         "reason": "card issued 2026-07-24, not yet activated",
         "card_mask": "****6387"
       }
+    },
+    {
+      "customer_id": "CUS-100343",
+      "segment": "MASS",
+      "campaigns": [
+        "XS-CLASSIC-2026Q3"
+      ],
+      "context": {
+        "reason": "Mass segment target list – online shopping & fashion profile",
+        "stated_interests": ["mua sắm online", "thời trang"]
+      }
     }
   ]
 }

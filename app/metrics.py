@@ -170,15 +170,17 @@ def recent_activity(sessions: list[Session], limit: int = 12) -> list[dict]:
     for session in engaged[:limit]:
         last = session.audit[-1]
         customer = session.customer
-        rows.append({
-            "session_id": session.session_id,
-            "customer_name": customer["name"] if customer else None,
-            "turns": len(session.audit),
-            "escalated": session.escalated,
-            "handled_by": session.handled_by,
-            "reason": session.escalation_reason,
-            "last_route": last.route,
-            "last_utterance": last.utterance,
-            "age_seconds": int(time.time() - last.timestamp),
-        })
+        rows.append(
+            {
+                "session_id": session.session_id,
+                "customer_name": customer["name"] if customer else None,
+                "turns": len(session.audit),
+                "escalated": session.escalated,
+                "handled_by": session.handled_by,
+                "reason": session.escalation_reason,
+                "last_route": last.route,
+                "last_utterance": last.utterance,
+                "age_seconds": int(time.time() - last.timestamp),
+            }
+        )
     return rows

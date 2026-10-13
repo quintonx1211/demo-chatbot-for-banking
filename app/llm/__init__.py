@@ -24,6 +24,7 @@ from .base import (
     LLMRequest,
     LLMResult,
     build_answer_request,
+    build_general_request,
     build_raw_request,
     build_summary_request,
     extractive_answer,
@@ -46,7 +47,10 @@ PROVIDERS = {
 # Order used when LLM_PROVIDER is unset or "auto". Groq sits last so adding it
 # cannot change which provider an existing configuration selects.
 PROVIDER_ORDER = (
-    anthropic_provider, openai_provider, gemini_provider, groq_provider,
+    anthropic_provider,
+    openai_provider,
+    gemini_provider,
+    groq_provider,
 )
 
 
@@ -146,9 +150,7 @@ def _provider_status(provider) -> str:
 
 def _unavailable_reason(requested: str) -> str:
     if requested in ("", "auto"):
-        return "; ".join(
-            f"{p.NAME}: {_provider_status(p)}" for p in PROVIDER_ORDER
-        )
+        return "; ".join(f"{p.NAME}: {_provider_status(p)}" for p in PROVIDER_ORDER)
     provider = PROVIDERS.get(requested)
     if provider is None:
         return f"Unknown provider {requested!r}"
@@ -179,11 +181,18 @@ def answer_from_kb(
     passages: list[RetrievedPassage],
     history: str = "",
     history_messages: list | None = None,
+    cross_sell: bool = False,
 ) -> LLMResult:
     return _run(
-        build_answer_request(question, passages, history=history,
-                             history_messages=history_messages,
-                             tone=current_tone(), temperature=current_temperature()),
+        build_answer_request(
+            question,
+            passages,
+            history=history,
+            history_messages=history_messages,
+            tone=current_tone(),
+            temperature=current_temperature(),
+            cross_sell=cross_sell,
+        ),
         fallback=extractive_answer(passages),
     )
 
@@ -193,14 +202,32 @@ def raw_chat(message: str, history: str = "") -> LLMResult:
     model and the conversation so far. The baseline the rest of the router
     exists to improve on; see Router._raw_turn."""
     return _run(
-        build_raw_request(message, history=history,
-                          temperature=current_temperature()),
+        build_raw_request(message, history=history, temperature=current_temperature()),
         # Reused whether there is no provider at all or a configured one just
         # failed (rate limit, timeout, ...) - the two aren't distinguished
         # here, only in `error`, which the routing inspector shows separately.
         fallback="(Không nhận được câu trả lời - xem mục Ghi chú trong bảng "
-                 "định tuyến để biết lý do, hoặc kiểm tra nhà cung cấp model "
-                 "trong Cấu hình.)",
+        "định tuyến để biết lý do, hoặc kiểm tra nhà cung cấp model "
+        "trong Cấu hình.)",
+    )
+
+
+def answer_general(
+    message: str, history_messages: list | None = None, cross_sell: bool = False
+) -> LLMResult:
+    """Open-knowledge answer for a question with no KB match, keeping the bank
+    persona and safety rails (see GENERAL_SYSTEM_PROMPT). Empty fallback: when
+    there is no provider or it fails, the caller escalates as before rather than
+    speaking an offline canned line, so this never invents an answer."""
+    return _run(
+        build_general_request(
+            message,
+            history_messages=history_messages,
+            tone=current_tone(),
+            temperature=current_temperature(),
+            cross_sell=cross_sell,
+        ),
+        fallback="",
     )
 
 
@@ -212,6 +239,7 @@ def summarize_for_agent(transcript: str, context_lines: list[str]) -> LLMResult:
 
 
 _translation_cache: dict[str, str] = {}
+
 
 def translate_for_retrieval(text: str) -> str:
     """Dịch query tiếng Việt sang tiếng Anh để search KB tiếng Anh.
@@ -243,7 +271,15 @@ def translate_for_retrieval(text: str) -> str:
 
 
 __all__ = [
-    "LLMResult", "answer_from_kb", "raw_chat", "summarize_for_agent",
-    "is_live", "describe", "active_provider", "PROVIDERS",
-    "current_tone", "current_temperature", "TONES",
+    "LLMResult",
+    "answer_from_kb",
+    "raw_chat",
+    "summarize_for_agent",
+    "is_live",
+    "describe",
+    "active_provider",
+    "PROVIDERS",
+    "current_tone",
+    "current_temperature",
+    "TONES",
 ]

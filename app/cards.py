@@ -33,10 +33,23 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DB_DIR = DATA_DIR / "db"
 PRODUCTS_PATH = DATA_DIR / "products.json"
 
-CARD_COLUMNS = ["customer_id", "card_id", "product_id", "status",
-                "credit_limit", "opened_at"]
-EVENT_COLUMNS = ["customer_id", "card_id", "action", "detail",
-                 "session_id", "reference", "at"]
+CARD_COLUMNS = [
+    "customer_id",
+    "card_id",
+    "product_id",
+    "status",
+    "credit_limit",
+    "opened_at",
+]
+EVENT_COLUMNS = [
+    "customer_id",
+    "card_id",
+    "action",
+    "detail",
+    "session_id",
+    "reference",
+    "at",
+]
 
 # Starting credit limit per card, by product id - invented for the demo
 # (the client did not send limit figures), roughly scaled to each tier's
@@ -72,7 +85,9 @@ def _events_path() -> Path:
     return DB_DIR / "credit_card_events.csv"
 
 
-def _read_csv(path: Path, columns: list[str], numeric: set[str] = frozenset()) -> list[dict]:
+def _read_csv(
+    path: Path, columns: list[str], numeric: set[str] = frozenset()
+) -> list[dict]:
     if not path.exists():
         return []
     rows = []
@@ -89,8 +104,14 @@ def _write_csv(path: Path, columns: list[str], rows: list[dict]) -> None:
     with _lock:
         DB_DIR.mkdir(parents=True, exist_ok=True)
         handle = tempfile.NamedTemporaryFile(
-            "w", delete=False, dir=DB_DIR, newline="", encoding="utf-8",
-            prefix=f".{path.stem}.", suffix=".tmp")
+            "w",
+            delete=False,
+            dir=DB_DIR,
+            newline="",
+            encoding="utf-8",
+            prefix=f".{path.stem}.",
+            suffix=".tmp",
+        )
         try:
             writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
             writer.writeheader()
@@ -130,14 +151,16 @@ def reset() -> None:
             product = by_segment.get(customer["segment"])
             if not product:
                 continue
-            rows.append({
-                "customer_id": customer["customer_id"],
-                "card_id": f"CARD-{customer['customer_id'][-4:]}",
-                "product_id": product["id"],
-                "status": "active",
-                "credit_limit": DEFAULT_CREDIT_LIMIT.get(product["id"], 20_000_000),
-                "opened_at": _SEEDED_OPENED_AT,
-            })
+            rows.append(
+                {
+                    "customer_id": customer["customer_id"],
+                    "card_id": f"CARD-{customer['customer_id'][-4:]}",
+                    "product_id": product["id"],
+                    "status": "active",
+                    "credit_limit": DEFAULT_CREDIT_LIMIT.get(product["id"], 20_000_000),
+                    "opened_at": _SEEDED_OPENED_AT,
+                }
+            )
         _write_csv(_card_path(), CARD_COLUMNS, rows)
         _write_csv(_events_path(), EVENT_COLUMNS, [])
 
@@ -161,26 +184,37 @@ def close_card(customer_id: str, session_id: str | None = None) -> dict:
         rows = _read_csv(_card_path(), CARD_COLUMNS, numeric={"credit_limit"})
         card = next((r for r in rows if r["customer_id"] == customer_id), None)
         if card is None:
-            raise TransitionError("Tôi không tìm thấy thẻ nào trên hồ sơ của quý khách.")
+            raise TransitionError(
+                "Tôi không tìm thấy thẻ nào trên hồ sơ của quý khách."
+            )
         if card["status"] == "closed":
             raise TransitionError("Thẻ này đã được đóng trước đó rồi.")
 
         card["status"] = "closed"
         now = _now()
-        reference = f"CLS-{card['card_id'][-4:]}-{datetime.now(timezone.utc):%m%d%H%M%S}"
+        reference = (
+            f"CLS-{card['card_id'][-4:]}-{datetime.now(timezone.utc):%m%d%H%M%S}"
+        )
         _write_csv(_card_path(), CARD_COLUMNS, rows)
-        _append_event({
-            "customer_id": customer_id, "card_id": card["card_id"],
-            "action": "close", "detail": "active -> closed",
-            "session_id": session_id, "reference": reference, "at": now,
-        })
+        _append_event(
+            {
+                "customer_id": customer_id,
+                "card_id": card["card_id"],
+                "action": "close",
+                "detail": "active -> closed",
+                "session_id": session_id,
+                "reference": reference,
+                "at": now,
+            }
+        )
         result = dict(card)
         result["reference"] = reference
         return result
 
 
-def request_limit_adjustment(customer_id: str, requested_limit: float,
-                             session_id: str | None = None) -> dict:
+def request_limit_adjustment(
+    customer_id: str, requested_limit: float, session_id: str | None = None
+) -> dict:
     """Records the request - does not change `credit_limit`. Approving a
     credit line is a real underwriting decision that needs income/credit
     history this demo does not have; the honest answer is "request logged",
@@ -189,20 +223,34 @@ def request_limit_adjustment(customer_id: str, requested_limit: float,
         _ensure()
         card = get_card(customer_id)
         if card is None:
-            raise TransitionError("Tôi không tìm thấy thẻ nào trên hồ sơ của quý khách.")
+            raise TransitionError(
+                "Tôi không tìm thấy thẻ nào trên hồ sơ của quý khách."
+            )
         if card["status"] != "active":
-            raise TransitionError("Thẻ này hiện không ở trạng thái hoạt động nên chưa thể đổi hạn mức.")
+            raise TransitionError(
+                "Thẻ này hiện không ở trạng thái hoạt động nên chưa thể đổi hạn mức."
+            )
 
         now = _now()
-        reference = f"LMT-{card['card_id'][-4:]}-{datetime.now(timezone.utc):%m%d%H%M%S}"
-        _append_event({
-            "customer_id": customer_id, "card_id": card["card_id"],
-            "action": "limit_adjust_requested",
-            "detail": f"current {card['credit_limit']:.0f} -> requested {requested_limit:.0f}",
-            "session_id": session_id, "reference": reference, "at": now,
-        })
-        return {"reference": reference, "current_limit": card["credit_limit"],
-                "requested_limit": requested_limit}
+        reference = (
+            f"LMT-{card['card_id'][-4:]}-{datetime.now(timezone.utc):%m%d%H%M%S}"
+        )
+        _append_event(
+            {
+                "customer_id": customer_id,
+                "card_id": card["card_id"],
+                "action": "limit_adjust_requested",
+                "detail": f"current {card['credit_limit']:.0f} -> requested {requested_limit:.0f}",
+                "session_id": session_id,
+                "reference": reference,
+                "at": now,
+            }
+        )
+        return {
+            "reference": reference,
+            "current_limit": card["credit_limit"],
+            "requested_limit": requested_limit,
+        }
 
 
 def stats() -> dict:

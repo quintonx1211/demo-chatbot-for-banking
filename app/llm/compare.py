@@ -40,8 +40,8 @@ SUGGESTED = [
 
 def compare(question: str, kb: KnowledgeBase) -> dict:
     """Run both paths and return them for side-by-side rendering."""
-    from . import active_provider, _effort, answer_from_kb
     from .. import guardrails
+    from . import _effort, active_provider, answer_from_kb
 
     provider = active_provider()
 
@@ -50,9 +50,7 @@ def compare(question: str, kb: KnowledgeBase) -> dict:
     if passages:
         grounded_result = answer_from_kb(question, passages)
         context = " ".join(p.passage.text for p in passages)
-        grounding = round(
-            guardrails.grounding_score(grounded_result.text, context), 3
-        )
+        grounding = round(guardrails.grounding_score(grounded_result.text, context), 3)
         grounded = {
             "text": grounded_result.text,
             "generated": grounded_result.generated,
@@ -70,31 +68,37 @@ def compare(question: str, kb: KnowledgeBase) -> dict:
             "grounding": grounding,
             "passed_gate": grounding >= guardrails.MIN_GROUNDING,
             "sources": [
-                {"citation": p.passage.citation,
-                 "breadcrumb": p.passage.breadcrumb,
-                 "score": p.score}
+                {
+                    "citation": p.passage.citation,
+                    "breadcrumb": p.passage.breadcrumb,
+                    "score": p.score,
+                }
                 for p in passages
             ],
         }
     else:
         grounded = {
-            "text": ("No verified passage covers this, so the assistant would "
-                     "escalate to a human rather than answer."),
-            "generated": False, "grounding": None,
-            "passed_gate": False, "sources": [],
+            "text": (
+                "No verified passage covers this, so the assistant would "
+                "escalate to a human rather than answer."
+            ),
+            "generated": False,
+            "grounding": None,
+            "passed_gate": False,
+            "sources": [],
         }
 
     # --- ungrounded: same model, no passages, no gate ---
     if provider is None:
         ungrounded = {
-            "text": "", "generated": False,
+            "text": "",
+            "generated": False,
             "error": "No LLM provider configured - sign in and set one in "
-                     "Settings to run this comparison.",
+            "Settings to run this comparison.",
         }
     else:
         result = provider.complete(
-            LLMRequest(system=UNGROUNDED_SYSTEM_PROMPT, user=question,
-                       max_tokens=1000),
+            LLMRequest(system=UNGROUNDED_SYSTEM_PROMPT, user=question, max_tokens=1000),
             _effort(),
         )
         ungrounded = {
@@ -121,8 +125,11 @@ def compare(question: str, kb: KnowledgeBase) -> dict:
     # already sitting in `ungrounded["error"]` for that case - the UI phrases
     # it, and a sentence arriving where a reason code is expected reads as a
     # failure of the failure handling.
-    blocked_by = ("no_provider" if provider is None
-                  else grounded.get("error") or ungrounded.get("error"))
+    blocked_by = (
+        "no_provider"
+        if provider is None
+        else grounded.get("error") or ungrounded.get("error")
+    )
 
     return {
         "question": question,

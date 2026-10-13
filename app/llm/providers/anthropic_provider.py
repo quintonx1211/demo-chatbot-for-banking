@@ -37,8 +37,7 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
 
     if request.messages:
         api_messages = [
-            {"role": m["role"], "content": m["content"]}
-            for m in request.messages
+            {"role": m["role"], "content": m["content"]} for m in request.messages
         ]
     else:
         api_messages = [{"role": "user", "content": request.user}]
@@ -47,28 +46,39 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
         response = client.messages.create(
             model=model,
             max_tokens=request.max_tokens,
-            system=[{
-                "type": "text",
-                "text": request.system,
-                # The system prompt is byte-stable across every turn, so it
-                # caches and each subsequent request only pays for the context.
-                "cache_control": {"type": "ephemeral"},
-            }],
+            system=[
+                {
+                    "type": "text",
+                    "text": request.system,
+                    # The system prompt is byte-stable across every turn, so it
+                    # caches and each subsequent request only pays for the context.
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
             output_config={"effort": _EFFORT.get(effort, "low")},
             messages=api_messages,
             # Omitted entirely when unset, so the provider default stands.
-            **({"temperature": request.temperature}
-               if request.temperature is not None else {}),
+            **(
+                {"temperature": request.temperature}
+                if request.temperature is not None
+                else {}
+            ),
         )
     except Exception as exc:  # network, auth, rate limit - degrade, don't crash
-        return LLMResult(text="", generated=False, provider=NAME, model=model,
-                         error=classify_provider_error(exc))
+        return LLMResult(
+            text="",
+            generated=False,
+            provider=NAME,
+            model=model,
+            error=classify_provider_error(exc),
+        )
 
     # Claude signals a safety decline with a stop_reason, not an exception, and
     # returns HTTP 200 - so this must be checked before reading content.
     if response.stop_reason == "refusal":
-        return LLMResult(text="", generated=False, provider=NAME, model=model,
-                         error="model_refusal")
+        return LLMResult(
+            text="", generated=False, provider=NAME, model=model, error="model_refusal"
+        )
 
     text = "".join(b.text for b in response.content if b.type == "text").strip()
     return LLMResult(

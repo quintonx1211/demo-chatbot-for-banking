@@ -26,8 +26,9 @@ Ba phần:
 Điểm quan trọng nhất cần hiểu: **cơ chế này không đọc nội dung khách gõ**.
 Bất kể khách hàng (hay người demo) gõ gì, miễn có kịch bản đang chạy thì lượt
 đó luôn nhận đúng câu tiếp theo trong danh sách. Đây là lựa chọn có chủ đích
+
 - một buổi demo trực tiếp không nên đổ vỡ chỉ vì gõ nhầm một chữ số hay lệch
-một từ so với kịch bản đã tập.
+  một từ so với kịch bản đã tập.
 
 Khi kịch bản đã dùng hết các bước, **lượt tiếp theo tự động rơi về xử lý bình
 thường** (router/RAG/model như mọi khi) - không cần thao tác gì thêm, và
@@ -93,7 +94,11 @@ trong API và trong danh sách thả xuống) trỏ tới một object:
     "label": "Tên hiển thị cho người chọn kịch bản, ví dụ: Kiểm tra số dư - An",
     "steps": [
       { "reply": "Câu trả lời cho lượt đầu tiên." },
-      { "reply": "Câu trả lời cho lượt thứ hai.", "route": "deterministic", "intent": "flow:verify" }
+      {
+        "reply": "Câu trả lời cho lượt thứ hai.",
+        "route": "deterministic",
+        "intent": "flow:verify"
+      }
     ]
   }
 }
@@ -101,12 +106,12 @@ trong API và trong danh sách thả xuống) trỏ tới một object:
 
 Mỗi bước trong `steps`:
 
-| Trường | Bắt buộc | Ý nghĩa |
-|---|---|---|
-| `reply` | Có | Đúng nguyên văn câu trả lời sẽ hiển thị và được đọc (TTS). Hỗ trợ Markdown giống các câu trả lời khác (`**đậm**`, gạch đầu dòng...). |
-| `route` | Không | Chỉ để **hiển thị** trong routing inspector (ví dụ "deterministic", "rag", "guardrail") - không ảnh hưởng đến việc câu trả lời có chạy qua các lớp đó thật hay không, vì kịch bản luôn bỏ qua toàn bộ router. Mặc định `"scripted"` nếu bỏ trống. |
-| `intent` | Không | Tương tự `route`, chỉ để hiển thị. Mặc định `"scripted"`. |
-| `sources` | Không | Danh sách nguồn để hiển thị trong khung "Nguồn câu trả lời", nếu muốn mô phỏng một câu trả lời RAG có trích dẫn. Định dạng giống `sources` trong `/api/chat` (`citation`, `title`, `heading`, `source`, `score`...) - xem `app/router.py::_answer_from_kb` để đối chiếu các khoá đang dùng. |
+| Trường    | Bắt buộc | Ý nghĩa                                                                                                                                                                                                                                                                                     |
+| --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reply`   | Có       | Đúng nguyên văn câu trả lời sẽ hiển thị và được đọc (TTS). Hỗ trợ Markdown giống các câu trả lời khác (`**đậm**`, gạch đầu dòng...).                                                                                                                                                        |
+| `route`   | Không    | Chỉ để **hiển thị** trong routing inspector (ví dụ "deterministic", "rag", "guardrail") - không ảnh hưởng đến việc câu trả lời có chạy qua các lớp đó thật hay không, vì kịch bản luôn bỏ qua toàn bộ router. Mặc định `"scripted"` nếu bỏ trống.                                           |
+| `intent`  | Không    | Tương tự `route`, chỉ để hiển thị. Mặc định `"scripted"`.                                                                                                                                                                                                                                   |
+| `sources` | Không    | Danh sách nguồn để hiển thị trong khung "Nguồn câu trả lời", nếu muốn mô phỏng một câu trả lời RAG có trích dẫn. Định dạng giống `sources` trong `/api/chat` (`citation`, `title`, `heading`, `source`, `score`...) - xem `app/router.py::_answer_from_kb` để đối chiếu các khoá đang dùng. |
 
 Vài nguyên tắc khi soạn:
 
@@ -140,7 +145,7 @@ Lệnh này đọc và kiểm tra `data/demo_scripts.json`, in ra danh sách k�
 hợp lệ kèm số bước, hoặc liệt kê chính xác lỗi (dòng/cột JSON sai, kịch bản
 thiếu `steps`, bước thiếu `reply`...) nếu có vấn đề. **Luôn chạy lệnh này
 sau khi sửa file, trước khi vào phòng demo** - một file sai cú pháp không
-làm sập server (xem mục 4), nhưng có nghĩa là *không kịch bản nào* dùng
+làm sập server (xem mục 4), nhưng có nghĩa là _không kịch bản nào_ dùng
 được cho tới khi sửa xong, kể cả những kịch bản không liên quan tới chỗ sai.
 
 ---

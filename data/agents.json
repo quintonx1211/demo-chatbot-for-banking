@@ -1,0 +1,60 @@
+{
+  "agents": [
+    {
+      "id": "ops",
+      "enabled": true,
+      "enabled_skills": [
+        "account_summary",
+        "activate_card",
+        "balance_inquiry",
+        "block_card",
+        "card_close",
+        "card_limit_adjust",
+        "freeze_card",
+        "loan_status",
+        "reward_inquiry",
+        "transaction_history",
+        "unfreeze_card"
+      ],
+      "known_skills": [
+        "balance_inquiry",
+        "account_summary",
+        "transaction_history",
+        "loan_status",
+        "reward_inquiry",
+        "activate_card",
+        "block_card",
+        "freeze_card",
+        "unfreeze_card",
+        "card_close",
+        "card_limit_adjust"
+      ]
+    },
+    {
+      "id": "qa",
+      "enabled": true,
+      "enabled_skills": [
+        "knowledge_query",
+        "product_comparison",
+        "product_faq"
+      ],
+      "known_skills": [
+        "product_faq",
+        "product_comparison",
+        "knowledge_query"
+      ]
+    },
+    {
+      "id": "xsell",
+      "enabled": true,
+      "enabled_skills": [
+        "card_offers",
+        "cross_sell_interest"
+      ],
+      "known_skills": [
+        "cross_sell_interest",
+        "card_offers"
+      ]
+    }
+  ]
+}

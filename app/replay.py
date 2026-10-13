@@ -28,8 +28,10 @@ from .router import Router
 # a replay whose verification silently fails produces a dashboard full of
 # escalations that say nothing about the assistant.
 _FIXTURE = json.loads(
-    (Path(__file__).resolve().parent.parent / "data" / "accounts.json")
-    .read_text(encoding="utf-8"))["customers"]
+    (Path(__file__).resolve().parent.parent / "data" / "accounts.json").read_text(
+        encoding="utf-8"
+    )
+)["customers"]
 _BY_PROFILE = {c["profile"]: c for c in _FIXTURE}
 
 
@@ -68,12 +70,10 @@ CONVERSATIONS: list[list[str]] = [
     ["Lãi suất vay mua ô tô là bao nhiêu?"],
     ["Thời hạn gửi yêu cầu bồi hoàn là bao lâu?"],
     ["Nộp file chi lương trước bao lâu?"],
-
     # --- multi-turn, still deflected ---
     ["Xin chào", "Phí chuyển tiền quốc tế thế nào?", "Cảm ơn, vậy thôi ạ"],
     ["Chào bạn", "Tôi muốn tra soát một giao dịch lạ", "tạm biệt"],
     ["Nếu tài khoản bị âm thì sao?", "Có giới hạn số lần không?"],
-
     # --- account actions: verification (phone, then national ID) then a
     #     scripted flow ---
     ["Kiểm tra số dư", *TRAVEL],
@@ -82,26 +82,21 @@ CONVERSATIONS: list[list[str]] = [
     ["Hồ sơ vay mua nhà của tôi thế nào?", *MORTGAGE],
     ["Tôi là ai trong hệ thống?", *TRAVEL],
     ["Tôi làm mất thẻ ghi nợ", *DORMANT, "có"],
-
     # --- freeze, then change their mind: the reversible path ---
     # Present so the card-event log shows a transition going back, not only
     # one-way blocks. The reversible case is the one customers actually hit.
     ["tạm khoá thẻ giúp tôi", *TRAVEL, "có"],
     ["mở khoá thẻ giúp tôi", *FROZEN, "có"],
-
     # --- customer changes their mind mid-flow (the escape path) ---
     ["Tôi làm mất thẻ ghi nợ", *TRAVEL, "thôi bỏ đi, chi nhánh mở cửa mấy giờ?"],
-
     # --- regulated topics: blocked before any model runs ---
     ["Tôi có nên đầu tư tiết kiệm vào cổ phiếu công nghệ không?"],
     ["Bitcoin bây giờ có đáng đầu tư không?"],
     ["Làm sao để giảm tiền thuế phải nộp?"],
-
     # --- outside the corpus: escalate rather than guess ---
     ["Ngân hàng có bảo hiểm cây trồng cho vườn nho không?"],
     ["Tôi mua tiền điện tử trên app được không?"],
     ["Ngân hàng có dịch vụ két sắt an toàn không?"],
-
     # --- the same gap, asked several ways ---
     # Real traffic repeats itself, and that repetition is the signal the topic
     # clustering exists to surface: five people asking about travel insurance
@@ -111,11 +106,9 @@ CONVERSATIONS: list[list[str]] = [
     ["Thẻ của tôi có được bảo hiểm du lịch không?"],
     ["Bảo hiểm du lịch đi kèm thẻ gồm những gì?"],
     ["Tôi mua thêm bảo hiểm du lịch cho thẻ được không?"],
-
     ["Thẻ của tôi dùng được ở tàu điện Tokyo không?"],
     ["Thẻ dùng được cho giao thông công cộng ở nước ngoài không?"],
     ["Thanh toán không tiếp xúc dùng được ở nước ngoài không?"],
-
     # --- campaign scenarios (the client's three) ---
     ["Làm sao để kích hoạt thẻ mới?", *INACTIVE],
     ["Thẻ mới về rồi, tôi bắt đầu dùng thế nào?", *INACTIVE],
@@ -123,16 +116,17 @@ CONVERSATIONS: list[list[str]] = [
     ["Tôi có đủ điều kiện nâng hạng thẻ không?", *TRAVEL],
     ["Có khuyến mãi nào cho tôi không?", *DORMANT],
     ["Thẻ lâu rồi tôi không dùng, còn dùng được không?", *DORMANT],
-
     # --- handoff offered, then accepted / declined ---
     ["Do you offer safe deposit boxes?", "có"],
-    ["Tôi mua tiền điện tử trên app được không?", "không, cảm ơn", "What are your branch hours?"],
+    [
+        "Tôi mua tiền điện tử trên app được không?",
+        "không, cảm ơn",
+        "What are your branch hours?",
+    ],
     ["@agent tôi có vấn đề về hoá đơn"],
-
     # --- explicit handoff requests ---
     ["Tôi muốn gặp nhân viên"],
     ["Cho tôi gặp người thật về giao dịch bị trừ hai lần"],
-
     # --- verification failure, then handoff ---
     ["Kiểm tra số dư", "0911111111", "0922222222", "0933333333"],
 ]
