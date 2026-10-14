@@ -788,6 +788,20 @@ class Router:
         re.IGNORECASE,
     )
 
+    # Cụm dẫn hội thoại ở đầu câu ("nghe hấp dẫn đấy,", "à,", "cho anh hỏi,"…).
+    # Những từ này không có trong tài liệu nên làm tụt coverage và đánh rớt oan
+    # câu hỏi hợp lệ. Chỉ dùng để làm sạch truy vấn khi retrieval lần 1 rỗng.
+    _LEAD_FILLER_RE = re.compile(
+        r"^\s*(?:"
+        r"nghe(?:\s+(?:có vẻ|thì))?(?:\s+(?:hấp dẫn|hay|ổn|được|thú vị))?"
+        r"(?:\s+(?:đấy|nhỉ|ha|ghê|quá))?"
+        r"|à|ờ+|ừm?|ờm|thế|vậy|kiểu(?:\s+như)?|ý là|thế còn|vậy còn"
+        r"|cho\s+(?:anh|chị|em|tôi|mình)\s+hỏi(?:\s+(?:chút|tí|xíu))?|cho\s+hỏi|xin\s+hỏi"
+        r"|dạ|vâng|ok(?:ay)?|ừ|ừa"
+        r")\s*[,.]?\s*",
+        re.IGNORECASE,
+    )
+
     def _expand_followup(self, text: str, session: Session) -> str:
         """Prepend the last customer question when the current one is a follow-up.
 
@@ -809,6 +823,31 @@ class Router:
             return text
 
         return f"{guardrails.redact(prev[-1])} {text}"
+
+    def _retrieval_retries(self, text: str, session: Session) -> list[tuple[str, str]]:
+        """Các truy vấn thử lại khi retrieval lần 1 rỗng. Chỉ đổi câu đi TÌM, không
+        đổi câu hỏi gửi cho model.
+
+        Chỉ LƯỢC BỎ nhiễu (cụm đệm, lấy mệnh đề sau dấu phẩy) - không bao giờ THÊM
+        từ khoá chủ đề khác vào. Thêm ngữ cảnh lượt trước từng được thử nhưng nó
+        "cứu" nhầm câu ngoài phạm vi (câu hỏi bảo hiểm cây trồng bị ghép với chủ
+        đề 'vay mua nhà' ở lượt trước rồi trúng tài liệu vay) - phá escalation.
+        Lược bỏ thì không thể làm một câu đáng-rỗng trở nên khớp."""
+        cleaned = text
+        for _ in range(3):  # bóc nhiều cụm đệm xếp chồng
+            stripped = self._LEAD_FILLER_RE.sub("", cleaned, count=1).strip()
+            if stripped == cleaned:
+                break
+            cleaned = stripped
+
+        retries: list[tuple[str, str]] = []
+        if cleaned and cleaned != text:
+            retries.append((cleaned, "bỏ cụm đệm"))
+        if "," in text:
+            tail = text.rsplit(",", 1)[-1].strip()
+            if tail and tail not in (cleaned, text):
+                retries.append((tail, "mệnh đề sau dấu phẩy"))
+        return retries
 
     def agent_reply(self, session: Session, text: str, staff) -> None:
         """Record a human agent's reply to the customer.
@@ -873,6 +912,24 @@ class Router:
             "; ".join(f"{p.passage.citation} (cov {p.score:.2f})" for p in passages[:3])
             or f"floor {MIN_RELEVANCE}",
         )
+
+        # Câu có lời dẫn hội thoại ("nghe hấp dẫn đấy, phí thường niên…") làm loãng
+        # tín hiệu TF-IDF nên lần 1 rỗng. Thử lại với câu đã bỏ cụm đệm / lấy từ
+        # khoá / kèm ngữ cảnh lượt trước. Chỉ chạy khi rỗng → không đổi ca khác.
+        # Lưu ý: chỉ đổi câu ĐI TÌM; câu hỏi gửi cho model vẫn là safe_text gốc.
+        if not passages:
+            for retry_q, why in self._retrieval_retries(safe_text, session):
+                if retry_q == retrieval_text:
+                    continue
+                retried, retried_note = self._retrieve(retry_q)
+                if retried:
+                    passages, rerank_note = retried, retried_note
+                    self.trace.add(
+                        "query_cleanup",
+                        f"'{safe_text}' → '{retry_q}'",
+                        f"truy xuất lại sau khi lần 1 rỗng ({why})",
+                    )
+                    break
 
         if not passages:
             # No verified source covers this. Guessing here is exactly the

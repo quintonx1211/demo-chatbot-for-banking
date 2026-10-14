@@ -318,6 +318,39 @@ INTENTS: dict[str, dict] = {
             r"^\s*(hi|hello|hey|good (morning|afternoon|evening))\b",
         ],
     },
+    # "Bạn là ai?", "người hay máy?", "bạn tên gì?" - câu hỏi về chính trợ lý.
+    # Trả lời tất định bằng persona, không để rơi xuống RAG (lôi nhầm tài liệu
+    # lừa đảo/ưu đãi) hay escalation.
+    "assistant_identity": {
+        "utterances": [
+            "bạn là ai",
+            "bạn là ai vậy",
+            "em là ai",
+            "đây là ai",
+            "ai đang nói chuyện với tôi",
+            "bạn là người hay máy",
+            "có phải người thật không",
+            "bạn là bot à",
+            "bạn tên gì",
+            "who are you",
+            "are you a bot",
+            "are you human",
+            "what are you",
+            "what is your name",
+        ],
+        "anchors": [
+            r"(bạn|em|cậu|mày|trợ lý|chatbot|bot)\s+là\s+ai",
+            r"^\s*(đây|kia)\s+là\s+ai",
+            r"ai\s+(đang|là người)\s+(nói|trả lời|trò chuyện|chat)",
+            r"(người thật|người hay máy|máy hay người|bot hay người|người hay bot)",
+            r"có phải (là )?(người|bot|máy|người thật|chatbot)",
+            r"(bạn|em|cậu|trợ lý)\s+tên\s+(là\s+)?gì",
+            r"\bwho are you\b",
+            r"\bare you (a |an )?(bot|human|robot|real person|ai|machine)\b",
+            r"\bwhat are you\b",
+            r"\bwhat'?s your name\b",
+        ],
+    },
     "smalltalk": {
         "utterances": [
             "cảm ơn",
@@ -468,7 +501,10 @@ INTENTS: dict[str, dict] = {
             # để rơi vào KB (dễ trích tài liệu ưu đãi Platinum -> nghe như ép mở
             # Platinum) hay nhầm sang card_close. Chặn "mở khóa thẻ" (unfreeze) bằng
             # cách yêu cầu "thẻ" đứng ngay sau, "mở khóa" thì không khớp.
-            r"\b(mở|làm|đăng ký|đăng kí)\s+thẻ\b",
+            # `(?<!khi )`: "...ưu đãi gì KHI MỞ THẺ lần đầu" là câu hỏi về ưu đãi
+            # chào mừng của một thẻ (card_catalogue), không phải yêu cầu mở thẻ -
+            # nếu khớp ở đây sẽ hoà điểm với card_catalogue và bị phạt mơ hồ.
+            r"(?<!khi )\b(mở|làm|đăng ký|đăng kí)\s+thẻ\b",
             r"thẻ[^?.]{0,20}(nào|gì)[^?.]{0,20}(phù hợp|tốt|nên|hợp|dành cho)",
             r"thẻ nào[^?.]{0,20}(phù hợp|tốt|nên chọn)",
             r"(biết thêm|tìm hiểu thêm)[^?.]{0,20}thẻ",

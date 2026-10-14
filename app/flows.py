@@ -962,6 +962,9 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
         return _activate_card(session)
     if intent == "card_offers":
         return _card_offers(session)
+    if intent == "assistant_identity":
+        # "Bạn là ai / người hay máy" - trả lời tất định, không qua RAG.
+        return FlowResult(text=R.ASSISTANT_IDENTITY, note="assistant_identity")
     if intent == "smalltalk":
         # Acknowledgements and "are you there?" are not questions. Sending them
         # through retrieval produced the worst turn in the demo: a customer

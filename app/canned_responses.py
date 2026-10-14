@@ -33,6 +33,16 @@ SMALLTALK = (
     "Tôi vẫn đang lắng nghe quý khách đây ạ. Quý khách cần hỏi thêm điều gì không?"
 )
 
+# "Bạn là ai?" / "người hay máy?" - giới thiệu đúng danh tính, không để câu hỏi
+# này rơi xuống RAG (lôi nhầm tài liệu) hay escalation.
+ASSISTANT_IDENTITY = (
+    "Dạ, tôi là **Trợ lý ảo của Ngân hàng ABC** - một trợ lý tự động (không phải "
+    "người thật) hỗ trợ quý khách qua kênh này. Tôi giúp được: kiểm tra số dư và "
+    "giao dịch, khóa/mở khóa thẻ, tra cứu hồ sơ vay, và giải đáp về sản phẩm, biểu "
+    "phí của ngân hàng. Khi cần, tôi sẽ kết nối quý khách với chuyên viên.\n\n"
+    "Quý khách cần hỗ trợ gì ạ?"
+)
+
 GOODBYE = (
     "Cảm ơn quý khách đã sử dụng dịch vụ hôm nay. Chúc quý khách một ngày tốt lành!"
 )
