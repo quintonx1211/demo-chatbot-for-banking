@@ -51,10 +51,6 @@ EVENT_COLUMNS = [
     "at",
 ]
 
-# Starting credit limit per card, by product id - invented for the demo
-# (the client did not send limit figures), roughly scaled to each tier's
-# annual fee. Flagged here rather than hidden so nobody mistakes it for real
-# underwriting data.
 DEFAULT_CREDIT_LIMIT = {
     "CARD-CLASSIC": 20_000_000,
     "CARD-PLATINUM": 50_000_000,
@@ -76,8 +72,6 @@ def _now() -> str:
 
 
 def _card_path() -> Path:
-    # Separate file from db.py's "cards.csv" (debit/physical cards from accounts.json)
-    # to avoid column-schema conflicts between the two card systems.
     return DB_DIR / "credit_cards.csv"
 
 

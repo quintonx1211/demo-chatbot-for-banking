@@ -87,10 +87,7 @@ def extract_pdf(data: bytes) -> str:
                     rendered = _table_to_markdown(table)
                     if rendered:
                         blocks.append(rendered)
-    except Exception as exc:  # pdfplumber raises assorted parser errors on
-        # malformed PDFs - none of them are actionable beyond "this file
-        # could not be read", so they collapse to the one exception this
-        # package promises to raise.
+    except Exception as exc:
         raise UnsupportedDocument(f"Could not read that PDF: {exc}") from exc
 
     return "\n\n".join(blocks)

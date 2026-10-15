@@ -32,9 +32,9 @@ CAMPAIGN_PATH = Path(__file__).resolve().parent.parent / "data" / "campaigns.jso
 class Offer:
     campaign_id: str
     name: str
-    type: str  # activation | reactivation | cross_sell
-    body: str  # full message for explicit offer listing
-    hook: str  # short tagline for proactive callout
+    type: str
+    body: str
+    hook: str
     cta: str
     deeplink: str
     context: dict

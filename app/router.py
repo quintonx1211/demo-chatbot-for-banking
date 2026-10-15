@@ -14,6 +14,7 @@ recoverable after the fact.
 
 from __future__ import annotations
 
+import difflib
 import re
 import time
 from dataclasses import dataclass, field
@@ -28,15 +29,10 @@ from .session import Session, SessionStore
 from .textmodel import tokenize
 from .trace import Trace
 
-# Two consecutive turns we couldn't confidently handle means the assistant is
-# not converging - hand off rather than let the customer keep rephrasing.
 MAX_LOW_CONFIDENCE_STREAK = 2
 
-# Ngưỡng grounding nới cho tài liệu thị trường (KB-MKT-*): nguồn là bảng nên trùng
-# chữ ít, ngưỡng ngân hàng mình (0.55) loại oan. Không đụng ngưỡng tài liệu mình.
 MARKET_MIN_GROUNDING = 0.35
 
-# Disclaimer tự chèn nếu model quên (câu trả lời về sản phẩm ngân hàng khác).
 _MARKET_DISCLAIMER = (
     "\n\n_Lưu ý: thông tin trên tham khảo từ nguồn công khai về sản phẩm của ngân "
     "hàng khác, chưa được ABC Bank xác minh - quý khách vui lòng xác nhận lại với "
@@ -63,22 +59,35 @@ def _ensure_market_disclaimer(text: str) -> str:
     return text.rstrip() + _MARKET_DISCLAIMER
 
 
-# Addressing. "@agent hello" reaches a human; "@bot ..." pulls the assistant
-# back in while a human has the conversation. Anything else is routed normally.
+_CARD_KEYWORDS = ("classic", "platinum", "signature", "infinite")
+
+
+def _fix_card_typos(text: str) -> str:
+    """Sửa token sai chính tả rất gần một tên thẻ (vd 'platinun' -> 'platinum').
+    Chỉ đổi khi token đủ dài và trùng khớp cao, để không đụng từ bình thường."""
+    out = []
+    changed = False
+    for token in text.split():
+        bare = token.lower().strip(".,?!;:")
+        if len(bare) >= 6 and bare not in _CARD_KEYWORDS:
+            match = difflib.get_close_matches(bare, _CARD_KEYWORDS, n=1, cutoff=0.82)
+            if match:
+                out.append(match[0])
+                changed = True
+                continue
+        out.append(token)
+    return " ".join(out) if changed else text
+
+
 _MENTION_RE = re.compile(
     r"^\s*@(agent|human|staff|bot|assistant|ai)(?=[\s:,]|$)[:,]?\s*", re.IGNORECASE
 )
 _AGENT_MENTIONS = {"agent", "human", "staff"}
 
-# Leaving a conversation a human has taken over.
 _LEAVE_RE = re.compile(
     r"^\s*(/leave|/bot|/back|end chat|leave chat)\s*$", re.IGNORECASE
 )
 
-# Accepting or declining the offer of a human agent, in both languages.
-# "không" is checked before "có" by the caller, because "không" is the more
-# specific answer and a decline misread as an accept puts a customer in a
-# queue they just said they did not want.
 _AFFIRM_RE = re.compile(
     r"^\s*(yes|yeah|yep|yup|ok(ay)?|sure|please|go ahead|do it|connect me|"
     r"put me through|transfer me|i do|"
@@ -91,9 +100,6 @@ _DECLINE_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Câu trả lời của bot tự ĐỀ NGHỊ kết nối/chuyển sang người thật (thường ở nhánh
-# llm_general/rag). Bắt để hiện nút "Kết nối chuyên viên?" và cho lượt "có" kế
-# tiếp thực sự chuyển. Cố ý KHÔNG khớp "chuyên viên sẽ gọi lại" (đã tạo ticket).
 _HANDOFF_OFFER_RE = re.compile(
     r"kết nối[^.]{0,40}(chuyên viên|nhân viên|tư vấn viên)"
     r"|chuyển[^.]{0,40}(chuyên viên|bộ phận chăm sóc|nhân viên hỗ trợ|tư vấn viên)"
@@ -145,9 +151,9 @@ class TurnResult:
     escalated: bool = False
     escalation_reason: str | None = None
     latency_ms: int = 0
-    offer_escalation: bool = False  # UI should show the yes/no handoff prompt
-    with_agent: bool = False  # a human currently owns this conversation
-    trace: list = field(default_factory=list)  # why this route was taken
+    offer_escalation: bool = False
+    with_agent: bool = False
+    trace: list = field(default_factory=list)
     debug: dict = field(default_factory=dict)
 
 
@@ -157,20 +163,11 @@ class Router:
         self.kb = KnowledgeBase()
         self.sessions = SessionStore()
 
-    # -- public API -------------------------------------------------------
-
     def handle_turn(self, session: Session, text: str) -> TurnResult:
         started = time.perf_counter()
         self.trace = Trace()
         session.add_message("customer", text)
 
-        # Scripted-reply lever, checked before even raw mode - it is the
-        # strongest override in the system. Armed explicitly by staff
-        # (data/demo_scripts.json via app/demo_script.py) so a presenter can
-        # guarantee the next reply for a live demo regardless of what the
-        # model, retrieval, or the customer fixture would actually produce
-        # right now. Deliberately does not look at what the customer typed:
-        # a scripted demo should survive a mistyped digit, not derail on one.
         if session.script_name:
             script_name = session.script_name
             step = demo_script.next_reply(session)
@@ -206,21 +203,12 @@ class Router:
                     note=result.debug["note"],
                 )
                 return result
-            # The script just ran out on this turn - no reply was staged, so
-            # this turn is real. Fall through to normal routing, but leave a
-            # trace entry so an operator watching the inspector sees why the
-            # answer suddenly stopped being scripted.
             self.trace.add(
                 "demo_script",
                 f"'{script_name}' script ended",
                 "falling back to normal routing for this turn",
             )
 
-        # Demo lever, checked before anything else the router does. Everyone
-        # below this line - guardrails, NLU, flows, retrieval, grounding -
-        # exists to improve on what a bare LLM call over the transcript would
-        # do; this path is that call, unmodified, so the difference can be
-        # shown rather than described.
         if session.raw_mode:
             result = self._raw_turn(session, text)
             result.latency_ms = int((time.perf_counter() - started) * 1000)
@@ -239,10 +227,6 @@ class Router:
 
         mention, body = split_mention(text)
 
-        # Leaving a conversation that went to a human. Available from the
-        # moment the handoff happens, not just once an agent has claimed it:
-        # the customer who changes their mind while third in the queue is
-        # exactly the one most in need of a way out.
         if (session.handled_by or session.escalated) and _LEAVE_RE.match(text):
             agent_name = session.handled_by
             session.handled_by = None
@@ -276,9 +260,6 @@ class Router:
                 debug={"note": "customer ended the agent conversation"},
             )
 
-        # "/leave" with no agent attached is a no-op, not a question. Routing
-        # it as one offered the customer a handoff, which is the opposite of
-        # what they asked for.
         if _LEAVE_RE.match(text):
             reply = R.LEAVE_NOOP
             session.add_message("assistant", reply)
@@ -298,19 +279,6 @@ class Router:
                 debug={"note": "no agent was attached"},
             )
 
-        # Once the conversation has gone to a human the assistant stands down.
-        #
-        # The trigger is the handoff, not the agent picking it up. Gating this
-        # on `handled_by` alone left a window - often minutes - where the
-        # customer had been told a person was coming and the bot kept answering
-        # anyway. That window is the worst possible moment to keep talking: the
-        # customer is there *because* the assistant already failed, and every
-        # further attempt undermines the handoff it just promised. Worse, the
-        # agent arrives to a transcript where the bot has been arguing with
-        # their customer on their behalf.
-        #
-        # "@bot ..." is the one exemption: a deliberate request for the
-        # assistant is not talking over the agent.
         if (session.handled_by or session.escalated) and mention != "bot":
             waiting_for = session.handled_by or "the next available agent"
             session.record(
@@ -331,8 +299,6 @@ class Router:
                 debug={"note": f"assistant stood down; queued for {waiting_for}"},
             )
 
-        # "@agent ..." asks for a person explicitly - no need to consult the
-        # customer about whether they want one.
         if mention == "agent" and not session.handled_by:
             result = self._escalate(
                 session,
@@ -355,9 +321,6 @@ class Router:
         result = self._route(session, body if mention else text)
 
         result.latency_ms = int((time.perf_counter() - started) * 1000)
-        # Bot tự đề nghị kết nối chuyên viên trong câu trả lời (nhánh llm_general/
-        # rag/deterministic) nhưng router chưa đánh dấu -> đánh dấu để hiện nút
-        # Có/Không và để lượt "có" kế tiếp thực sự chuyển chuyên viên.
         if (
             not session.pending_escalation
             and not session.handled_by
@@ -449,12 +412,7 @@ class Router:
         ):
             memory_mod.store.remember(session.customer_id, "campaign", result.intent)
 
-    # -- routing ----------------------------------------------------------
-
     def _route(self, session: Session, text: str) -> TurnResult:
-        # 0. An outstanding offer of a handoff. Answered first, because "yes"
-        #    means nothing to the classifier and would otherwise be routed as
-        #    an unknown utterance - the same trap the flow escape hatch fixes.
         if session.pending_escalation:
             reason = session.pending_escalation
             session.pending_escalation = None
@@ -482,24 +440,13 @@ class Router:
                     confidence=1.0,
                     debug={"note": "customer declined the handoff"},
                 )
-            # Anything else is a new question. Dropping the offer and answering
-            # it is the right reading: they moved on.
 
-        # 1. A flow already in progress usually owns the turn, because slot
-        #    answers ("9411 3147", "yes") carry no intent signal and classifying
-        #    them would misroute. But "usually" needs an escape hatch: without
-        #    one the customer is trapped repeating themselves at a prompt they
-        #    are not trying to answer, which is precisely the rule-based
-        #    failure this architecture is supposed to remove.
         if session.pending_flow:
             abandon = self._should_abandon_flow(session, text)
             if abandon:
                 flow_name = session.pending_flow
                 session.reset_flow()
                 session.flow_misses = 0
-                # Fall through to normal routing, and prefix the answer so the
-                # customer knows the earlier request was dropped rather than
-                # silently forgotten.
                 result = self._route_fresh(session, text)
                 result.debug["note"] = " · ".join(
                     filter(
@@ -514,9 +461,6 @@ class Router:
 
         pending = flows.continue_pending(session, text)
         if pending is not None:
-            # Track re-prompts: a flow that keeps asking the same question is
-            # not making progress, and two of those is enough to conclude the
-            # customer has moved on.
             if pending.note.endswith("_retry"):
                 session.flow_misses += 1
             else:
@@ -554,16 +498,11 @@ class Router:
         if mode == "nlu":
             return lexical
 
-        # Redacted before the message reaches any provider, exactly as on the
-        # retrieval path. A routing call is still a call.
         safe_text = guardrails.redact(text)
         history = guardrails.redact(session.transcript(limit=4))
         verdict = route.classify(safe_text, self.classifier.intents, history)
 
         if verdict is None:
-            # No provider configured. Falling back silently is right - the
-            # customer should not learn our model configuration from a
-            # degraded reply - but the trace records it for the operator.
             self.trace.add(
                 "router", "lexical (không có provider cho LLM routing)", f"mode={mode}"
             )
@@ -617,30 +556,15 @@ class Router:
         if flows.wants_out(text):
             return "explicit-cancel"
 
-        # Verification flow: only keep it if the input looks like an attempt
-        # at a code - at least as many digits as the current step expects (10
-        # for the phone number, 12 for the CCCD). Loose on purpose: a message
-        # with *more* digits than that, or the right count with a typo, still
-        # reads as an attempt and is left for flows.py's exact-length check to
-        # give a proper "wrong format" reply, rather than being kicked out of
-        # verification as if it were an unrelated question. Fewer digits than
-        # expected is clearly a new question.
         if session.pending_flow == "verify":
             expected = 12 if session.slots.get("verify_stage") == "cccd" else 10
             if len(re.sub(r"[^0-9]", "", text)) < expected:
                 return "new-question-during-verify"
             return None
 
-        # Card action flows ("freeze", "unfreeze", "report_lost"): "có"/"không"
-        # và tên thẻ đều là slot answers ngắn, NLU không phân biệt được với
-        # intent thật. Để state machine của card tự xử lý retry qua flow_misses.
         if session.pending_flow in flows.CARD_ACTIONS:
             return None
 
-        # Cross-sell discovery answer: a spending interest or reward preference
-        # ("ưu tiên hoàn tiền", "hay đi grab") classifies as reward_inquiry or
-        # cross_sell_interest itself, so keep the flow instead of re-routing the
-        # customer's own answer out of the question we just asked them.
         if (
             session.pending_flow == "cross_sell_interest"
             and flows.is_cross_sell_answer(text)
@@ -650,11 +574,6 @@ class Router:
         if session.flow_misses >= flows.MAX_FLOW_MISSES:
             return f"no-progress-after-{session.flow_misses}"
 
-        # LOW_CONFIDENCE, not HIGH: the bar for *leaving* a flow should be far
-        # lower than the bar for entering one. Slot answers ("2205", "yes",
-        # "debit") classify as unknown or as the current flow's own intent, so
-        # they are safe from this; anything that looks like a different request
-        # at all is better served by dropping the flow than by re-prompting.
         prediction = self.classifier.predict(text)
         if prediction.confidence >= LOW_CONFIDENCE and prediction.intent not in (
             "unknown",
@@ -665,8 +584,6 @@ class Router:
 
     def _route_fresh(self, session: Session, text: str) -> TurnResult:
 
-        # Compliance gate - restricted topics never reach a model, including
-        # the routing model added below.
         verdict = guardrails.check_input(text)
         if not verdict.allowed:
             session.low_confidence_streak = 0
@@ -683,12 +600,6 @@ class Router:
                 debug={"note": f"blocked:{verdict.topic} - {verdict.reason}"},
             )
 
-        # NLU. High confidence + a scripted flow = deterministic answer.
-        #
-        # This runs strictly after the guardrail above, in every router mode.
-        # Putting a model in front of the compliance gate would demote the gate
-        # from a structural block to a prompt instruction, and the structural
-        # block is what the product is sold on.
         prediction = self.classifier.predict(text)
         prediction = self._apply_llm_router(session, text, prediction)
         self.trace.add(
@@ -703,12 +614,6 @@ class Router:
             ),
         )
 
-        # Workforce routing. Only a confidently recognised *skill* is subject to
-        # it - a weak or unknown guess is left to the KB fallback below, so a
-        # low-confidence misfire can never wrongly transfer or block. The agent
-        # that owns the skill takes over (announced as a transfer if it differs
-        # from whoever was serving), and if every owner has the skill switched
-        # off it is unsupported bank-wide and we hand to a human.
         if prediction.is_high_confidence and prediction.intent in agents.SKILL_CATALOG:
             agent = agents.store.agent_for_intent(
                 prediction.intent, session.current_agent_id
@@ -763,23 +668,17 @@ class Router:
                     debug={"note": flow.note, "scores": prediction.scores},
                 )
 
-        # Everything else: retrieve, then generate strictly over what we found.
         return self._answer_from_kb(session, text, prediction)
 
     def _retrieve(self, text: str) -> tuple[list, str]:
         """Retrieve passages, optionally through the LLM reranking stage."""
         if not rerank.enabled():
             return self.kb.search(text, top_k=3), ""
-        # With a semantic judge downstream, stage one runs for recall: a looser
-        # lexical gate and a wider pool, because the judge - not the threshold -
-        # is what decides relevance on this path.
         candidates = self.kb.search(
             text, top_k=rerank.CANDIDATE_POOL, gate=rerank.RECALL_GATE
         )
         return rerank.rerank(text, candidates, top_k=3)
 
-    # Vietnamese patterns that signal a follow-up question with no standalone
-    # retrieval signal: "còn", "thế còn", "cái đó", etc.
     _FOLLOWUP_RE = re.compile(
         r"^(còn\b|thế còn\b|vậy còn\b|còn về\b|còn thẻ\b|còn loại\b|còn cái\b|"
         r"thì sao\b|thế thì\b|vậy thì\b|sao ạ\b|"
@@ -788,9 +687,6 @@ class Router:
         re.IGNORECASE,
     )
 
-    # Cụm dẫn hội thoại ở đầu câu ("nghe hấp dẫn đấy,", "à,", "cho anh hỏi,"…).
-    # Những từ này không có trong tài liệu nên làm tụt coverage và đánh rớt oan
-    # câu hỏi hợp lệ. Chỉ dùng để làm sạch truy vấn khi retrieval lần 1 rỗng.
     _LEAD_FILLER_RE = re.compile(
         r"^\s*(?:"
         r"nghe(?:\s+(?:có vẻ|thì))?(?:\s+(?:hấp dẫn|hay|ổn|được|thú vị))?"
@@ -813,7 +709,6 @@ class Router:
         if not self._FOLLOWUP_RE.match(text):
             return text
 
-        # Find the most recent substantive customer message (not the current one)
         prev = [
             m.text
             for m in session.messages[-8:-1]
@@ -834,7 +729,7 @@ class Router:
         đề 'vay mua nhà' ở lượt trước rồi trúng tài liệu vay) - phá escalation.
         Lược bỏ thì không thể làm một câu đáng-rỗng trở nên khớp."""
         cleaned = text
-        for _ in range(3):  # bóc nhiều cụm đệm xếp chồng
+        for _ in range(3):
             stripped = self._LEAD_FILLER_RE.sub("", cleaned, count=1).strip()
             if stripped == cleaned:
                 break
@@ -869,19 +764,8 @@ class Router:
         )
 
     def _answer_from_kb(self, session: Session, text: str, prediction) -> TurnResult:
-        # Chỉ chèn playbook bán thẻ ở lượt chuyên thẻ (tránh rò sang fraud/vay...).
         cross_sell = playbook.is_cross_sell_context(prediction.intent)
 
-        # Redact before retrieval and before the model sees anything. Two
-        # separate reasons, both load-bearing:
-        #
-        #   Privacy - the raw text is sent to a third-party LLM provider. A
-        #   customer who pastes a card number was having it forwarded verbatim
-        #   to Groq. Masking it in the audit log afterwards does not unsend it.
-        #
-        #   Retrieval - "my card 4111 1111 1111 1111 was charged twice" tokenises
-        #   the digits, and those tokens appear in no passage, so the coverage
-        #   score collapses and a legitimate dispute question retrieves nothing.
         safe_text = guardrails.redact(text)
         if safe_text != text:
             self.trace.add(
@@ -890,9 +774,6 @@ class Router:
                 "redacted before retrieval and before the model",
             )
 
-        # Expand short follow-up questions before retrieval so the TF-IDF index
-        # gets enough signal. "còn Classic?" retrieves nothing without context;
-        # "phí thường niên thẻ Classic" retrieves correctly.
         retrieval_text = self._expand_followup(safe_text, session)
         if retrieval_text != safe_text:
             self.trace.add(
@@ -900,6 +781,24 @@ class Router:
                 f"'{safe_text}' → '{retrieval_text}'",
                 "short follow-up expanded with recent context",
             )
+
+        fixed = _fix_card_typos(retrieval_text)
+        if fixed != retrieval_text:
+            self.trace.add(
+                "typo_fix", f"'{retrieval_text}' → '{fixed}'", "sửa tên thẻ gõ sai"
+            )
+            retrieval_text = fixed
+
+        pitched_card = session.slots.pop("xsell_card", None)
+        if pitched_card:
+            card_name = flows.product_name(pitched_card)
+            if card_name:
+                retrieval_text = card_name
+                self.trace.add(
+                    "cross_sell_context",
+                    f"bơm thẻ đã chào: {card_name}",
+                    "cuộc gọi cross-sell -> truy xuất tài liệu thẻ cho LLM tư vấn",
+                )
 
         passages, rerank_note = self._retrieve(retrieval_text)
         self.trace.add(
@@ -913,10 +812,6 @@ class Router:
             or f"floor {MIN_RELEVANCE}",
         )
 
-        # Câu có lời dẫn hội thoại ("nghe hấp dẫn đấy, phí thường niên…") làm loãng
-        # tín hiệu TF-IDF nên lần 1 rỗng. Thử lại với câu đã bỏ cụm đệm / lấy từ
-        # khoá / kèm ngữ cảnh lượt trước. Chỉ chạy khi rỗng → không đổi ca khác.
-        # Lưu ý: chỉ đổi câu ĐI TÌM; câu hỏi gửi cho model vẫn là safe_text gốc.
         if not passages:
             for retry_q, why in self._retrieval_retries(safe_text, session):
                 if retry_q == retrieval_text:
@@ -932,13 +827,8 @@ class Router:
                     break
 
         if not passages:
-            # No verified source covers this. Guessing here is exactly the
-            # hallucination risk the architecture exists to remove.
             reason = "No supporting knowledge-base passage found for the question"
             if rerank_note.startswith("rerank:rejected-all"):
-                # A different, stronger statement than "nothing matched the
-                # words": a model read the candidates and judged none of them
-                # to answer the question.
                 reason = "Reranker judged no retrieved passage relevant"
             self.trace.decide(
                 "retrieval",
@@ -946,13 +836,6 @@ class Router:
                 "offering a human rather than answering",
             )
 
-            # Controlled open-knowledge fallback before a human hand-off: answer
-            # from the model's general knowledge with the bank persona and safety
-            # rails kept (llm.GENERAL_SYSTEM_PROMPT). Off unless
-            # config.general_fallback is true. Compliance topics never reach here
-            # - guardrails.check_input refuses them upstream - and a refusal or
-            # empty reply falls through to the hand-off below, so this path can
-            # only ever add an answer, never weaken a guard.
             if policy.current.general_fallback:
                 gen_history = [
                     {
@@ -985,11 +868,6 @@ class Router:
                         debug={"note": "general_fallback (no KB match)"},
                     )
 
-            # Counted here, where the assistant genuinely failed to resolve the
-            # turn, rather than on low classifier confidence. Two unanswerable
-            # questions running is the signal the rule was always meant to
-            # catch; an unsure classifier on a question that then got answered
-            # is not.
             session.low_confidence_streak += 1
             if session.low_confidence_streak >= MAX_LOW_CONFIDENCE_STREAK:
                 reason = "Assistant could not resolve two consecutive " "questions"
@@ -999,9 +877,6 @@ class Router:
                 confidence=prediction.confidence,
             )
 
-        # Build structured conversation history (10 messages = 5 exchanges).
-        # Exclude the current customer question — it becomes the final user turn
-        # inside build_answer_request, paired with the retrieved KB passages.
         history_msgs = [
             {
                 "role": "user" if m.role == "customer" else "assistant",
@@ -1010,10 +885,9 @@ class Router:
             for m in session.messages
             if m.role in ("customer", "assistant")
         ]
-        # Drop the last entry: that is the current question already in safe_text.
         if history_msgs and history_msgs[-1]["role"] == "user":
             history_msgs = history_msgs[:-1]
-        history_msgs = history_msgs[-10:]  # keep last 5 exchanges
+        history_msgs = history_msgs[-10:]
 
         result = llm.answer_from_kb(
             safe_text,
@@ -1030,10 +904,6 @@ class Router:
                 confidence=prediction.confidence,
             )
 
-        # A provider safety system declining is a signal in its own right, not
-        # something to paper over with the extractive fallback: the customer
-        # asked something the vendor's classifiers object to, and a human
-        # should see it.
         if result.refused:
             return self._offer_escalation(
                 session,
@@ -1041,12 +911,9 @@ class Router:
                 confidence=prediction.confidence,
             )
 
-        # 5. Grounding check on the way out: if the answer drifted off the
-        #    retrieved text, we escalate rather than ship it.
         context = " ".join(p.passage.text for p in passages)
         grounding = round(guardrails.grounding_score(result.text, context), 3)
 
-        # Câu chỉ dựa trên tài liệu đối thủ (KB-MKT-*) dùng ngưỡng grounding nới.
         market_only = bool(passages) and all(
             p.passage.doc_id.startswith(MARKET_DOC_PREFIX) for p in passages
         )
@@ -1075,25 +942,9 @@ class Router:
                 confidence=prediction.confidence,
             )
 
-        if market_only:  # kèm disclaimer chưa xác minh
+        if market_only:
             result.text = _ensure_market_disclaimer(result.text)
 
-        # The low-confidence streak counts turns the assistant could not
-        # RESOLVE, not turns the classifier was unsure about.
-        #
-        # It used to count `prediction.is_unknown`, which fires on almost every
-        # knowledge question - a customer asking about fees has no scripted
-        # intent, and that is the RAG layer working as designed. Two such
-        # questions in a row therefore produced this, verbatim, in one bubble:
-        #
-        #     [the correct, cited answer about annual fees]
-        #     "I don't have anything verified on that..."
-        #
-        # An answer immediately contradicted by a claim of ignorance is worse
-        # than either message alone: the customer cannot tell which half to
-        # believe, and the one thing this architecture sells is that its
-        # answers are trustworthy. A turn that produced a grounded answer is
-        # convergence, whatever the intent classifier thought.
         session.low_confidence_streak = 0
 
         self.trace.decide(
@@ -1136,8 +987,6 @@ class Router:
             },
         )
 
-    # -- escalation -------------------------------------------------------
-
     def _offer_escalation(
         self,
         session: Session,
@@ -1179,16 +1028,11 @@ class Router:
     ) -> TurnResult:
         reason = reason or "Assistant could not resolve the request"
 
-        # Announcing the handoff once is reassuring; announcing it on every
-        # subsequent turn reads as broken, because nothing visibly changed the
-        # first three times it was said.
         already_queued = session.escalated
         session.escalated = True
         session.escalation_reason = reason
         session.reset_flow()
 
-        # Build the handover brief now, while the conversation is fresh, so the
-        # agent picking it up has it the moment they open the queue.
         session.escalation_summary = self.build_summary(session).text
 
         announcement = REQUEUED_MESSAGE if already_queued else ESCALATION_MESSAGE
@@ -1217,8 +1061,6 @@ class Router:
                 else "Customer: not identified"
             ),
             f"Escalation trigger: {session.escalation_reason or 'n/a'}",
-            # Counted from the transcript, not the audit log: the brief is built
-            # mid-turn, before the current turn's audit row has been written.
             f"Turns handled by the assistant: "
             f"{sum(1 for m in session.messages if m.role == 'customer')}",
         ]

@@ -20,7 +20,6 @@ to the "confirm to freeze" template, for instance) move here.
 
 from __future__ import annotations
 
-# -- greetings and small talk ---------------------------------------------
 
 GREETING = (
     "**Trợ lý ảo ABC Bank** hân hạnh được phục vụ quý khách. Tôi có thể hỗ trợ "
@@ -33,8 +32,6 @@ SMALLTALK = (
     "Tôi vẫn đang lắng nghe quý khách đây ạ. Quý khách cần hỏi thêm điều gì không?"
 )
 
-# "Bạn là ai?" / "người hay máy?" - giới thiệu đúng danh tính, không để câu hỏi
-# này rơi xuống RAG (lôi nhầm tài liệu) hay escalation.
 ASSISTANT_IDENTITY = (
     "Dạ, tôi là **Trợ lý ảo của Ngân hàng ABC** - một trợ lý tự động (không phải "
     "người thật) hỗ trợ quý khách qua kênh này. Tôi giúp được: kiểm tra số dư và "
@@ -47,7 +44,6 @@ GOODBYE = (
     "Cảm ơn quý khách đã sử dụng dịch vụ hôm nay. Chúc quý khách một ngày tốt lành!"
 )
 
-# Khách từ chối / đang bận (TH3). Không nài ép: cảm ơn, để ngỏ cho lần sau.
 DECLINE_GRACEFUL = (
     "Dạ vâng, tôi không làm phiền quý khách thêm ạ. Khi nào cần tìm hiểu về thẻ "
     "hay cần hỗ trợ tài khoản, quý khách cứ nhắn tôi bất cứ lúc nào nhé. "
@@ -63,11 +59,6 @@ LEFT_AGENT_NO_NAME = (
     "Tôi có thể hỗ trợ gì tiếp theo cho quý khách?"
 )
 
-# -- identity verification --------------------------------------------------
-# Two steps, asked one at a time - not two codes in one message. Step 1 finds
-# the customer by phone; step 2, only ever reached once step 1 succeeds,
-# confirms it's really them with the national ID. See
-# `flows._verify_phone_step` / `_verify_cccd_step`.
 
 VERIFICATION_PROMPT = (
     "Tôi rất sẵn lòng hỗ trợ quý khách. Trước tiên, tôi cần xác minh nhanh "
@@ -97,9 +88,6 @@ VERIFICATION_FAILED = (
     "với chuyên viên hỗ trợ trực tiếp."
 )
 
-# -- card actions: the fully-static branches only ----------------------------
-# (the "confirm {type} {mask}" / "done - {mask}" templates stay inline, since
-# they always carry the customer's own card data)
 
 CARD_NONE_LEFT_REPORT_LOST = "Tôi đã kiểm tra, hiện quý khách không có thẻ nào để khóa."
 CARD_NONE_LEFT_FREEZE = "Quý khách hiện không có thẻ nào đang hoạt động để tạm khóa."
@@ -127,7 +115,6 @@ LIMIT_INVALID = (
 )
 LIMIT_ASK_AMOUNT = "Quý khách muốn nâng hạn mức mới lên bao nhiêu ạ?"
 
-# -- account flows: the "nothing to show" branches ---------------------------
 
 OFFERS_NONE = (
     "Quý khách hiện chưa có ưu đãi nào. Tôi có thể hỗ trợ thêm gì cho quý khách không?"
@@ -146,10 +133,6 @@ NO_TRANSACTIONS = "Tôi không thấy giao dịch gần đây nào trên tài kh
 
 CROSS_SELL_ASK_INTEREST_UNVERIFIED = "Quý khách thường mua sắm trên nền tảng nào, hoặc chi tiêu nhiều nhất ở lĩnh vực nào ạ?"
 
-# Consultative discovery: shown once when a customer opens the cross-sell topic,
-# before any card is pitched. Understand the need first, then recommend on the
-# next turn - a customer who just said "tôi hay chơi golf" should not be told to
-# open a card before we know anything else about how they spend.
 CROSS_SELL_DISCOVER = (
     "Dạ, cảm ơn quý khách đã chia sẻ. Để gợi ý thẻ phù hợp nhất, "
     "cho tôi hỏi thêm một chút ạ:\n\n"
@@ -159,9 +142,6 @@ CROSS_SELL_DISCOVER = (
     "**đặc quyền du lịch – cao cấp** (dặm bay, golf, phòng chờ sân bay) ạ?"
 )
 
-# Shown when the customer's stated interest matches no card's reward lines
-# strongly enough to single one out. Point at the full line-up and ask for a bit
-# more, instead of re-asking the same generic question.
 CROSS_SELL_NO_OPEN_MATCH = (
     "Với nhu cầu quý khách vừa chia sẻ, tôi chưa khoanh được đúng một dòng thẻ. "
     "Ngân hàng có 4 dòng: **Classic** (mua sắm online, chi tiêu hằng ngày), "
@@ -171,7 +151,6 @@ CROSS_SELL_NO_OPEN_MATCH = (
     "khoản gì để tôi tư vấn đúng ạ?"
 )
 
-# -- escalation / handoff (router.py) ----------------------------------------
 
 ESCALATION_MESSAGE = (
     "Tôi xin kết nối quý khách với một chuyên viên - chuyên viên sẽ thấy đầy đủ nội dung cuộc "
@@ -195,7 +174,6 @@ ESCALATION_DECLINED = (
     "Vâng ạ, tôi tiếp tục hỗ trợ quý khách. Quý khách cần hỏi thêm điều gì không?"
 )
 
-# -- compliance guardrail (guardrails.py) ------------------------------------
 
 RESTRICTED_RESPONSE = (
     "Tôi xin phép không tư vấn về đầu tư, thuế hay pháp lý - những vấn đề này "

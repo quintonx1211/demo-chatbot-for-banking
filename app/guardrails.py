@@ -16,13 +16,6 @@ from dataclasses import dataclass
 from . import canned_responses as R
 from .textmodel import tokenize
 
-# Topics the assistant must never answer generatively, however confident the
-# model is. Each maps to the reason recorded in the audit trail.
-# Bilingual, and this is the control that most needed it. When the assistant
-# was translated, these patterns were left in English - so "tôi có nên đầu tư
-# tiết kiệm vào cổ phiếu công nghệ không?" sailed past the compliance gate and
-# was handled as an ordinary question. A guardrail that only guards one of the
-# two languages the product speaks is not a guardrail.
 RESTRICTED_TOPICS: list[tuple[str, re.Pattern, str]] = [
     (
         "investment_advice",
@@ -32,9 +25,6 @@ RESTRICTED_TOPICS: list[tuple[str, re.Pattern, str]] = [
             r"will .* (go up|crash)|best (stock|fund|coin)s?)\b"
             r"|(có nên|nên không|tư vấn)[^?.]{0,40}"
             r"(đầu tư|cổ phiếu|chứng khoán|trái phiếu|quỹ|vàng|bitcoin|tiền ảo|crypto)"
-            # "tôi nên đầu tư cổ phiếu nào", "nên mua quỹ gì" - lời khuyên "nên +
-            # hành động đầu tư + tài sản" mà hai nhánh trên bỏ sót (chỉ bắt "có
-            # nên"). Cũng bắt "cổ phiếu/quỹ/coin nào" (hỏi mã nào để mua).
             r"|nên (đầu tư|mua|bán|rót|xuống tiền)[^?.]{0,24}"
             r"(đầu tư|cổ phiếu|chứng khoán|trái phiếu|quỹ|vàng|bitcoin|tiền ảo|crypto|coin)"
             r"|(cổ phiếu|mã|quỹ|coin|đồng)\s+nào[^?.]{0,16}"
@@ -42,10 +32,6 @@ RESTRICTED_TOPICS: list[tuple[str, re.Pattern, str]] = [
             r"|(đầu tư|mua|bán)[^?.]{0,24}(cổ phiếu|chứng khoán|bitcoin|tiền ảo|vàng)"
             r"[^?.]{0,24}(có nên|được không|nên không|lời không)"
             r"|(cổ phiếu|mã nào|quỹ nào)[^?.]{0,20}(nên mua|đáng mua|sinh lời)"
-            # "bitcoin bây giờ có đáng đầu tư không" puts the asset first and
-            # the judgement second, which none of the patterns above reach.
-            # Asking whether an asset is worth buying is a recommendation
-            # request however the sentence is ordered.
             r"|(bitcoin|tiền ảo|crypto|vàng|cổ phiếu|chứng khoán|trái phiếu|quỹ)"
             r"[^?.]{0,28}(đáng (đầu tư|mua)|có nên|nên mua|nên đầu tư|lãi không|"
             r"sinh lời|tăng giá|giảm giá))",
@@ -80,13 +66,7 @@ RESTRICTED_TOPICS: list[tuple[str, re.Pattern, str]] = [
 
 RESTRICTED_RESPONSE = R.RESTRICTED_RESPONSE
 
-# Redaction patterns, applied in order. Card numbers first so their digits are
-# not partially eaten by the generic long-number rule.
 _PII_PATTERNS: list[tuple[re.Pattern, str]] = [
-    # The trailing separator is matched but not consumed, so "4111 1111 1111
-    # 1111 twice" masks to "[CARD_REDACTED] twice" rather than running the
-    # marker into the next word. Cosmetic, but this string is what gets shown
-    # when demonstrating that masking works.
     (re.compile(r"\b(?:\d[ -]?){13,19}(?<![ -])\b"), "[CARD_REDACTED]"),
     (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "[SSN_REDACTED]"),
     (re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"), "[EMAIL_REDACTED]"),
@@ -132,9 +112,6 @@ def grounding_score(answer: str, context: str) -> float:
     return len(answer_terms & context_terms) / len(answer_terms)
 
 
-# Below this the answer is not considered supported by the knowledge base.
-# Read from the policy file so the strictness trade-off is a setting, not a
-# recompile - see app/policy.py and config.json.
 from . import policy as _policy
 
 

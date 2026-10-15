@@ -14,7 +14,6 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Nguồn playbook, ưu tiên: bản trong project (deploy độc lập) rồi tới demo_tutorial.md.
 _PLAYBOOK_CANDIDATES = (
     Path(__file__).resolve().parent.parent / "data" / "cross_sell_playbook.md",
     Path(__file__).resolve().parent.parent.parent / "demo_tutorial.md",
@@ -29,14 +28,6 @@ def _playbook_path() -> Path | None:
     return None
 
 
-# Intents where the sales playbook is relevant: card shopping / cross-sell only.
-# Deliberately EXCLUDES card *servicing* (block/freeze/close/limit) and every
-# non-card topic (fraud, disputes, loans, accounts) - injecting a sales script
-# into a "tôi bị mất thẻ" or fraud turn wastes tokens and risks the bot steering
-# a distressed customer toward a card offer. See router: the flag is computed
-# from the turn's intent so the playbook rides only on genuinely card-sales turns.
-# Chỉ intent CHUYÊN thẻ. Loại product_faq/product_comparison vì chúng bao cả
-# vay/tiết kiệm/quỹ -> tránh rò playbook bán thẻ sang câu không phải thẻ.
 CROSS_SELL_INTENTS = frozenset(
     {
         "cross_sell_interest",
@@ -53,7 +44,6 @@ def is_cross_sell_context(intent: str | None) -> bool:
     return bool(intent) and intent in CROSS_SELL_INTENTS
 
 
-# Khung giới thiệu playbook cho model (số liệu vẫn lấy từ passages, không từ đây).
 _HEADER = """\
 ── SỔ TAY TƯ VẤN BÁN CHÉO THẺ TÍN DỤNG ──
 Dưới đây là kịch bản hướng dẫn cách DẪN DẮT cuộc tư vấn bán chéo thẻ tín dụng.

@@ -21,7 +21,6 @@ from .session import Session
 
 CAMPAIGNS = CampaignBook()
 
-# Flows that must not run for an unverified caller.
 PROTECTED_FLOWS = PERSONAL_INTENTS
 
 
@@ -56,9 +55,6 @@ def _money(amount: float, currency: str = "VND") -> str:
     return f"${amount:,.2f}"
 
 
-# -- verification ---------------------------------------------------------
-
-
 def _verification_prompt(session: Session, intent: str) -> FlowResult:
     """Start the identity check before a protected flow runs: full phone
     number first, full national ID (CCCD) only once the phone has already
@@ -90,14 +86,6 @@ def _digits_only(text: str) -> str:
 
 
 def _verify_phone_step(session: Session, text: str) -> FlowResult:
-    # The message has to *be* the phone number, not merely contain it: strip
-    # everything that is not a digit and the result must be *exactly* 10
-    # characters, no more and no fewer. "Số điện thoại của tôi là 0912345678
-    # ạ" passes (the words contribute no digits); a pasted 16-digit card
-    # number, or the real phone number with a PIN or CCCD tacked on, does
-    # not - both leave more than 10 digits behind, which a customer merely
-    # containing the right code inside a longer paste would otherwise slip
-    # through.
     digits = _digits_only(text)
     if len(digits) != 10:
         return FlowResult(
@@ -122,10 +110,6 @@ def _verify_cccd_step(session: Session, text: str) -> FlowResult:
 
     candidate_id = session.slots.get("verify_candidate_id")
     if not candidate_id or not db.check_national_id(candidate_id, digits):
-        # Stays on the CCCD step against the same candidate rather than
-        # bouncing back to re-ask the phone number: the phone already matched
-        # a real record, so re-typing the same digits again would not add
-        # anything - the 3-attempt budget is what actually limits guessing.
         return _verification_retry_or_fail(session)
 
     match = db.get_customer(candidate_id)
@@ -134,8 +118,6 @@ def _verify_cccd_step(session: Session, text: str) -> FlowResult:
     target = session.slots.get("target_intent")
     session.reset_flow()
 
-    # Cross-session recall lands here and nowhere earlier: before this line the
-    # session has no verified customer, so there is nobody to remember.
     recalled = memory.store.summary(match["customer_id"])
     greeting = (
         f"Cảm ơn quý khách {_full_name(match)}, quý khách đã xác minh thành công. "
@@ -143,10 +125,6 @@ def _verify_cccd_step(session: Session, text: str) -> FlowResult:
     if recalled:
         greeting += recalled + " "
 
-    # Scenario 2 – Automated Cross-Selling: raise campaign offer immediately
-    # after identity is established so the customer doesn't have to ask.
-    # handle() runs first so that flows like _card_offers can set campaign_offered
-    # before proactive_offer checks it — preventing the same offer from appearing twice.
     if target:
         follow_up = handle(session, target, "")
         proactive = proactive_offer(session)
@@ -188,9 +166,6 @@ def _verification_retry_or_fail(session: Session) -> FlowResult:
         ),
         note="verification_retry",
     )
-
-
-# -- account flows --------------------------------------------------------
 
 
 def _balance(session: Session) -> FlowResult:
@@ -296,7 +271,6 @@ def _card_offers(session: Session) -> FlowResult:
     if not offers:
         return FlowResult(text=R.OFFERS_NONE, note="offers_none")
 
-    # Mark as shown so proactive_offer won't repeat the same offers below.
     session.slots["campaign_offered"] = "1"
 
     lines = ["Đây là các ưu đãi hiện có trên tài khoản của quý khách hôm nay:", ""]
@@ -378,10 +352,6 @@ def _loan_status(session: Session) -> FlowResult:
     return FlowResult(text="\n".join(lines), note="loan_read_from_core")
 
 
-# What each customer-facing card action does, and what it may act on. Freezing
-# and reporting a card lost are two different requests that the previous version
-# collapsed into one "block", which is why a customer who froze a card had no
-# way back: the only transition that existed was terminal.
 CARD_ACTIONS: dict[str, dict] = {
     "report_lost": {
         "verb": "báo mất và khóa",
@@ -418,19 +388,6 @@ CARD_ACTIONS: dict[str, dict] = {
     },
 }
 
-# Confirmation words in both languages. The Vietnamese alternatives are
-# anchored to the start of the message while the English ones are not, and that
-# asymmetry is deliberate: "có" and "không" are extremely common syllables
-# inside ordinary Vietnamese sentences ("tôi không tìm thấy thẻ", "thẻ này có
-# vấn đề"), so an unanchored match would read a confirmation out of a sentence
-# that was not answering the question. English "yes"/"no" as whole words are
-# far less ambiguous mid-sentence.
-# A message naming a concrete spending / lifestyle interest. Its only job is to
-# decide "does the customer already have an interest we can recommend against?"
-# so the unverified cross-sell path never re-asks someone who just told us. Kept
-# broad on purpose - it includes interests no open card covers (golf, du lịch
-# nước ngoài); those still count as "stated", they just resolve to the open
-# catalogue reply rather than a re-prompt.
 _STATED_INTEREST_RE = re.compile(
     r"(mua sắm|mua hàng|online|thương mại điện tử|tmđt|shopee|lazada|tiki|"
     r"ăn uống|nhà hàng|ăn nhà hàng|quán ăn|cà ?phê|cafe|coffee|"
@@ -443,18 +400,12 @@ _STATED_INTEREST_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Reward preference, the second half of a discovery answer ("ưu tiên hoàn
-# tiền", "tích điểm"). On its own this classifies as reward_inquiry, which would
-# knock the customer out of the cross-sell flow mid-question - see
-# is_cross_sell_answer.
 _REWARD_PREF_RE = re.compile(
     r"(hoàn tiền|tích điểm|điểm thưởng|ưu đãi|ưu tiên|cashback|points?|dặm|miles)",
     re.IGNORECASE,
 )
 
 
-# Câu từ chối lọt vào cross-sell (TH3, không nài ép): "không muốn/cần/quan tâm",
-# "không có nhu cầu", "thôi...không", "bận họp/rồi", "để sau". KHÔNG bắt "bận rộn".
 _NO_INTEREST_RE = re.compile(
     r"(không|đừng|chẳng|chả|chưa)\s*(muốn|cần|thích|quan tâm)"
     r"|không\s+có\s+nhu\s+cầu"
@@ -465,8 +416,6 @@ _NO_INTEREST_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Câu hỏi thủ tục/điều kiện mở thẻ (TH1) - lọt vào cross-sell vì có "mở thẻ", nên
-# bắt tại đây để trả lời thủ tục thay vì hỏi lại thói quen chi tiêu.
 _APPLICATION_RE = re.compile(
     r"(giấy tờ|hồ sơ|điều kiện|thủ tục|chứng minh thu nhập|cần chứng minh|"
     r"làm sao (để )?mở|làm thế nào (để )?mở|cách (để )?mở)",
@@ -528,9 +477,6 @@ def _card_action(session: Session, action: str, text: str) -> FlowResult:
                 session.slots["card_id"], action, session_id=session.session_id
             )
         except db.TransitionError as exc:
-            # The status changed under us - another session, or the customer
-            # doing it in the app while talking to us. Report what the record
-            # now says rather than the outcome we expected to produce.
             session.reset_flow()
             return FlowResult(text=str(exc), note=f"{action}_refused")
 
@@ -616,8 +562,6 @@ def _match_card(cards: list[dict], text: str) -> dict | None:
     return None
 
 
-# -- new flows (product comparison, cross-sell, card close, limit adjust) --
-
 _AMOUNT_RE = re.compile(r"(\d[\d.,]*)\s*(triệu|tr\b|million)?", re.IGNORECASE)
 
 
@@ -673,7 +617,6 @@ def _card_catalogue(text: str = "") -> FlowResult:
 
     lines = ["Ngân hàng ABC hiện phát hành các dòng thẻ sau:", ""]
     for product in ENGINE.products:
-        # Mệnh đề đầu của value_proposition cho gọn một dòng (tóm tắt).
         vp = (
             (product.get("value_proposition") or "")
             .split(" - ")[0]
@@ -689,6 +632,14 @@ def _card_catalogue(text: str = "") -> FlowResult:
         "với chi tiêu của quý khách ạ?"
     )
     return FlowResult(text="\n".join(lines), note="card_catalogue")
+
+
+def product_name(card_id: str | None) -> str:
+    """Tên hiển thị của một dòng thẻ từ card_id (vd 'CARD-PLATINUM' -> 'Thẻ
+    Platinum'), hoặc '' nếu không khớp. Dùng để bơm ngữ cảnh thẻ đã chào vào
+    truy vấn của cuộc gọi cross-sell."""
+    card = next((p for p in ENGINE.products if p["id"] == card_id), None)
+    return card["name"] if card else ""
 
 
 def outbound_greeting(title: str, name: str, card_id: str) -> str:
@@ -767,24 +718,17 @@ def _card_application(session: Session) -> FlowResult:
 
 
 def _cross_sell_interest(session: Session, text: str) -> FlowResult:
-    # "tôi không muốn mở thẻ" phân loại vào đây vì "mở thẻ" lấn át phần phủ định.
-    # Đó là lời từ chối - rút lui lịch sự, không chào thẻ (TH3).
     if _NO_INTEREST_RE.search(text):
         session.reset_flow()
         return FlowResult(text=R.DECLINE_GRACEFUL, note="decline")
 
-    # TH1: câu hỏi thủ tục/điều kiện mở thẻ -> trả lời thủ tục, không hỏi chi tiêu.
     if _APPLICATION_RE.search(text):
         session.reset_flow()
         return _card_application(session)
 
-    # Two modes depending on whether identity has been verified:
-    #
-    # Verified  → segment-locked: the bank already assigned a card tier to this
-    #             customer; explain why that specific card fits what they said.
-    # Unverified → catalogue search: no segment known, so score the stated
-    #             interest against all four products and recommend the best fit.
-    #             (Scenario 1 – Customer Service: customer explores without login.)
+    if session.slots.get("xsell_card"):
+        return FlowResult(text="", handled=False)
+
     already_asked = session.slots.get("cross_sell_asked") == "1"
 
     if session.verified and session.customer:
@@ -819,11 +763,6 @@ def _cross_sell_interest(session: Session, text: str) -> FlowResult:
             note="cross_sell_ask_interest_verified",
         )
 
-    # Unverified path — consultative, not pushy. On the FIRST message we do not
-    # pitch a card: we acknowledge and ask one discovery question to understand
-    # the need, keeping whatever interest was already named. On the SECOND we
-    # recommend, combining both messages. already_asked closes the loop, so the
-    # discovery question is asked exactly once and the turn always resolves.
     interest_text = text.strip()
 
     if not already_asked:
@@ -840,8 +779,6 @@ def _cross_sell_interest(session: Session, text: str) -> FlowResult:
     session.reset_flow()
     if best is not None:
         return _render_match(best["card"], best["match"])
-    # Even after discovery, nothing an openly-marketed card specifically covers
-    # (e.g. golf, du lịch nước ngoài). Show the open catalogue rather than loop.
     return FlowResult(text=R.CROSS_SELL_NO_OPEN_MATCH, note="cross_sell_no_open_match")
 
 
@@ -922,9 +859,6 @@ def _card_limit_adjust(session: Session, text: str) -> FlowResult:
     return FlowResult(text=R.LIMIT_ASK_AMOUNT, note="card_limit_ask_amount")
 
 
-# -- dispatch -------------------------------------------------------------
-
-
 def handle(session: Session, intent: str, text: str) -> FlowResult:
     """Run the scripted flow for `intent`, gating protected ones on verification."""
     if intent in PROTECTED_FLOWS and not session.verified:
@@ -963,17 +897,12 @@ def handle(session: Session, intent: str, text: str) -> FlowResult:
     if intent == "card_offers":
         return _card_offers(session)
     if intent == "assistant_identity":
-        # "Bạn là ai / người hay máy" - trả lời tất định, không qua RAG.
         return FlowResult(text=R.ASSISTANT_IDENTITY, note="assistant_identity")
     if intent == "smalltalk":
-        # Acknowledgements and "are you there?" are not questions. Sending them
-        # through retrieval produced the worst turn in the demo: a customer
-        # typing "ok thanks" was offered a human agent.
         return FlowResult(text=R.SMALLTALK, note="smalltalk")
     if intent == "goodbye":
         return FlowResult(text=R.GOODBYE, note="goodbye")
     if intent == "decline":
-        # TH3: khách từ chối/bận - lịch sự rút lui, không nài, không đẩy chuyên viên.
         return FlowResult(text=R.DECLINE_GRACEFUL, note="decline")
     if intent == "human_agent":
         return FlowResult(
@@ -992,8 +921,6 @@ CANCEL_RE = re.compile(
     re.IGNORECASE,
 )
 
-# A flow that re-prompts this many times in a row is not going to succeed. The
-# customer is answering a different question than the one being asked.
 MAX_FLOW_MISSES = 2
 
 
@@ -1009,20 +936,12 @@ def continue_pending(session: Session, text: str) -> FlowResult | None:
     """
     if session.pending_flow == "verify":
         return _handle_verification(session, text)
-    # Resumed by the action stored when the flow began, so freeze, unfreeze and
-    # report-lost each come back to their own branch rather than all landing in
-    # whichever one happened to be hard-coded here.
     if session.pending_flow in CARD_ACTIONS:
         return _card_action(session, session.pending_flow, text)
-    # Card close and limit adjust each have their own confirmation step.
-    # Without these, a "có" reply after the confirmation prompt falls through
-    # to NLU which cannot classify it correctly.
     if session.pending_flow == "card_close":
         return _card_close(session, text)
     if session.pending_flow == "card_limit_adjust":
         return _card_limit_adjust(session, text)
-    # Cross-sell interest: the bot asked about spending preference and needs the
-    # customer's reply even when NLU cannot classify a bare "mua sắm online".
     if session.pending_flow == "cross_sell_interest":
         return _cross_sell_interest(session, text)
     return None

@@ -44,8 +44,6 @@ PROVIDERS = {
     groq_provider.NAME: groq_provider,
 }
 
-# Order used when LLM_PROVIDER is unset or "auto". Groq sits last so adding it
-# cannot change which provider an existing configuration selects.
 PROVIDER_ORDER = (
     anthropic_provider,
     openai_provider,
@@ -75,8 +73,6 @@ def active_provider():
             f"Unknown LLM_PROVIDER {requested!r}. "
             f"Expected one of: {', '.join(PROVIDERS)}, auto."
         )
-    # An explicit choice that isn't usable falls back to extractive rather than
-    # crashing the server - but describe() reports why, so it isn't silent.
     return provider if provider.available() else None
 
 
@@ -124,9 +120,6 @@ def describe() -> dict:
             "endpoint": None,
             "detail": _unavailable_reason(requested),
         }
-    # An adapter pointed at a compatible gateway is still that adapter, but
-    # reporting it as plain "openai" would be misleading in the health check
-    # and on the UI pill - the traffic is going somewhere else entirely.
     endpoint = getattr(provider, "base_url", lambda: None)()
     return {
         "mode": "live",
@@ -203,9 +196,6 @@ def raw_chat(message: str, history: str = "") -> LLMResult:
     exists to improve on; see Router._raw_turn."""
     return _run(
         build_raw_request(message, history=history, temperature=current_temperature()),
-        # Reused whether there is no provider at all or a configured one just
-        # failed (rate limit, timeout, ...) - the two aren't distinguished
-        # here, only in `error`, which the routing inspector shows separately.
         fallback="(Không nhận được câu trả lời - xem mục Ghi chú trong bảng "
         "định tuyến để biết lý do, hoặc kiểm tra nhà cung cấp model "
         "trong Cấu hình.)",

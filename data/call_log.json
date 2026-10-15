@@ -1,6 +1,256 @@
 {
   "calls": [
     {
+      "id": "CALL-bd42d7cdff",
+      "phone": "0842199388",
+      "agent_id": "CARD-SIGNATURE",
+      "agent_name": "CARD-SIGNATURE",
+      "status": "queued",
+      "created_at": "2026-10-14 09:48:49",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-78fba096a6",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:48:49",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-72b7882e51",
+      "phone": "0842199388",
+      "agent_id": "CARD-SIGNATURE",
+      "agent_name": "CARD-SIGNATURE",
+      "status": "queued",
+      "created_at": "2026-10-14 09:48:48",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-34e5cafa74",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:48:48",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-8e694308e3",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:48:47",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-fcca091d8c",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:48:46",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-382ec5d4a1",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:45:33",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-c301fa7d2c",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:44:21",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-d3ee1049a4",
+      "phone": "(demo) Thanh",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:39:48",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-e2478f77b9",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:15:28",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-98854fb898",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:15:26",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-9b5fc947d6",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:15:24",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-f11f96e10c",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:13:46",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-246914ad3e",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:13:46",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-d5b6ee9497",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:13:44",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-c068fbf78e",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:13:42",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-886bdebb08",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:06:58",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-fd233f96d5",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:06:57",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-fc79df4c74",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:06:56",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-3b7e20d87b",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:06:56",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-978d6dba4f",
+      "phone": "0842199388",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 09:06:55",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-2e0307a296",
+      "phone": "(demo) Minh",
+      "agent_id": "CARD-SIGNATURE",
+      "agent_name": "CARD-SIGNATURE",
+      "status": "queued",
+      "created_at": "2026-10-14 09:03:58",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-d7c4fc4020",
+      "phone": "(demo) Minh",
+      "agent_id": "CARD-INFINITE",
+      "agent_name": "CARD-INFINITE",
+      "status": "queued",
+      "created_at": "2026-10-14 08:24:37",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-03d26ae452",
+      "phone": "(demo) thuỷ",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 07:41:27",
+      "transcript": null,
+      "summary": null
+    },
+    {
+      "id": "CALL-a1624ddc1f",
+      "phone": "(demo) Anh",
+      "agent_id": "CARD-PLATINUM",
+      "agent_name": "CARD-PLATINUM",
+      "status": "queued",
+      "created_at": "2026-10-14 07:39:55",
+      "transcript": null,
+      "summary": null
+    },
+    {
       "id": "CALL-1ba925d12f",
       "phone": "0842199388",
       "agent_id": "CARD-PLATINUM",

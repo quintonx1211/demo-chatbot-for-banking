@@ -7,8 +7,10 @@ Yêu cầu: server.py đang chạy ở http://localhost:8000
 """
 
 import json
+import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -30,6 +32,11 @@ _opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(_cj))
 
 
 def _post(path, payload, *, staff=False):
+    # Giãn nhịp để không dồn call vào trần TOKEN/phút của Groq (vd 8000 TPM). Chỉ
+    # trễ các endpoint tốn token LLM. Bật bằng: E2E_PACE=22 python3 test_e2e.py
+    pace = os.environ.get("E2E_PACE")
+    if pace and path in ("/api/chat", "/api/summary"):
+        time.sleep(float(pace))
     data = json.dumps(payload).encode()
     req = urllib.request.Request(
         f"{BASE}{path}", data=data, headers={"Content-Type": "application/json"}

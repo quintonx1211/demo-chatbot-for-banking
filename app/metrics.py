@@ -25,14 +25,8 @@ from dataclasses import dataclass
 
 from .session import Session
 
-# Assumption behind the hours-saved estimate. The case study's own framing -
-# routine calls displaced from an overstretched call centre - puts a handled
-# call in the minutes, not seconds. Stated here so it can be shown and argued
-# with rather than buried.
 ASSUMED_HANDLE_MINUTES = 4.0
 
-# The call-centre baseline the case study quotes, for the response-time
-# comparison. Not measured here - it is the client's stated starting point.
 BASELINE_RESPONSE_SECONDS = 180
 
 
@@ -91,20 +85,12 @@ def snapshot(sessions: list[Session]) -> Snapshot:
     for entry in turns:
         route_mix[entry.route] = route_mix.get(entry.route, 0) + 1
 
-    # A conversation counts as deflected when the assistant carried it to the
-    # end without a handoff. Sessions with no turns yet are excluded rather
-    # than counted as successes - an empty chat window is not a deflection.
     engaged = [s for s in sessions if s.audit]
     escalated = [s for s in engaged if s.escalated]
     deflected = [s for s in engaged if not s.escalated]
 
-    # Latency excludes agent turns: a human's typing speed is not the
-    # assistant's response time, and mixing them makes the number meaningless.
     latencies = [float(e.latency_ms) for e in turns if e.route != "agent"]
 
-    # "Knowledge answers" are the turns where grounding is even applicable -
-    # deterministic flows read the record and cite nothing by design, so
-    # including them would inflate the rate with turns that were never at risk.
     knowledge = [e for e in turns if e.route == "rag"]
     grounded = [e for e in knowledge if e.sources]
 

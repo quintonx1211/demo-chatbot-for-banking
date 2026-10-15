@@ -32,23 +32,15 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DISCLAIMERS_PATH = DATA_DIR / "disclaimers.json"
 PRODUCTS_PATH = DATA_DIR / "products.json"
 
-# Below this cosine similarity, "matched" would be a stretch - explain_fit
-# falls back to the card's value_proposition instead of a weakly related
-# reward line that happens to score highest among worse options.
 MATCH_FLOOR = 0.08
 
-# Segments the unverified catalogue recommender may pitch. Per the demo
-# cross-sell script (demo_tutorial.md), the bot pivots across ALL FOUR tiers by
-# the spending a customer names - "du lịch/golf/dặm bay" should surface Infinite,
-# "tự chọn danh mục" Signature - so every segment is open here. (Set back to
-# {"MASS","MASS_AFFLUENT"} to re-restrict Signature/Infinite to invite-only.)
 OPEN_SEGMENTS = frozenset({"MASS", "MASS_AFFLUENT", "AFFLUENT", "PRIVATE"})
 
 
 @dataclass
 class MatchedLine:
     text: str
-    source: str  # "welcome_offers" | "reward_scheme" | "value_proposition"
+    source: str
     score: float
 
 
@@ -142,9 +134,6 @@ class RulesEngine:
             disclaimer=disclaimer,
         )
 
-    # Every product name here starts with "Thẻ " - a customer saying
-    # "Premier" or "thẻ Premier" is naming the same card either way, so
-    # matching drops the generic prefix before comparing.
     _GENERIC_PREFIXES = ("Thẻ",)
 
     def _distinguishing(self, name: str) -> str:
@@ -187,9 +176,6 @@ class RulesEngine:
         result = self._recommend_for(interest_text)
         if result is not None:
             return result
-        # Long sentences dilute TF-IDF (extra words like "thẻ nào phù hợp với tôi"
-        # lower cosine similarity below the floor). Fall back to individual content
-        # words so "tôi thích chơi golf, thẻ nào phù hợp?" still matches Infinite.
         for token in tokenize(interest_text):
             result = self._recommend_for(token)
             if result is not None:
@@ -202,7 +188,7 @@ class RulesEngine:
         best_score = -1.0
         for product in self.products:
             if product.get("segment") not in OPEN_SEGMENTS:
-                continue  # invite-only tier: never pitched to an unverified customer
+                continue
             match = self.explain_fit(product, interest_text)
             score = max((m.score for m in match.matched_lines), default=0.0)
             if score > best_score:

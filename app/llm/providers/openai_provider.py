@@ -37,7 +37,7 @@ def available() -> bool:
     if not any(os.environ.get(key) for key in ENV_KEYS):
         return False
     try:
-        import openai  # noqa: F401
+        import openai
     except ImportError:
         return False
     return True
@@ -55,8 +55,6 @@ def base_url() -> str | None:
 def complete(request: LLMRequest, effort: str) -> LLMResult:
     from openai import OpenAI
 
-    # The SDK reads OPENAI_BASE_URL itself, but passing it explicitly keeps the
-    # decision visible here rather than hidden in SDK env handling.
     client = OpenAI(base_url=base_url()) if base_url() else OpenAI()
     model = model_name()
 
@@ -70,8 +68,6 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
 
     kwargs: dict = {
         "model": model,
-        # Newer models reject `max_tokens` in favour of this; it also counts
-        # reasoning tokens, which is why the budget in base.py is generous.
         "max_completion_tokens": request.max_tokens,
         "messages": msgs,
     }
@@ -93,9 +89,6 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
 
     choice = response.choices[0]
 
-    # OpenAI surfaces a safety decline as a populated `refusal` field on the
-    # message, with `content` left null - a different shape from Claude's
-    # stop_reason, which is exactly why refusal handling lives per-adapter.
     if getattr(choice.message, "refusal", None):
         return LLMResult(
             text="", generated=False, provider=NAME, model=model, error="model_refusal"

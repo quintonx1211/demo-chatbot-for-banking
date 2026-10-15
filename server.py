@@ -58,14 +58,10 @@ import sys
 import threading
 import time
 
-# Windows consoles default to cp1252, which cannot print the Vietnamese text
-# this server logs at startup and the banner below - reconfigure before any
-# such output happens.
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-# Load .env BEFORE any app imports so env vars are set when modules initialize.
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -98,8 +94,8 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 HOST = "127.0.0.1"
 PORT = 8000
 
-MAX_BODY_BYTES = 1024 * 1024  # 1 MB – general JSON payloads
-MAX_AUDIO_BYTES = 5 * 1024 * 1024  # 5 MB – base64-encoded audio for STT
+MAX_BODY_BYTES = 1024 * 1024
+MAX_AUDIO_BYTES = 5 * 1024 * 1024
 MAX_TTS_CHARS = 1500
 
 router = Router()
@@ -111,13 +107,12 @@ _CONTENT_TYPES = {
     ".js": "text/javascript",
     ".css": "text/css",
     ".svg": "image/svg+xml",
+    ".png": "image/png",
 }
 
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "BankingChatbotDemo/0.1"
-
-    # -- helpers ----------------------------------------------------------
 
     def _send_json(
         self, payload: dict, status: int = 200, set_cookie: str | None = None
@@ -137,8 +132,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
-
-    # -- authorisation ----------------------------------------------------
 
     def _staff(self):
         """The signed-in staff session, or None."""
@@ -177,14 +170,14 @@ class Handler(BaseHTTPRequestHandler):
     def _require_voice_secret(self) -> bool:
         """Gate the voice-agent tool webhooks with a shared bearer secret.
 
-        These are called by an *external* voice provider (ElevenLabs, etc.), not
+        These are called by an *external* telephony/voice provider, not
         a signed-in browser, so cookie auth does not apply - the provider sends
         `Authorization: Bearer <VOICE_TOOLS_SECRET>`. If the env var is unset we
         allow the call (local PoC) but that MUST be set in production, or the
         bank's customer data is one guessed URL away."""
         secret = os.environ.get("VOICE_TOOLS_SECRET", "")
         if not secret:
-            return True  # PoC/dev: no secret configured
+            return True
         header = self.headers.get("Authorization", "")
         token = header[7:] if header.startswith("Bearer ") else ""
         if token and hmac.compare_digest(token, secret):
@@ -195,7 +188,14 @@ class Handler(BaseHTTPRequestHandler):
     def _send_file(self, filename: str) -> None:
         path = WEB_DIR / filename
         if (
-            filename not in {"index.html", "app.js", "styles.css", "favicon.svg"}
+            filename
+            not in {
+                "index.html",
+                "app.js",
+                "styles.css",
+                "favicon.svg",
+                "bot-avatar.png",
+            }
             or not path.exists()
         ):
             self._send_json({"error": "not found"}, status=404)
@@ -206,8 +206,6 @@ class Handler(BaseHTTPRequestHandler):
             "Content-Type", f"{_CONTENT_TYPES[path.suffix]}; charset=utf-8"
         )
         self.send_header("Content-Length", str(len(body)))
-        # Không cache file tĩnh: đây là demo đang sửa liên tục, cache khiến trình
-        # duyệt phục vụ bản cũ sau khi đã đổi CSS/JS. no-store buộc tải lại mỗi lần.
         self.send_header("Cache-Control", "no-store, must-revalidate")
         self.end_headers()
         self.wfile.write(body)
@@ -229,21 +227,18 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("Request body must be a JSON object")
         return payload
 
-    def log_message(self, fmt, *args):  # quieter console
+    def log_message(self, fmt, *args):
         if "/api/" in (args[0] if args else ""):
             sys.stderr.write(f"  {args[0]}\n")
-
-    # -- routes -----------------------------------------------------------
 
     def do_GET(self) -> None:
         path = urlparse(self.path).path
 
         if path == "/":
             self._send_file("index.html")
-        elif path in ("/app.js", "/styles.css", "/favicon.svg"):
+        elif path in ("/app.js", "/styles.css", "/favicon.svg", "/bot-avatar.png"):
             self._send_file(path.lstrip("/"))
         elif path == "/favicon.ico":
-            # Trình duyệt tự đòi /favicon.ico; trỏ về favicon.svg để hết 404.
             self._send_file("favicon.svg")
         elif path == "/api/health":
             self._send_json(
@@ -403,7 +398,6 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         path = urlparse(self.path).path
 
-        # Allow larger body for audio uploads
         body_limit = (
             MAX_AUDIO_BYTES
             if path in ("/api/stt", "/api/voice/stt")
@@ -441,9 +435,9 @@ class Handler(BaseHTTPRequestHandler):
 
         elif path == "/api/tts/provider":
             provider = payload.get("provider", "").strip()
-            if provider not in ("gtts", "ElevenLabs", "VieNeu"):
+            if provider not in ("gtts", "VieNeu"):
                 self._send_json(
-                    {"error": "provider phải là 'gtts', 'ElevenLabs' hoặc 'VieNeu'"},
+                    {"error": "provider phải là 'gtts' hoặc 'VieNeu'"},
                     status=400,
                 )
                 return
@@ -471,8 +465,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 audio_bytes = tts.synthesize(text)
-                # Gắn ĐÚNG content-type theo byte thật: VieNeu trả WAV (RIFF),
-                # gTTS/ElevenLabs trả mp3. Dán nhãn sai -> trình duyệt không phát.
                 ctype = (
                     "audio/wav"
                     if audio_bytes[:4] == b"RIFF"
@@ -603,9 +595,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"agent": agent.to_dict()})
 
         elif path == "/api/voice/call":
-            # Admin đặt một cuộc gọi ra: nhập SĐT + chọn agent. PoC tạo bản ghi
-            # nhật ký; nơi này là chỗ gọi Outbound API của nhà cung cấp thoại
-            # (xem docs/ELEVENLABS-CALLBOT.md) khi đã tích hợp.
             if not self._require_admin():
                 return
             phone = (payload.get("phone") or "").strip()
@@ -617,15 +606,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": "unknown agent"}, status=404)
                 return
             record = voice.store.create(phone, agent_id)
-            # TODO(production): trigger nhà cung cấp thoại ở đây, ví dụ ElevenLabs
-            # Outbound Call API, rồi cập nhật record["status"] qua webhook.
             self._send_json({"call": record})
 
         elif path == "/api/voice/call/sim":
-            # Cuộc gọi cross-sell MÔ PHỎNG cho demo: không quay số thật, mà mở màn
-            # hình gọi ngay trên máy admin. Backend tạo một phiên chat mới, gieo
-            # lời chào mở đầu (theo danh xưng + tên + dòng thẻ admin chọn) rồi trả
-            # session_id để trình duyệt tiếp tục hội thoại qua /api/chat/stream.
             if not self._require_admin():
                 return
             title = (payload.get("title") or "").strip()
@@ -635,13 +618,12 @@ class Handler(BaseHTTPRequestHandler):
             session = router.sessions.create()
             greeting = flows.outbound_greeting(title, name, card_id)
             session.add_message("assistant", greeting)
-            # Luôn ghi nhật ký cuộc gọi (kể cả khi admin không nhập SĐT).
+            if card_id:
+                session.slots["xsell_card"] = card_id
             voice.store.create(phone or f"(demo) {name}".strip(), card_id or "sim")
             self._send_json({"session_id": session.session_id, "greeting": greeting})
 
         elif path.startswith("/api/voice/tools/"):
-            # Webhook cho voice agent gọi giữa cuộc trò chuyện. Xác thực bằng
-            # bearer secret (VOICE_TOOLS_SECRET), KHÔNG dùng cookie đăng nhập.
             if not self._require_voice_secret():
                 return
             tool_name = path.rsplit("/", 1)[-1]
@@ -652,7 +634,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(result)
 
         elif path.startswith("/api/voice/calls/"):
-            # Nhà cung cấp thoại cập nhật trạng thái/transcript cuộc gọi về đây.
             if not self._require_voice_secret():
                 return
             call_id = path.rsplit("/", 1)[-1]
@@ -829,8 +810,6 @@ import logging as _logging
 _logging.basicConfig(level=_logging.INFO, format="%(name)s %(levelname)s %(message)s")
 
 
-# --- VieNeu-TTS: tự spawn service giọng nói local (cổng 8080) cùng chatbot ---
-# Fail-safe: thiếu thư mục/'uv'/cổng bận đều chỉ log rồi bỏ qua (chatbot vẫn chạy).
 _vieneu_proc: subprocess.Popen | None = None
 
 
@@ -854,8 +833,6 @@ def _vieneu_port() -> int:
         return 8080
 
 
-# Giọng clone "Giang" chỉ sống trong RAM VieNeu (mất khi restart) -> mỗi lần VieNeu
-# lên phải enroll lại từ clip tham chiếu. Đổi tên/clip qua env.
 _VIENEU_CLONE_NAME = os.environ.get("VIENEU_CLONE_NAME", "Giang")
 _VIENEU_CLONE_CLIP = os.environ.get(
     "VIENEU_CLONE_CLIP",
@@ -879,7 +856,6 @@ def _enroll_vieneu_voice() -> None:
         return
 
     base = _vieneu_url_base()
-    # Đợi service sẵn sàng (tải model lần đầu ~6-9s); tối đa ~90s rồi bỏ cuộc.
     for _ in range(90):
         try:
             if requests.get(f"{base}/health", timeout=1).status_code == 200:
@@ -937,7 +913,6 @@ def _maybe_start_vieneu() -> None:
     port = _vieneu_port()
     if _port_in_use(port):
         print(f"  VieNeu            : đã chạy sẵn ở cổng {port}")
-        # Có thể là instance mới chưa có giọng clone -> vẫn enroll cho chắc.
         _enroll_vieneu_async()
         return
 
@@ -951,7 +926,6 @@ def _maybe_start_vieneu() -> None:
         print("  VieNeu            : chưa cài 'uv' - bỏ qua (cài uv để tự chạy VieNeu)")
         return
 
-    # VieNeu đọc env PORT (mặc định 8000 -> đụng chatbot) nên ép PORT cho tiến trình con.
     child_env = dict(os.environ, PORT=str(port))
     log_path = vieneu_dir / "vieneu-service.log"
     try:
@@ -972,7 +946,7 @@ def _maybe_start_vieneu() -> None:
         f"  VieNeu            : đang khởi động ở cổng {port} "
         f"(pid {_vieneu_proc.pid}; log: {log_path.name}; tải model lần đầu hơi lâu)"
     )
-    _enroll_vieneu_async()  # nạp giọng clone khi service sẵn sàng (thread nền)
+    _enroll_vieneu_async()
 
 
 def _enroll_vieneu_async() -> None:
@@ -996,18 +970,18 @@ def main() -> None:
         f"trong {stats['documents']} tài liệu"
     )
 
-    # Tự khởi động service VieNeu (nếu có) - chạy nền, warm-up song song.
     _maybe_start_vieneu()
 
-    # Mở ngrok để có URL công khai (dùng để chia sẻ demo hoặc cho webhook của
-    # callbot voice - xem docs/ELEVENLABS-CALLBOT.md). Không bắt buộc: nếu ngrok
-    # không khả dụng thì server vẫn chạy bình thường ở localhost.
     try:
         import time as _time
 
         import pyngrok.ngrok as _ngrok
 
-        # Dọn tunnel cũ qua API trước khi kill agent, tránh trùng.
+        try:
+            subprocess.run(["pkill", "-f", "ngrok"], capture_output=True)
+            _time.sleep(1)
+        except Exception:
+            pass
         try:
             for t in _ngrok.get_tunnels():
                 _ngrok.disconnect(t.public_url)
@@ -1021,8 +995,6 @@ def main() -> None:
     except Exception as exc:
         print(f"  ngrok             : không khả dụng ({exc})")
 
-    # Pre-warm TTS and STT so the first customer reply isn't the one that pays
-    # the provider's cold-start latency.
     def _warmup_tts():
         if tts.available():
             ok = tts.warmup()
@@ -1063,4 +1035,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nĐã dừng.")
     finally:
-        _stop_vieneu()  # tắt tiến trình con VieNeu nếu ta đã spawn
+        _stop_vieneu()

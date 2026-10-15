@@ -54,9 +54,6 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DB_DIR = DATA_DIR / "db"
 SEED_PATH = DATA_DIR / "accounts.json"
 
-# Column order is fixed here rather than taken from whatever dict is written,
-# so the files stay diffable and a human editing one in Excel gets the columns
-# they expect back.
 COLUMNS: dict[str, list[str]] = {
     "customers": [
         "customer_id",
@@ -110,27 +107,20 @@ COLUMNS: dict[str, list[str]] = {
     ],
 }
 
-# Columns that must come back as numbers. Everything in a CSV is a string on
-# the way in, and a balance compared or formatted as text is a bug that hides
-# until the number is large enough to sort wrongly.
 NUMERIC: dict[str, set[str]] = {
     "accounts": {"balance", "available"},
     "loans": {"amount"},
     "transactions": {"amount"},
 }
 
-# What each action is allowed to do, and from where. A transition absent from
-# this table cannot happen, whatever a caller asks for.
 TRANSITIONS: dict[str, tuple[frozenset[str], str]] = {
     "activate": (frozenset({"inactive"}), "active"),
     "reactivate": (frozenset({"dormant"}), "active"),
     "freeze": (frozenset({"active"}), "frozen"),
     "unfreeze": (frozenset({"frozen"}), "active"),
-    # A lost or stolen card is a one-way door; the replacement is a new card.
     "report_lost": (frozenset({"active", "frozen", "dormant", "inactive"}), "blocked"),
 }
 
-# Statuses a customer can transact on.
 USABLE = frozenset({"active"})
 
 
@@ -143,9 +133,6 @@ _lock = threading.RLock()
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-# -- CSV plumbing ---------------------------------------------------------
 
 
 def _path(table: str) -> Path:
@@ -163,9 +150,6 @@ def _read(table: str) -> list[dict]:
                 for column in numeric:
                     value = (row.get(column) or "").strip()
                     row[column] = float(value) if value else 0.0
-                # An empty CSV cell is the absence of a value, not the string
-                # "". Callers check `if card["replaces"]`, and "" is falsy by
-                # luck rather than by meaning - None says what is intended.
                 for key, value in list(row.items()):
                     if value == "":
                         row[key] = None
@@ -225,9 +209,6 @@ def _ensure() -> None:
     if not _path("customers").exists():
         reset()
         return
-    # Re-seed automatically when the on-disk schema doesn't match the current
-    # COLUMNS definition — happens after a schema change (e.g. phone_last4 →
-    # phone) without deleting the old CSV.
     try:
         with _path("customers").open(newline="", encoding="utf-8") as fh:
             headers = next(csv.reader(fh), [])
@@ -235,9 +216,6 @@ def _ensure() -> None:
             reset()
     except Exception:
         reset()
-
-
-# -- seeding --------------------------------------------------------------
 
 
 def reset() -> None:
@@ -291,9 +269,6 @@ def reset() -> None:
         _write("loans", loans)
         _write("transactions", transactions)
         _write("card_events", [])
-
-
-# -- reads ----------------------------------------------------------------
 
 
 def customer_ids() -> list[str]:
@@ -358,9 +333,6 @@ def card_events(customer_id: str | None = None, limit: int = 50) -> list[dict]:
     return list(reversed(rows))[:limit]
 
 
-# -- writes ---------------------------------------------------------------
-
-
 def set_card_status(
     card_id: str, action: str, session_id: str | None = None, actor: str = "customer"
 ) -> dict:
@@ -399,10 +371,6 @@ def set_card_status(
             replacement = _build_replacement(cards, card, now)
             cards.append(replacement)
 
-        # Cards first, then the log. If the process dies between the two the
-        # state is right and the audit row is missing, which is recoverable by
-        # reading the file. The other order would log an action that never
-        # happened, which is not.
         _write("cards", cards)
         _append(
             "card_events",

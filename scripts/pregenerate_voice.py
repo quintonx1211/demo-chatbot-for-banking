@@ -18,15 +18,14 @@ app/tts.py.
 Two ways to run it:
 
     python pregenerate_voice.py                        # gTTS, in-process, no server needed
-    python pregenerate_voice.py --provider ElevenLabs  # ElevenLabs, in-process (needs the key)
     python pregenerate_voice.py --via-server http://127.0.0.1:8000
                                                        # through a running server, whatever
                                                        # provider/voice it is configured with
 
 gTTS needs no API key and calls its provider directly, in this process, which
 is everything a one-off batch script should not have to stand up just to speak
-thirty fixed sentences. ElevenLabs is a plain request/response call, so it also
-runs in-process here - pass its voice_id with --voice.
+thirty fixed sentences. For VieNeu (local) use --via-server against a running
+server configured with it.
 
 `--via-server` is the alternative: it POSTs the same `/api/tts` a browser would
 to an already-running server, once per reply, and writes each response straight
@@ -43,6 +42,9 @@ import json
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path as _Path
+
+sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
 
 from app import tts
 from app.canned_responses import all_responses
@@ -160,16 +162,15 @@ def main() -> int:
     parser.add_argument(
         "--provider",
         default="gtts",
-        choices=["gtts", "ElevenLabs"],
-        help="TTS provider to bake the cache with (default: gtts). "
-        "Ignored with --via-server - the server's own configured "
-        "provider is used instead.",
+        choices=["gtts"],
+        help="In-process TTS provider to bake the cache with (default: gtts). "
+        "For VieNeu use --via-server against a running server; its own "
+        "configured provider is used instead.",
     )
     parser.add_argument(
         "--voice",
         default=None,
-        help="ElevenLabs voice_id (only used with --provider ElevenLabs, "
-        "in-process mode)",
+        help="Voice id (only used with --via-server, the server's provider)",
     )
     parser.add_argument(
         "--via-server",

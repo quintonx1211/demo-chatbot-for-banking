@@ -21,15 +21,10 @@ import os
 from ..base import LLMRequest, LLMResult, classify_provider_error
 
 NAME = "gemini"
-# Flash rather than Pro: Google's free tier covers the Flash line only, and the
-# demo's job is rewriting a retrieved passage into two sentences - not work that
-# needs a Pro-tier model. Override with LLM_MODEL if you have paid access.
 DEFAULT_MODEL = "gemini-2.5-flash"
 PACKAGE = "google-genai"
 ENV_KEYS = ("GEMINI_API_KEY", "GOOGLE_API_KEY")
 
-# Gemini expresses reasoning depth as a token budget, not a named level.
-# -1 lets the model decide; 0 disables thinking entirely.
 _THINKING_BUDGET = {"low": 0, "medium": 1024, "high": -1}
 
 
@@ -37,7 +32,7 @@ def available() -> bool:
     if not any(os.environ.get(key) for key in ENV_KEYS):
         return False
     try:
-        from google import genai  # noqa: F401
+        from google import genai
     except ImportError:
         return False
     return True
@@ -69,7 +64,6 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
     )
 
     if request.messages:
-        # Gemini uses "model" for the assistant role, and its own Content/Part types.
         contents = [
             types.Content(
                 role="user" if m["role"] == "user" else "model",
@@ -93,14 +87,12 @@ def complete(request: LLMRequest, effort: str) -> LLMResult:
             error=classify_provider_error(exc),
         )
 
-    # Block point 1: the prompt never reached the model.
     feedback = getattr(response, "prompt_feedback", None)
     if feedback is not None and getattr(feedback, "block_reason", None):
         return LLMResult(
             text="", generated=False, provider=NAME, model=model, error="model_refusal"
         )
 
-    # Block point 2: generation started, then the candidate was withheld.
     candidates = getattr(response, "candidates", None) or []
     finish_reason = (
         str(getattr(candidates[0], "finish_reason", "")) if candidates else ""

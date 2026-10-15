@@ -11,18 +11,13 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-# Confidence bands. Tuned against the utterance set below; the router treats
-# them as the only policy knob it needs.
 from . import policy as _policy
 from .textmodel import TfidfIndex, tokenize
 
-HIGH_CONFIDENCE = _policy.current.high_confidence  # deterministic scripted flow
-LOW_CONFIDENCE = 0.28  # below this the intent is not trusted at all
+HIGH_CONFIDENCE = _policy.current.high_confidence
+LOW_CONFIDENCE = 0.28
 
 
-# Each intent lists example utterances (training data for the TF-IDF centroid)
-# and optional regex "anchors". An anchor match is a strong signal that lifts
-# the score, which is how a rule-based layer and a statistical one coexist.
 INTENTS: dict[str, dict] = {
     "balance_inquiry": {
         "utterances": [
@@ -46,11 +41,6 @@ INTENTS: dict[str, dict] = {
             "check my account",
             "view my account",
         ],
-        # Anchored on possession, not on the word "balance". A bare \bbalance\b
-        # also fires on "what counts as an average daily balance?", which is a
-        # policy question about how balances are calculated, not a request to
-        # see one - and routing it here sends the customer into an identity
-        # check for information that needs no identity at all.
         "anchors": [
             r"số dư",
             r"kiểm tra tài khoản",
@@ -76,24 +66,10 @@ INTENTS: dict[str, dict] = {
             "deactivate my card now",
             "I need to report my card lost",
         ],
-        # "freeze" is deliberately NOT here any more. Freezing and reporting a
-        # card lost are different requests with different consequences - one is
-        # reversible, the other issues a replacement and can never be undone -
-        # and routing both to the same flow is what left customers with a
-        # blocked card and no way back.
         "anchors": [
             r"(mất|đánh cắp|thất lạc)[^?.]{0,16}thẻ",
             r"thẻ[^?.]{0,16}(bị mất|bị đánh cắp)",
             r"báo mất thẻ",
-            # "khoá thẻ" on its own is a permanent block. The negative
-            # lookbehind keeps it away from "tạm khoá thẻ" (freeze) and "mở
-            # khoá thẻ" (unfreeze), which are different transitions with
-            # different consequences - one of them irreversible.
-            #
-            # This anchor was simply missing after translation, so the plainest
-            # instruction in the whole product - "khoá thẻ của tôi" - matched
-            # no anchor, scored below threshold and went to the knowledge base.
-            # The customer asking to block a card got a policy document.
             r"(?<!tạm )(?<!mở )(?<!bỏ )khoá thẻ",
             r"(?<!tạm )(?<!mở )(?<!bỏ )khóa thẻ",
             r"thẻ[^?.]{0,12}(?<!tạm )(?<!mở )khoá (ngay|lại|giúp|vĩnh viễn)",
@@ -137,11 +113,6 @@ INTENTS: dict[str, dict] = {
             "my card is frozen, switch it back on",
             "undo the block on my card",
         ],
-        # The gap that produced the bug this intent exists to fix: a customer
-        # who froze a card had no phrase that reached anything. "unblock my
-        # card" classified as `unknown` and fell through to retrieval, which
-        # found nothing, so the assistant offered a human agent for an action
-        # it was perfectly able to perform itself.
         "anchors": [
             r"(mở khoá|mở khóa|bỏ khoá|bỏ khóa|mở lại thẻ)",
             r"\bun(block|freeze|lock|suspend)\w*\b",
@@ -258,11 +229,6 @@ INTENTS: dict[str, dict] = {
             "am I eligible for an upgrade",
             "any promotions for me",
         ],
-        # "offer" as a noun the customer wants to receive, not a product FAQ.
-        # "thẻ Platinum có ưu đãi gì khi mở thẻ lần đầu?" is a product FAQ
-        # and must NOT match here – the Vietnamese anchor now requires a
-        # personal possessive ("của tôi", "cho tôi") near "ưu đãi" so that
-        # generic product questions fall through to the RAG layer.
         "anchors": [
             r"(tôi có|của tôi|dành cho tôi)[^?.]{0,20}(ưu đãi|khuyến mãi|khuyến mại)",
             r"(ưu đãi|khuyến mãi|khuyến mại)[^?.]{0,20}(của tôi|cho tôi|nào không|có không)",
@@ -287,10 +253,6 @@ INTENTS: dict[str, dict] = {
             "this is not helping give me support",
             "I need a customer service officer",
         ],
-        # A request for a person needs a verb of asking, not just a noun.
-        # "someone" on its own was catching "someone used my card without
-        # permission" - a fraud report, routed to the handoff queue because it
-        # contained a pronoun. Nouns alone are not intent.
         "anchors": [
             r"(gặp|nói chuyện với)[^?.]{0,16}(nhân viên|người thật|chuyên viên|tổng đài)",
             r"chuyển[^?.]{0,10}(tôi|máy)",
@@ -318,9 +280,6 @@ INTENTS: dict[str, dict] = {
             r"^\s*(hi|hello|hey|good (morning|afternoon|evening))\b",
         ],
     },
-    # "Bạn là ai?", "người hay máy?", "bạn tên gì?" - câu hỏi về chính trợ lý.
-    # Trả lời tất định bằng persona, không để rơi xuống RAG (lôi nhầm tài liệu
-    # lừa đảo/ưu đãi) hay escalation.
     "assistant_identity": {
         "utterances": [
             "bạn là ai",
@@ -371,7 +330,8 @@ INTENTS: dict[str, dict] = {
             "cool",
         ],
         "anchors": [
-            r"^\s*(cảm ơn|cám ơn|ok|hiểu rồi|vâng|dạ)\s*[.!]?\s*$",
+            r"^\s*(cảm ơn|cám ơn|ok|hiểu rồi|vâng|dạ)"
+            r"(\s+(nhé|nha|nhá|ạ|nhiều|lắm|rồi|em|anh|chị|bạn))*\s*[.!]?\s*$",
             r"^\s*(ok(ay)?|thanks|thank you|got it|understood|great|"
             r"cool|nice|perfect|alright|sure)\s*[.!]?\s*$",
             r"are you (still )?(there|here)",
@@ -395,8 +355,6 @@ INTENTS: dict[str, dict] = {
             r"that('s| is) all",
         ],
     },
-    # Knowledge intents: recognised, but answered from the knowledge base by
-    # the RAG layer rather than by a scripted flow.
     "knowledge_query": {
         "utterances": [
             "phí chuyển tiền quốc tế là bao nhiêu",
@@ -485,25 +443,12 @@ INTENTS: dict[str, dict] = {
             "help me find the right card",
         ],
         "anchors": [
-            # "tôi hay/thích/thường + <bất kỳ khoản chi tiêu nào>". Danh sách khoản
-            # chi phải phủ đủ để một câu nêu sở thích luôn vào flow cross-sell
-            # (nếu hẹp, "tôi hay đi grab / cà phê / xem phim" lọt sang KB rồi bị
-            # đẩy nhân viên - đúng lỗi đã gặp).
             r"(tôi (hay|thích|thường)|mình (hay|thích|thường)|thường xuyên)"
             r"[^?.]{0,30}(mua sắm|mua hàng|online|thương mại điện tử|shopee|lazada|tiki|"
             r"ăn uống|nhà hàng|quán ăn|cà ?phê|cafe|du lịch|nước ngoài|khách sạn|"
             r"máy bay|di chuyển|gọi xe|grab|be|xanh sm|taxi|xăng|giải trí|rạp|phim|"
             r"golf|thể thao|gym|thời trang|quần áo|mỹ phẩm|siêu thị|chi tiêu)",
-            # Yêu cầu tư vấn thẻ - "tư vấn/gợi ý/chọn/tìm thẻ" đứng một mình là đủ,
-            # không cần thêm "phù hợp/nào" phía sau ("tư vấn thẻ giúp tôi").
             r"(tìm|chọn|tư vấn|gợi ý|giới thiệu|đề xuất)[^?.]{0,20}thẻ",
-            # "mở/làm/đăng ký thẻ" = muốn có thẻ mới -> vào tư vấn cross-sell, KHÔNG
-            # để rơi vào KB (dễ trích tài liệu ưu đãi Platinum -> nghe như ép mở
-            # Platinum) hay nhầm sang card_close. Chặn "mở khóa thẻ" (unfreeze) bằng
-            # cách yêu cầu "thẻ" đứng ngay sau, "mở khóa" thì không khớp.
-            # `(?<!khi )`: "...ưu đãi gì KHI MỞ THẺ lần đầu" là câu hỏi về ưu đãi
-            # chào mừng của một thẻ (card_catalogue), không phải yêu cầu mở thẻ -
-            # nếu khớp ở đây sẽ hoà điểm với card_catalogue và bị phạt mơ hồ.
             r"(?<!khi )\b(mở|làm|đăng ký|đăng kí)\s+thẻ\b",
             r"thẻ[^?.]{0,20}(nào|gì)[^?.]{0,20}(phù hợp|tốt|nên|hợp|dành cho)",
             r"thẻ nào[^?.]{0,20}(phù hợp|tốt|nên chọn)",
@@ -560,18 +505,10 @@ INTENTS: dict[str, dict] = {
         ],
         "anchors": [
             r"(ưu đãi|đặc quyền|quyền lợi|hoàn tiền)[^?.]{0,16}(của tôi|thẻ tôi)",
-            # Thứ tự ngược: "thẻ (của) tôi ... quyền lợi/ưu đãi/hoàn tiền". Câu
-            # "thẻ của tôi có quyền lợi gì" trước đây tụt dưới ngưỡng vì anchor
-            # trên chỉ khớp khi "của tôi" đứng SAU từ quyền lợi.
             r"thẻ (của )?tôi[^?.]{0,16}(ưu đãi|đặc quyền|quyền lợi|hoàn tiền|cashback)",
             r"\b(rewards?|perks?|benefits?|cashback)\b[^?.]{0,16}\b(my card|do i get|include)\b",
         ],
     },
-    # "Ngân hàng có những loại thẻ nào?" - hỏi DANH MỤC sản phẩm thẻ. Tách khỏi
-    # cross_sell (gợi ý 1 thẻ hợp gu) và product_comparison (so sánh 2 thẻ): đây
-    # chỉ muốn xem ngân hàng phát hành những dòng thẻ gì. Trả lời tất định từ
-    # products.json để không bị KB trả nhầm tài liệu tra soát hay LLM trả lời
-    # chung chung "thẻ ATM, thẻ tín dụng".
     "card_catalogue": {
         "utterances": [
             "ngân hàng có những loại thẻ nào",
@@ -584,7 +521,6 @@ INTENTS: dict[str, dict] = {
             "danh mục thẻ của ngân hàng",
             "what cards does the bank offer",
             "what types of cards do you have",
-            # Hỏi chi tiết MỘT thẻ cụ thể -> flow trả full "table row" của thẻ đó.
             "thẻ Platinum có gì",
             "thẻ Classic có ưu đãi gì",
             "cho tôi biết thêm về thẻ Signature",
@@ -597,7 +533,6 @@ INTENTS: dict[str, dict] = {
             r"(ngân hàng|bên (bạn|mình)|các bạn)[^?.]{0,24}(những|các|mấy)?[^?.]{0,10}thẻ[^?.]{0,15}(nào|gì)",
             r"(có|phát hành)[^?.]{0,16}(những|các|mấy)[^?.]{0,10}thẻ[^?.]{0,12}(nào|gì)",
             r"\bwhat (cards|types of cards)\b",
-            # MỘT thẻ cụ thể + hỏi thông tin -> chi tiết thẻ đó.
             r"thẻ\s+(classic|platinum|signature|infinite)[^?.]{0,24}"
             r"(có gì|có ưu đãi gì|ưu đãi gì|thế nào|ra sao|như thế nào|chi tiết|"
             r"gồm|quyền lợi|thông tin)",
@@ -605,9 +540,6 @@ INTENTS: dict[str, dict] = {
             r"thẻ\s+(classic|platinum|signature|infinite)",
         ],
     },
-    # Khách từ chối / đang bận (TH3 demo_tutorial). Bắt riêng để KHÔNG rơi vào KB
-    # (đang trích tài liệu thẻ vào mặt người vừa nói "không cần" - rất pushy) hay
-    # escalation. Trả lời lịch sự, không nài, để cửa mở cho lần sau.
     "decline": {
         "utterances": [
             "tôi không cần thẻ đâu",
@@ -633,9 +565,6 @@ INTENTS: dict[str, dict] = {
 }
 
 
-# Intents that read a specific customer's record. They all require an identity
-# check, so misrouting into one costs the customer a verification step for
-# information that needed none.
 PERSONAL_INTENTS = frozenset(
     {
         "balance_inquiry",
@@ -645,28 +574,14 @@ PERSONAL_INTENTS = frozenset(
         "block_card",
         "freeze_card",
         "unfreeze_card",
-        # cross_sell_interest is intentionally NOT here: Scenario 1 (Customer
-        # Service) lets an unverified customer ask "which card fits my spending?"
-        # without an identity check.  Verified customers get a personalised answer
-        # (segment-locked); unverified customers get a catalogue recommendation.
         "card_close",
         "card_limit_adjust",
         "reward_inquiry",
         "card_offers",
-        # activate_card reads session.customer directly (which card is inactive,
-        # which is dormant) - missing from this set meant it ran before
-        # verification ever set that field, crashing on session.customer being
-        # None instead of asking for identity first.
         "activate_card",
     }
 )
 
-# Questions about how something *works*, as opposed to requests for a
-# customer's own data. The two share almost all their vocabulary - "how is
-# interest on my savings worked out?" and "what's my savings balance?" differ
-# by intent, not by nouns, and TF-IDF alone cannot tell them apart. Possession
-# does not separate them either: the first is possessive and still a policy
-# question. What separates them is that one asks for a mechanism.
 _MECHANISM_RE = re.compile(
     r"(what counts as|what qualifies|how (is|are|do you|does the bank) [^?]*"
     r"(calculat|work(ed)? out|determin|assess|appl(y|ied)|charged|waiv)"
@@ -675,12 +590,6 @@ _MECHANISM_RE = re.compile(
     r"|how does .* work"
     r"|when (does|do|will) .*(reach|arrive|settle|clear|post)"
     r"|how (long|much|many) (does|do|is|are) (a|an|the|it|they)"
-    # Vietnamese. The English half of this pattern was carried over at
-    # translation time and the Vietnamese half was not, so "số dư bình quân
-    # ngày được tính thế nào?" - a policy question about how a figure is
-    # derived - scored balance_inquiry at 0.77 and sent the customer into an
-    # identity check to read a published rule. Same defect the English side
-    # had, reintroduced in a new language.
     r"|(được )?tính (như )?thế nào|tính ra sao|cách tính"
     r"|(là )?(gì|thế nào) (mà|khi)|nghĩa là gì"
     r"|(quy định|chính sách|điều kiện|nguyên tắc) (về|áp dụng|là)"
@@ -691,10 +600,6 @@ _MECHANISM_RE = re.compile(
     re.IGNORECASE,
 )
 
-# How far a mechanism question's score is knocked down. Enough to drop it below
-# HIGH_CONFIDENCE and into the knowledge-base path, not so far that it becomes
-# "unknown" - the intent guess is still the best available signal for the
-# audit trail.
 _MECHANISM_PENALTY = 0.45
 
 
@@ -718,8 +623,6 @@ class IntentPrediction:
 class IntentClassifier:
     def __init__(self, intents: dict[str, dict] | None = None) -> None:
         self.intents = intents or INTENTS
-        # One TF-IDF document per utterance, so short intents aren't penalised
-        # by being averaged into a single long centroid.
         self._labels: list[str] = []
         corpus: list[str] = []
         for name, spec in self.intents.items():
@@ -735,23 +638,16 @@ class IntentClassifier:
     def predict(self, text: str) -> IntentPrediction:
         scores: dict[str, float] = {}
 
-        # Statistical signal. A short utterance can tokenize to nothing (e.g.
-        # "hi" is a stop word), in which case only the anchors below speak.
         if tokenize(text):
             similarities = self._index.similarities(text)
-            # Max-pool per intent: the best-matching example utterance wins.
             for label, score in zip(self._labels, similarities):
                 if score > scores.get(label, 0.0):
                     scores[label] = score
 
-        # Anchor hits push a match over the deterministic threshold. A phrase
-        # like "block card" is unambiguous even when the wording is unusual.
         for name, patterns in self._anchors.items():
             if any(p.search(text) for p in patterns):
                 scores[name] = min(1.0, max(scores.get(name, 0.0), 0.62) + 0.15)
 
-        # A question about how something works is not a request to see an
-        # account, however much vocabulary the two share.
         if _MECHANISM_RE.search(text or ""):
             for name in PERSONAL_INTENTS & scores.keys():
                 scores[name] *= _MECHANISM_PENALTY
@@ -763,8 +659,6 @@ class IntentClassifier:
         top_intent, top_score = ranked[0]
         runner_up, runner_up_score = ranked[1] if len(ranked) > 1 else (None, 0.0)
 
-        # Ambiguity penalty: two intents scoring alike means we are not really
-        # confident in either, so we push the query toward the RAG layer.
         if runner_up and top_score - runner_up_score < 0.08:
             top_score *= 0.75
 

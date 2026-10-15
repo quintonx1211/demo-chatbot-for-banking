@@ -9,7 +9,7 @@ from __future__ import annotations
 import urllib.request
 from pathlib import Path
 
-VOICE_DIR = Path(__file__).parent / "voices"
+VOICE_DIR = Path(__file__).resolve().parent.parent / "voices"
 
 VOICE = {
     "name": "vi_VN-vivos-x_low",

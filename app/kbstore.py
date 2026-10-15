@@ -21,18 +21,11 @@ from . import loaders
 from .ingest import extract as ingest_extract
 from .retriever import KnowledgeBase, _parse_document, parse_text
 
-# Filenames are restricted to a conservative character set and must be a bare
-# name - no directory component at all. Checking for ".." is not enough on its
-# own (absolute paths, alternate separators, and NTFS streams all bypass it),
-# so this is an allowlist rather than a denylist.
 _EXTENSIONS = "|".join(ext.lstrip(".") for ext in ingest_extract.SUPPORTED)
 FILENAME_RE = re.compile(
     rf"^[A-Za-z0-9][A-Za-z0-9._-]{{0,63}}\.({_EXTENSIONS})$", re.IGNORECASE
 )
 
-# Windows resolves these as device names even with an extension, so `con.md`
-# is not a file - writing to it opens the console. The demo runs on Windows,
-# so this is a real case rather than a theoretical one.
 _RESERVED_STEMS = {
     "con",
     "prn",
@@ -42,7 +35,7 @@ _RESERVED_STEMS = {
     *(f"lpt{n}" for n in range(1, 10)),
 }
 
-MAX_BYTES = 256 * 1024  # a knowledge-base article, not a data dump
+MAX_BYTES = 256 * 1024
 MAX_DOCUMENTS = 200
 
 
@@ -75,8 +68,6 @@ class DocumentInfo:
 class KnowledgeBaseStore:
     def __init__(self, kb: KnowledgeBase) -> None:
         self.kb = kb
-
-    # -- validation -------------------------------------------------------
 
     def _safe_path(self, filename: str) -> Path:
         """Resolve `filename` to a path inside the knowledge-base directory.
@@ -125,8 +116,6 @@ class KnowledgeBaseStore:
                 "contain no body text the chunker can index."
             )
 
-    # -- read -------------------------------------------------------------
-
     def list_documents(self) -> list[DocumentInfo]:
         documents: list[DocumentInfo] = []
         for path in self.kb.document_paths():
@@ -161,9 +150,6 @@ class KnowledgeBaseStore:
         return {
             "filename": path.name,
             "format": path.suffix.lower().lstrip("."),
-            # For a .docx this is the extracted markdown, not the original
-            # bytes - which is exactly what the reviewer needs to see, since
-            # it is what retrieval actually indexes.
             "content": content,
             "editable": path.suffix.lower() in (".md", ".txt"),
             "passages": [
@@ -177,8 +163,6 @@ class KnowledgeBaseStore:
             ],
         }
 
-    # -- mutate -----------------------------------------------------------
-
     def _check_capacity(self, path: Path) -> None:
         if not path.exists() and len(self.kb.document_paths()) >= MAX_DOCUMENTS:
             raise KBError(f"Knowledge base is limited to {MAX_DOCUMENTS} documents")
@@ -186,7 +170,7 @@ class KnowledgeBaseStore:
     def _finish(self, path: Path) -> DocumentInfo:
         self.kb.reload()
         info = next((d for d in self.list_documents() if d.filename == path.name), None)
-        if info is None:  # pragma: no cover - the write above just succeeded
+        if info is None:
             raise KBError("Document was written but could not be read back")
         return info
 
@@ -198,8 +182,6 @@ class KnowledgeBaseStore:
                 f"{path.suffix} documents are uploaded as files, not edited as text"
             )
         self._check_size(len(content.encode("utf-8")))
-        # Normalise line endings so documents written on Windows and on a POSIX
-        # box chunk identically - the section splitter is line-anchored.
         normalised = content.replace("\r\n", "\n").replace("\r", "\n")
         self._check_retrievable(normalised, path.name)
         self._check_capacity(path)

@@ -36,7 +36,7 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-OUT_PATH = Path(__file__).resolve().parent / "data" / "accounts.json"
+OUT_PATH = Path(__file__).resolve().parent.parent / "data" / "accounts.json"
 SEED = 20260805
 
 # (name, segment, profile) - the profile drives which scenario the customer

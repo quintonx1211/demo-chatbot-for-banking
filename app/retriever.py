@@ -17,16 +17,6 @@ from .textmodel import TfidfIndex
 
 KB_DIR = Path(__file__).resolve().parent.parent / "data" / "kb"
 
-# Retrieval cut-offs, expressed on the coverage scale (see textmodel.coverages):
-# "what share of this question does the passage actually address?". Below the
-# floor we return nothing, which routes the turn to escalation rather than
-# letting the LLM answer without evidence. The relative cut-off then drops
-# weaker passages once a strong one exists, so the model isn't handed noise
-# alongside the right source.
-#
-# Measured on the demo corpus: in-scope questions score 0.29-1.00 against their
-# correct passage, out-of-scope questions top out at 0.23. The floor sits in
-# that gap. Re-measure it whenever the knowledge base changes materially.
 from . import policy as _policy
 
 MIN_RELEVANCE = _policy.current.min_relevance
@@ -39,7 +29,7 @@ class Passage:
     doc_id: str
     source: str
     title: str
-    heading: str  # leaf heading - what gets cited
+    heading: str
     text: str
     heading_path: list[str] = field(default_factory=list)
     chunk_index: int = 0
@@ -55,9 +45,6 @@ class Passage:
         return " › ".join(self.heading_path) if self.heading_path else self.heading
 
 
-# Reciprocal Rank Fusion constant. 60 is the value from the original paper and
-# is not sensitive here: it damps the difference between adjacent ranks so that
-# agreement across rankers matters more than any single ranker's confidence.
 RRF_K = 60
 
 
@@ -76,26 +63,11 @@ def reciprocal_rank_fusion(rankings: dict[str, list[float]]) -> list[float]:
     for scores in rankings.values():
         order = sorted(range(length), key=lambda i: scores[i], reverse=True)
         for rank, index in enumerate(order, start=1):
-            # A zero score is an absence of evidence, not weak evidence; letting
-            # it contribute would give every unmatched passage a rank bonus.
             if scores[index] > 0.0:
                 fused[index] += 1.0 / (RRF_K + rank)
     return fused
 
 
-# Issuer names, and the market-reference document each one belongs to.
-#
-# This is a hard filter rather than a scoring hint, because the failure it
-# prevents is categorically wrong rather than merely low quality. Asked "phí
-# thường niên thẻ Visa của MBBank là bao nhiêu?", retrieval returned the
-# *Vietcombank* fee table at coverage 0.56 - "MBBank" written as one word is
-# absent from the corpus (the document says "MB Bank"), so it contributed
-# nothing, while "Visa" and "phí thường niên" pulled Vietcombank to the top.
-#
-# The assistant then presented one bank's annual fee, interest rate and credit
-# limit as another's, in a confident table, with a citation. No amount of
-# ranking improvement makes that acceptable: if a customer names an issuer, a
-# passage about a different issuer is not a worse answer, it is a false one.
 _ISSUER_ALIASES: list[tuple[str, tuple[str, ...]]] = [
     ("KB-MKT-TCB", ("techcombank", "tcb")),
     ("KB-MKT-VCB", ("vietcombank", "vcb")),
@@ -103,15 +75,9 @@ _ISSUER_ALIASES: list[tuple[str, tuple[str, ...]]] = [
     ("KB-MKT-MBB", ("mbbank", "mb bank", "mbb", "quân đội")),
 ]
 
-# Prefix marking a passage as being about another bank's products.
 MARKET_DOC_PREFIX = "KB-MKT-"
 
-# How far competitor material is pushed down when the customer named no issuer.
-# 0.75 was picked as the smallest value that puts this bank's own definition
-# above a competitor document sharing the same phrase, without hiding market
-# references from genuine comparison questions. Swept on the labelled set: it
-# costs nothing on P@1 and nothing on rejection.
-MARKET_DOC_DEMOTION = 0.75
+MARKET_DOC_DEMOTION = 0.6
 
 
 def issuers_mentioned(query: str) -> set[str]:
@@ -120,8 +86,6 @@ def issuers_mentioned(query: str) -> set[str]:
     found = set()
     for doc_id, aliases in _ISSUER_ALIASES:
         for alias in aliases:
-            # Padded rather than a word-boundary regex: "mb" inside "mbbank"
-            # must not count, and Vietnamese diacritics make \b unreliable.
             if f" {alias} " in text or f" {alias}?" in text or f" {alias}," in text:
                 found.add(doc_id)
                 break
@@ -137,11 +101,11 @@ def issuers_mentioned(query: str) -> set[str]:
 @dataclass
 class RetrievedPassage:
     passage: Passage
-    score: float  # coverage - the relevance gate
-    similarity: float = 0.0  # cosine
-    bm25: float = 0.0  # Okapi BM25
-    fusion: float = 0.0  # RRF of the three - decides the ordering
-    rerank: float | None = None  # LLM relevance score, when reranking is on
+    score: float
+    similarity: float = 0.0
+    bm25: float = 0.0
+    fusion: float = 0.0
+    rerank: float | None = None
 
 
 def parse_text(raw: str, source: str, stem: str, chunk_fn=None) -> list[Passage]:
@@ -174,10 +138,6 @@ def parse_text(raw: str, source: str, stem: str, chunk_fn=None) -> list[Passage]
 
 def _parse_document(path: Path, chunk_fn=None) -> list[Passage]:
     if path.suffix.lower() == ".pdf":
-        # Lazy import: a repo without pdfplumber installed must still be able
-        # to import this module - the ImportError only happens if a .pdf is
-        # actually sitting in the KB directory, and surfaces as the same
-        # UnsupportedDocument `reload()` already skips over.
         from .ingest import clean as _ingest_clean
         from .ingest import extract as _ingest_extract
 
@@ -198,9 +158,6 @@ class KnowledgeBase:
     def __init__(self, kb_dir: Path | None = None, chunk_fn=None) -> None:
         self.kb_dir = kb_dir or KB_DIR
         self.kb_dir.mkdir(parents=True, exist_ok=True)
-        # None means "use chunker.chunk_document", same default `parse_text`
-        # falls back to - kept as None rather than resolved here so a
-        # `KnowledgeBase` always reports the same default its callers see.
         self.chunk_fn = chunk_fn
         self._lock = RLock()
         self.passages: list[Passage] = []
@@ -221,15 +178,8 @@ class KnowledgeBase:
                 try:
                     passages.extend(_parse_document(path, chunk_fn=self.chunk_fn))
                 except loaders.UnsupportedDocument:
-                    # A file that cannot be read must not take the whole corpus
-                    # down on reload - skip it and keep serving the rest.
                     continue
             self.passages = passages
-            # Index FULL heading path (breadcrumb) + body, not just the leaf heading.
-            # Leaf-only was ambiguous: every card's fee lives under a "### Phí thường
-            # niên" leaf, so "phí thường niên thẻ Infinite" couldn't tell them apart
-            # and matched the wrong card. The breadcrumb carries the parent card name
-            # ("… › Thẻ Infinite › Phí thường niên") so the query disambiguates.
             self._index = (
                 TfidfIndex([f"{p.title} {p.breadcrumb} {p.text}" for p in passages])
                 if passages
@@ -261,9 +211,6 @@ class KnowledgeBase:
         similarities = self._index.similarities(query)
         bm25 = self._index.bm25_scores(query)
 
-        # A named issuer excludes every other issuer's material outright. Done
-        # by zeroing the score rather than filtering the list so the indices
-        # stay aligned with `self.passages` for everything below.
         named = issuers_mentioned(query)
         for index, passage in enumerate(self.passages):
             if not passage.doc_id.startswith(MARKET_DOC_PREFIX):
@@ -273,26 +220,10 @@ class KnowledgeBase:
                 similarities[index] = 0.0
                 bm25[index] = 0.0
             elif not named:
-                # No issuer named, so the customer is asking about this bank.
-                # Competitor material is demoted rather than excluded: it can
-                # still answer a genuine comparison question, but it must not
-                # outrank the bank's own policy for a question about the
-                # bank's own policy.
-                #
-                # It did. "Số dư bình quân ngày được tính thế nào?" returned
-                # the Vietcombank card table at 0.86, ahead of this bank's own
-                # definition at 0.81 - because the competitor document happens
-                # to use the phrase in an interest-rate row. An unverified
-                # third-party document answering a question about our own fees
-                # is the wrong source winning, whatever its score.
                 coverages[index] *= MARKET_DOC_DEMOTION
                 similarities[index] *= MARKET_DOC_DEMOTION
                 bm25[index] *= MARKET_DOC_DEMOTION
 
-        # Rejection is a coverage decision, tuned separately from ranking.
-        # Keeping those two jobs apart is deliberate: a ranker always produces
-        # an order, even over pure noise, so it can never be what decides
-        # whether there is anything worth returning.
         best_coverage = max(coverages, default=0.0)
         threshold = _policy.current.min_relevance if gate is None else gate
         if best_coverage < threshold:
@@ -306,12 +237,6 @@ class KnowledgeBase:
             }
         )
 
-        # Ordered by coverage, not by the fusion score. Fusion was measured
-        # against this baseline on the labelled set and did not beat it - see
-        # README § Retrieval quality. The fused value is still computed and
-        # carried through, because it is worth showing in the inspector and is
-        # what a larger corpus would likely need; it just does not decide the
-        # order today, on the evidence available.
         ranked = sorted(
             (
                 RetrievedPassage(

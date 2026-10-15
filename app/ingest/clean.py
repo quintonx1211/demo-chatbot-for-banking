@@ -12,22 +12,13 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-# A line ending in a hyphen immediately followed by a lowercase letter on the
-# next line is a PDF line-wrap, not an intentional hyphenated word - "chi-\nnhánh"
-# should read "chi nhánh". Vietnamese does use hyphens in loanwords
-# ("wi-fi"), but those don't straddle a line break, so this only fires on the
-# line-wrap shape specifically.
 _HYPHEN_WRAP_RE = re.compile(r"(\w)-\n([a-zà-ỹ])")
 
-# A line that is only a number (optionally with surrounding punctuation) or a
-# "Page X of Y" / "Trang X/Y" marker - the running page number, not content.
 _PAGE_NUMBER_RE = re.compile(
     r"^\s*(page\s+\d+(\s*(of|/)\s*\d+)?|trang\s+\d+(\s*/\s*\d+)?|\d{1,4})\s*$",
     re.IGNORECASE,
 )
 
-# Common PDF bullet glyphs, normalised to a markdown-friendly "-" so the
-# chunker's list handling (and a reader's eyes) see one convention.
 _BULLET_RE = re.compile(r"^[ \t]*[•◦▪●‣∙][ \t]+", re.MULTILINE)
 
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")

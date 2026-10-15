@@ -41,8 +41,6 @@ import re
 
 from .base import LLMRequest
 
-# Kept in sync with app/nlu.INTENTS by `build_request`, so a new intent does
-# not need to be added in two places.
 SYSTEM_PROMPT = """You classify a Vietnamese bank customer's message into one \
 intent. Reply with JSON only, no prose:
 
@@ -61,8 +59,6 @@ their own account right now.
 as a knowledge question regardless of the intent you picked, so use a low \
 number when you are unsure rather than picking a safer intent."""
 
-# Small budget: the reply is one short JSON object. A large ceiling here would
-# let a reasoning model spend the whole budget thinking and return nothing.
 MAX_TOKENS = 300
 
 _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
@@ -91,8 +87,6 @@ def build_request(message: str, intents: dict, history: str = "") -> LLMRequest:
             f"Tin nhắn của khách: {message}"
         ),
         max_tokens=MAX_TOKENS,
-        # Classification is not a creative task, and a router that changes its
-        # mind between identical turns cannot be audited.
         temperature=0.0,
     )
 
@@ -124,9 +118,6 @@ def classify(message: str, intents: dict, history: str = "") -> dict | None:
         return {"intent": None, "error": "unparseable"}
 
     name = str(payload.get("intent") or "").strip()
-    # An intent the model invented is not an intent. Silently accepting one
-    # would route the turn to a flow that does not exist, or worse, to one
-    # whose name happens to collide.
     if name not in intents and name != "unknown":
         return {"intent": None, "error": f"unknown_intent:{name[:24]}"}
 

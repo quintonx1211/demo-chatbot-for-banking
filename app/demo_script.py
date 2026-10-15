@@ -103,7 +103,6 @@ def next_reply(session) -> dict | None:
         return None
     body = _load().get(session.script_name)
     if body is None:
-        # The file changed under us (script renamed/removed mid-demo).
         session.script_name = None
         session.script_step = 0
         return None
@@ -158,8 +157,6 @@ def validate() -> list[str]:
 if __name__ == "__main__":
     import sys
 
-    # Windows consoles default to cp1252, which cannot print the Vietnamese
-    # text this prints - same fix as tests/smoke_test.py.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     problems = validate()

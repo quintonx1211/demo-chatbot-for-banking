@@ -34,18 +34,9 @@ from .nlu import PERSONAL_INTENTS
 
 AGENTS_PATH = Path(__file__).resolve().parent.parent / "data" / "agents.json"
 
-# Always on for every agent, never configurable: a bot that cannot say hello or
-# escalate to a human is not a bot you would ship.
 BASELINE_SKILLS = frozenset({"greeting", "smalltalk", "goodbye", "human_agent"})
 
-# Vietnamese display names for the configurable skills, in the order the admin
-# screen should show them. Keys are the exact intent names from nlu.INTENTS, so
-# a skill toggled here lines up 1:1 with what the classifier produces and what
-# flows.handle dispatches on. `sensitive` is derived from nlu.PERSONAL_INTENTS
-# rather than restated, so the "needs verification" mark can never drift from
-# the list the flows actually gate on.
 _SKILL_NAMES: dict[str, str] = {
-    # Operation Support
     "balance_inquiry": "Tra cứu số dư",
     "account_summary": "Tổng quan tài khoản",
     "transaction_history": "Lịch sử giao dịch",
@@ -57,11 +48,9 @@ _SKILL_NAMES: dict[str, str] = {
     "unfreeze_card": "Mở khóa thẻ",
     "card_close": "Đóng thẻ",
     "card_limit_adjust": "Điều chỉnh hạn mức",
-    # Product Q&A
     "product_faq": "Hỏi đáp sản phẩm",
     "product_comparison": "So sánh sản phẩm",
     "knowledge_query": "Tra cứu thông tin chung",
-    # Cross-sell
     "cross_sell_interest": "Tư vấn bán chéo",
     "card_offers": "Ưu đãi thẻ",
 }
@@ -71,9 +60,6 @@ SKILL_CATALOG: dict[str, dict] = {
     for intent, name in _SKILL_NAMES.items()
 }
 
-# The three skillsets, each becoming one agent's default skill list. Order here
-# is the order agents appear on the admin screen and the order agent_for_intent
-# scans when it has to pick an owner.
 _DEFAULT_AGENTS: list[dict] = [
     {
         "id": "ops",
@@ -113,9 +99,6 @@ class Agent:
     id: str
     name: str
     skillset_label: str
-    # The full skillset this agent could do - fixed, defines the checkboxes the
-    # admin sees. `enabled_skills` is the subset currently switched on and is
-    # the only thing the admin actually mutates.
     default_skills: tuple[str, ...]
     enabled: bool = True
     enabled_skills: set[str] = field(default_factory=set)
@@ -125,7 +108,6 @@ class Agent:
         return self.enabled and intent in self.enabled_skills
 
     def to_dict(self) -> dict:
-        # Skills reported in default order (not set order) so the UI is stable.
         return {
             "id": self.id,
             "name": self.name,
@@ -171,10 +153,6 @@ class AgentStore:
         for spec in _DEFAULT_AGENTS:
             defaults = tuple(spec["skills"])
             saved = stored.get(spec["id"], {})
-            # An enabled_skills value from disk is intersected with the current
-            # defaults, so a skill removed from the catalogue in code can never
-            # linger in a saved config, and a skill added to the catalogue
-            # starts enabled rather than silently missing.
             if "enabled_skills" in saved:
                 enabled = {s for s in saved["enabled_skills"] if s in defaults}
                 enabled |= {
@@ -202,8 +180,6 @@ class AgentStore:
                     "id": a.id,
                     "enabled": a.enabled,
                     "enabled_skills": sorted(a.enabled_skills),
-                    # Recorded so _load can tell "admin turned this off" apart
-                    # from "this skill did not exist when the file was written".
                     "known_skills": list(a.default_skills),
                 }
                 for a in self._agents.values()
@@ -213,8 +189,6 @@ class AgentStore:
         self.path.write_text(
             json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-
-    # -- reads ------------------------------------------------------------
 
     def list(self) -> list[Agent]:
         with self._lock:
@@ -248,8 +222,6 @@ class AgentStore:
                 return current
             return next((a for a in self._agents.values() if a.can(intent)), None)
 
-    # -- writes (admin only) ---------------------------------------------
-
     def update(
         self,
         agent_id: str,
@@ -272,5 +244,4 @@ class AgentStore:
             return agent
 
 
-# Single process-wide workforce, imported by server.py and router.py.
 store = AgentStore()

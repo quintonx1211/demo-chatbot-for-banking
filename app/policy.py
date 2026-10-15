@@ -27,27 +27,17 @@ from pathlib import Path
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.json"
 
-# Used when config.json is missing or unreadable. Deliberately the balanced
-# preset rather than the loosest: a corrupt config should not silently make the
-# assistant more willing to answer.
 _FALLBACK = {"min_grounding": 0.55, "min_relevance": 0.28, "high_confidence": 0.55}
 
 
 @dataclass
 class Policy:
     strictness: str
-    min_grounding: float  # answer must be this well supported by its sources
-    min_relevance: float  # a passage must clear this to count as evidence
-    high_confidence: float  # intent confidence needed to run a scripted flow
-    source: str  # where each value came from, for the console
-    # Which classifier decides the route. Deliberately NOT part of a strictness
-    # preset: it changes which component is in charge, not how cautious that
-    # component is, and bundling it into "strict"/"relaxed" would hide a
-    # architectural switch behind a safety dial.
+    min_grounding: float
+    min_relevance: float
+    high_confidence: float
+    source: str
     router_mode: str = "nlu"
-    # When True, a question with no knowledge-base match is answered from the
-    # model's general knowledge (persona + safety rails kept) before falling
-    # back to a human. Off by default: the safe, grounded-only behaviour.
     general_fallback: bool = False
 
     def to_dict(self) -> dict:
@@ -80,9 +70,6 @@ def load(path: Path | None = None) -> Policy:
     values.update(presets.get(name, {}))
     source = f"preset '{name}'"
 
-    # An explicit override beats the preset. Anything non-numeric is ignored
-    # rather than coerced - a typo in a threshold should not quietly become 0.0
-    # and disable the gate it was meant to tune.
     overrides = raw.get("overrides") or {}
     applied = []
     for key in ("min_grounding", "min_relevance", "high_confidence"):
@@ -93,9 +80,6 @@ def load(path: Path | None = None) -> Policy:
     if applied:
         source += f" + overrides({', '.join(applied)})"
 
-    # Anything unrecognised falls back to the lexical router. A typo in this
-    # field must not disable routing, and must not silently hand control of
-    # every turn to a model.
     mode = str(raw.get("router_mode", "nlu")).strip().lower()
     if mode not in ("nlu", "shadow", "llm"):
         mode = "nlu"
@@ -112,8 +96,6 @@ def load(path: Path | None = None) -> Policy:
     )
 
 
-# Loaded once at import and refreshed through reload(); modules read the live
-# object so a config change propagates without restarting the server.
 current = load()
 
 

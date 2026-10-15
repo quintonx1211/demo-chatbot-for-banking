@@ -28,17 +28,10 @@ import re
 from ..retriever import RetrievedPassage
 from .base import LLMRequest
 
-# Candidates handed to the judge. Measured stage-one recall@10 on the labelled
-# set is 90.2%, and every extra candidate is tokens spent on a passage that is
-# very unlikely to be the answer.
 CANDIDATE_POOL = 10
 
-# Lexical threshold used when this stage will run. Well below the standalone
-# gate (0.28) because the judge below is what actually decides relevance.
 RECALL_GATE = 0.10
 
-# A candidate must score at least this to be returned. If nothing clears it the
-# turn escalates, exactly as an empty lexical retrieval would.
 MIN_SCORE = 5
 
 RERANK_SYSTEM_PROMPT = """You score how well each passage answers a customer's \
@@ -67,8 +60,6 @@ def enabled() -> bool:
 def _build_request(query: str, candidates: list[RetrievedPassage]) -> LLMRequest:
     blocks = []
     for position, item in enumerate(candidates, start=1):
-        # Truncated: the judge needs enough to tell what the passage covers, not
-        # the whole passage, and this runs over ten of them per question.
         text = item.passage.text[:600]
         blocks.append(f"[{position}] ({item.passage.breadcrumb})\n{text}")
     return LLMRequest(
@@ -123,7 +114,7 @@ def rerank(
     lexical order rather than dropping the turn. The note records which
     happened, so the audit trail never implies a rerank that did not occur.
     """
-    from . import _effort, active_provider  # local: avoids an import cycle
+    from . import _effort, active_provider
 
     if not candidates:
         return [], "rerank:no-candidates"
@@ -145,8 +136,6 @@ def rerank(
 
     kept = [c for c in candidates if (c.rerank or 0) >= MIN_SCORE]
     if not kept:
-        # The judge saw the candidates and found none of them relevant. That is
-        # a real answer, not a failure: the turn escalates.
         return [], f"rerank:rejected-all(best={max(scores.values(), default=0)})"
 
     kept.sort(key=lambda c: (c.rerank or 0, c.score), reverse=True)

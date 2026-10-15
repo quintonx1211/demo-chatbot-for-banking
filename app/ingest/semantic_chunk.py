@@ -29,10 +29,6 @@ MAX_CHARS = chunker.MAX_CHARS
 MIN_CHARS = chunker.MIN_CHARS
 OVERLAP_CHARS = chunker.OVERLAP_CHARS
 
-# Don't even consider cutting on a topic boundary before the chunk has this
-# fraction of the target size - a 200-character chunk that happens to sit
-# before a mild topic shift is worse than a 900-character one that doesn't
-# cut at the perfect seam.
 _MIN_FRACTION_BEFORE_CUT = 0.55
 
 
@@ -49,10 +45,6 @@ def _adjacent_similarities(units: list[str]) -> list[float]:
     sims: list[float] = []
     for i in range(len(units) - 1):
         if not tokenize(units[i]) or not tokenize(units[i + 1]):
-            # A unit with no scorable tokens (a lone table row, a very short
-            # fragment) has no similarity signal - treat the boundary as
-            # neutral (0.5) rather than as a confident topic shift, so it
-            # doesn't force a cut purely because TF-IDF has nothing to say.
             sims.append(0.5)
             continue
         row = index.similarities(units[i])
@@ -95,9 +87,6 @@ def _semantic_pack(paragraphs: list[str]) -> list[str]:
 
         over_ceiling = len(candidate) > MAX_CHARS
         big_enough = len(candidate) >= TARGET_CHARS * _MIN_FRACTION_BEFORE_CUT
-        # The seam being cut is the one *after* this unit, i.e. between unit i
-        # and unit i+1 - so it's only a candidate cut point once this unit is
-        # actually in the chunk.
         weak_seam = (
             i < len(similarities)
             and similarities[i] < 0.15
@@ -106,8 +95,6 @@ def _semantic_pack(paragraphs: list[str]) -> list[str]:
         at_target = len(candidate) >= TARGET_CHARS
 
         if current and (over_ceiling or (big_enough and (weak_seam or at_target))):
-            # over_ceiling means `unit` itself doesn't fit - close the current
-            # chunk *before* adding it, then start a fresh one with `unit`.
             if over_ceiling:
                 chunks.append(current)
                 tail = _carry_overlap(current)

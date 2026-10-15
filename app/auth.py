@@ -33,14 +33,9 @@ from dataclasses import dataclass
 from threading import Lock
 
 COOKIE_NAME = "rtb_staff"
-SESSION_TTL_SECONDS = 8 * 60 * 60  # a working day
+SESSION_TTL_SECONDS = 8 * 60 * 60
 _PBKDF2_ROUNDS = 200_000
 
-# Two trust levels among staff. `agent` runs the operational surfaces (queue,
-# replies, dashboard); `admin` is the workforce manager and additionally owns
-# every *configuration* surface - provider keys, TTS, knowledge base, and the
-# agent/skillset setup added for this feature. Kept as plain strings because
-# StaffUser.role already carries one and nothing here needs a richer model.
 ROLE_ADMIN = "admin"
 ROLE_AGENT = "agent"
 
@@ -56,9 +51,6 @@ class StaffUser:
     role: str
 
 
-# One demo account. The password is stated openly because writing a credential
-# into source is only defensible when it protects nothing real, and pretending
-# otherwise would be worse than saying so.
 _SALT = b"banking-chatbot-demo-salt"
 DEMO_USERNAME = "agent"
 DEMO_PASSWORD = "demo1234"
@@ -100,9 +92,6 @@ class AuthStore:
     def login(self, username: str, password: str) -> StaffSession | None:
         record = _STAFF.get((username or "").strip().lower())
 
-        # Hash even when the user does not exist, and compare in constant time,
-        # so a wrong username and a wrong password take the same path. Otherwise
-        # response timing enumerates valid usernames.
         candidate = _hash(password or "", _SALT)
         expected, user = (
             record if record else (_hash(os.urandom(16).hex(), _SALT), None)
@@ -152,9 +141,6 @@ def parse_cookie(header: str | None) -> str | None:
 
 
 def cookie_header(token: str, max_age: int = SESSION_TTL_SECONDS) -> str:
-    # HttpOnly: JavaScript must not be able to read it, so an XSS in the console
-    # cannot lift a staff session. SameSite=Lax: a cross-site POST cannot carry
-    # it, which is what stops a drive-by from deleting the knowledge base.
     return (
         f"{COOKIE_NAME}={token}; Path=/; HttpOnly; SameSite=Lax; " f"Max-Age={max_age}"
     )

@@ -12,23 +12,9 @@ import re
 from collections import Counter
 from typing import Iterable, Sequence
 
-# Unicode-aware, and it has to be. `[a-z0-9']+` silently shredded every
-# non-ASCII script: "phí thường niên thẻ tín dụng" tokenised to
-# ['ph', 'th', 'ng', 'ni', 'n', 'th', 't', 'n', 'd', 'ng'] - fragments split at
-# each accented character, matching nothing and carrying no meaning. A question
-# asked in Vietnamese retrieved zero passages and escalated, which looks like
-# the knowledge base is missing rather than like the tokeniser is broken.
-#
-# `\w` under Python's default Unicode semantics keeps letters, digits and
-# underscore in any script, so ASCII behaviour is unchanged.
 _TOKEN_RE = re.compile(r"[\w']+", re.UNICODE)
 
-# Stop list covering both function words and question scaffolding. Dropping
-# "what / how / much / can" matters more than it looks: they appear in almost
-# every customer question but carry no topic, and left in they inflate the
-# coverage score of off-topic queries against arbitrary passages.
 _STOPWORDS = {
-    # articles, copulas, prepositions, conjunctions
     "a",
     "an",
     "the",
@@ -66,7 +52,6 @@ _STOPWORDS = {
     "than",
     "so",
     "but",
-    # question scaffolding
     "what",
     "how",
     "when",
@@ -94,11 +79,6 @@ _STOPWORDS = {
     "any",
     "some",
     "all",
-    # Temporal scaffolding. Same category as the question words above: they
-    # appear in a question without being what it is about. "today" was letting
-    # "what is the weather in Hanoi today" clear the relevance floor against a
-    # document whose provenance note happens to say "a rate correct today may
-    # not be correct next quarter" - one shared word, no shared subject.
     "today",
     "tomorrow",
     "yesterday",
@@ -109,7 +89,6 @@ _STOPWORDS = {
     "already",
     "soon",
     "recently",
-    # pronouns and pleasantries
     "i",
     "me",
     "my",
@@ -127,10 +106,6 @@ _STOPWORDS = {
     "hey",
     "thanks",
     "thank",
-    # Vietnamese. The same job as the English list above and for the same
-    # reason: without it "là", "của" and "bao nhiêu" appear in nearly every
-    # question, so an off-topic query still shares terms with every passage
-    # and clears the coverage floor on function words alone.
     "là",
     "và",
     "của",
@@ -198,19 +173,10 @@ _STOPWORDS = {
     "lòng",
 }
 
-# Very small stemmer: folds the plural/gerund forms that show up in the demo
-# corpus so "payments"/"payment" and "blocking"/"block" share a term.
 _SUFFIXES = ("ings", "ing", "ies", "es", "s", "ed")
 
-# How much a matched bigram is worth relative to a matched unigram in the
-# coverage metric. Swept on the labelled set: 1.0 leaves rejection at 28.6%,
-# 2.0 lifts it to 85.7%, and 3.0 adds nothing further. See `coverages`.
 BIGRAM_COVERAGE_WEIGHT = 2.0
 
-# What a bare number contributes to coverage. Near zero, because a figure the
-# customer copied from their own statement cannot be in the corpus and says
-# nothing about the topic. Not exactly zero: "phí 12 tháng" and "trong 30 ngày"
-# do carry a little signal. See `coverages`.
 NUMERIC_TERM_WEIGHT = 0.15
 
 
@@ -255,25 +221,15 @@ class TfidfIndex:
             term: math.log((n_docs + 1) / (freq + 1)) + 1.0
             for term, freq in doc_freq.items()
         }
-        # A term absent from the whole corpus is maximally informative - and by
-        # definition covered by no document. Weighting it at the ceiling is what
-        # makes an out-of-scope question ("vineyards") fall below the coverage
-        # threshold instead of scoring off its incidental common words.
         self._default_idf = math.log(n_docs + 1) + 1.0
         self._doc_vectors = [self._vectorize(terms) for terms in self._doc_terms]
 
-        # BM25 state. Kept alongside the cosine vectors rather than in a second
-        # class because both score the same tokenisation of the same corpus;
-        # duplicating that would be two places to drift.
         self._doc_lengths = [sum(terms.values()) for terms in self._doc_terms]
         self._avg_length = (
             sum(self._doc_lengths) / len(self._doc_lengths)
             if self._doc_lengths
             else 0.0
         )
-        # BM25's idf is a different curve from the tf-idf one above: it is
-        # probabilistic, and goes slightly negative for terms in most documents,
-        # which is the behaviour that makes it discount near-stopwords properly.
         self._bm25_idf = {
             term: math.log(1.0 + (n_docs - freq + 0.5) / (freq + 0.5))
             for term, freq in doc_freq.items()
@@ -342,8 +298,6 @@ class TfidfIndex:
         norm = math.sqrt(sum(w * w for w in vector.values()))
         if norm == 0.0:
             return {}
-        # Only known terms can contribute to a dot product; the rest have done
-        # their job by inflating the norm above.
         return {term: w / norm for term, w in vector.items() if term in self._idf}
 
     def coverages(self, text: str) -> list[float]:
@@ -356,44 +310,11 @@ class TfidfIndex:
         question - of the meaningful terms in this question, how much does
         this passage actually address? - and is comparable across queries.
         """
-        # Unigrams AND bigrams, with bigrams weighted higher - and the reason is
-        # the language, not a tuning preference.
-        #
-        # Vietnamese writes compound words as separate syllables: "ngân hàng"
-        # (bank), "bảo hiểm" (insurance), "doanh nghiệp" (enterprise). Splitting
-        # on whitespace therefore does not produce words, it produces syllables,
-        # and a syllable matches across completely unrelated compounds -
-        # "hàng" is shared by "ngân hàng" (bank), "khách hàng" (customer) and
-        # "hàng hoá" (goods). Measured on the labelled set, unigram-only coverage
-        # let five of seven out-of-scope questions through: "mã số doanh nghiệp
-        # của ngân hàng" scored 0.70 against a payment-limits passage on the
-        # strength of four unrelated syllables.
-        #
-        # A bigram is approximately a word in Vietnamese, so weighting bigrams
-        # at double restored rejection from 28.6% to 85.7% for 3 points of P@1.
-        # Rejection is the safety metric; that is the right side of the trade.
-        #
-        # This does not hurt English, where a query bigram rarely survives into
-        # prose: an unmatched bigram simply adds to the denominator, which is
-        # the same dilution effect out-of-vocabulary terms already have.
         tokens = tokenize(text)
         query_terms = set(tokens)
         if not query_terms:
             return [0.0] * len(self.documents)
 
-        # Weight by idf so "wire" counts for far more than "you".
-        #
-        # Bare numbers are the exception, and they need one. A customer
-        # quoting their own figures back - "Tại sao số dư 35,918,994 VND, nhưng
-        # chỉ khả dụng 33,418,994 VND?" - produced six numeric tokens
-        # ('35', '918', '994', ...) against four content words. Each number is
-        # absent from the corpus by definition, so each took the ceiling idf,
-        # and the four words that carried the actual question were diluted to
-        # roughly a third of the total. A question the corpus answers well was
-        # rejected outright.
-        #
-        # An amount a customer reads off their own statement is never the
-        # topic; the words around it are.
         weights = {
             t: (
                 NUMERIC_TERM_WEIGHT
@@ -403,11 +324,6 @@ class TfidfIndex:
             for t in query_terms
         }
         for pair in set(bigrams(tokens)):
-            # A bigram touching a number inherits the number's problem, and at
-            # double weight it inherits it twice over. Six numeric tokens
-            # produce five more numeric bigrams, so discounting only unigrams
-            # left the query still dominated by an amount the customer read off
-            # their own statement.
             if any(part.isdigit() for part in pair.split("_")):
                 weights[pair] = NUMERIC_TERM_WEIGHT
             else:
@@ -430,7 +346,6 @@ class TfidfIndex:
             return [0.0] * len(self.documents)
         scores = []
         for doc_vector in self._doc_vectors:
-            # Iterate the shorter vector; both are already L2-normalised.
             if len(query) < len(doc_vector):
                 scores.append(sum(w * doc_vector.get(t, 0.0) for t, w in query.items()))
             else:

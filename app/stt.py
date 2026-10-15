@@ -47,7 +47,6 @@ def transcribe(audio_bytes: bytes, mime_type: str = "audio/wav") -> str:
     Bản ghi rỗng/hỏng (vd không có micro) coi như IM LẶNG: trả "" thay vì ném lỗi
     (tránh /api/stt trả 500; client vốn đã xử lý text rỗng).
     """
-    # Quá nhỏ để là audio thật -> im lặng.
     if not audio_bytes or len(audio_bytes) < 256:
         return ""
 
@@ -67,7 +66,6 @@ def transcribe(audio_bytes: bytes, mime_type: str = "audio/wav") -> str:
         result = pipe(tmp)
         return result["text"].strip()
     except Exception as exc:
-        # Lỗi giải mã audio (blob hỏng) -> im lặng; lỗi khác (model...) vẫn ném ra.
         msg = str(exc).lower()
         if any(
             k in msg
@@ -102,7 +100,7 @@ def warmup() -> bool:
 
 def available() -> bool:
     try:
-        import transformers  # noqa: F401
+        import transformers
 
         return True
     except ImportError:

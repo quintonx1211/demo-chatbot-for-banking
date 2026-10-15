@@ -17,7 +17,7 @@ import zipfile
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-FIXTURE_DIR = Path(__file__).resolve().parent / "data" / "fixtures"
+FIXTURE_DIR = Path(__file__).resolve().parent.parent / "data" / "fixtures"
 
 _CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

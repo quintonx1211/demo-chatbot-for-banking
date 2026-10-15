@@ -25,9 +25,6 @@ Trả lời câu hỏi của khách hàng trực tiếp và hữu ích trong 2-4
 Cụ thể và rõ ràng - đưa ra con số, thời hạn và điều kiện khi liên quan, \
 như một nhân viên am hiểu sẽ làm. Luôn trả lời bằng tiếng Việt."""
 
-# Questions chosen because the answer is bank-specific policy: it cannot be
-# derived, only looked up. A model with no source has nothing to do but invent
-# something plausible, which is precisely the risk being demonstrated.
 SUGGESTED = [
     "How much is the overdraft fee, and is there a daily cap?",
     "What does it cost to send an international wire, and how long does it take?",
@@ -45,7 +42,6 @@ def compare(question: str, kb: KnowledgeBase) -> dict:
 
     provider = active_provider()
 
-    # --- grounded: the production path, unchanged ---
     passages = kb.search(question, top_k=3)
     if passages:
         grounded_result = answer_from_kb(question, passages)
@@ -54,16 +50,6 @@ def compare(question: str, kb: KnowledgeBase) -> dict:
         grounded = {
             "text": grounded_result.text,
             "generated": grounded_result.generated,
-            # Carried explicitly, because `answer_from_kb` degrades to
-            # extractive text on any provider failure and returns something
-            # that reads like a working answer. In the product that is the
-            # right behaviour - the customer gets verified text instead of an
-            # error. Here it is actively misleading: if the model was
-            # unreachable, this panel would show a confident grounded column
-            # beside an ungrounded column reading "provider_unreachable", and
-            # look like proof that grounding won. It would be proof of nothing
-            # - the model never ran on either side. The panel has to be able
-            # to say so.
             "error": grounded_result.error,
             "grounding": grounding,
             "passed_gate": grounding >= guardrails.MIN_GROUNDING,
@@ -88,7 +74,6 @@ def compare(question: str, kb: KnowledgeBase) -> dict:
             "sources": [],
         }
 
-    # --- ungrounded: same model, no passages, no gate ---
     if provider is None:
         ungrounded = {
             "text": "",
@@ -107,24 +92,12 @@ def compare(question: str, kb: KnowledgeBase) -> dict:
             "error": result.error,
         }
         if result.text:
-            # How much of the ungrounded answer is actually supported by the
-            # bank's documentation. Not a verdict on truth - it cannot catch a
-            # figure that happens to be right - but it does show, concretely,
-            # how much of that fluent paragraph has nothing behind it.
             corpus = " ".join(p.text for p in kb.passages)
             ungrounded["overlap_with_corpus"] = round(
                 guardrails.grounding_score(result.text, corpus), 3
             )
 
-    # A comparison is only evidence when the same model answered both sides.
-    # Anything else - no provider, a transport failure, a refusal - makes the
-    # two columns incomparable, and the panel says so instead of letting the
-    # viewer draw the flattering conclusion.
     both_ran = bool(grounded.get("generated")) and bool(ungrounded.get("generated"))
-    # "No provider" is checked first and reported as a code, not as the prose
-    # already sitting in `ungrounded["error"]` for that case - the UI phrases
-    # it, and a sentence arriving where a reason code is expected reads as a
-    # failure of the failure handling.
     blocked_by = (
         "no_provider"
         if provider is None

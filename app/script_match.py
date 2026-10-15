@@ -16,11 +16,9 @@ import unicodedata
 from difflib import SequenceMatcher
 from pathlib import Path
 
-SCRIPTS_PATH = Path(__file__).resolve().parent.parent / "scripts.md"
-MATCH_THRESHOLD = 0.55  # tweak if too strict / too loose
+SCRIPTS_PATH = Path(__file__).resolve().parent.parent / "docs" / "scripts.md"
+MATCH_THRESHOLD = 0.55
 
-# Keyword patterns → pre-recorded voice cache filename.
-# Ordered from most specific to least; first match wins.
 _VOICE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (
         re.compile(
@@ -70,11 +68,9 @@ def _parse_scripts() -> list[tuple[str, str]]:
         return []
 
     text = SCRIPTS_PATH.read_text(encoding="utf-8")
-    # Strip markdown bold markers then split into blocks
     text = re.sub(r"\*\*", "", text)
 
     pairs: list[tuple[str, str]] = []
-    # Walk line by line, collect Bot: lines after each Khách hàng: line
     lines = text.splitlines()
     i = 0
     while i < len(lines):
@@ -82,7 +78,6 @@ def _parse_scripts() -> list[tuple[str, str]]:
         m_user = re.match(r"Khách hàng:\s*(.+)", line)
         if m_user:
             user_text = m_user.group(1).strip()
-            # Look ahead for the next Bot: line
             for j in range(i + 1, min(i + 5, len(lines))):
                 m_bot = re.match(r"Bot:\s*(.+)", lines[j].strip())
                 if m_bot:
@@ -93,7 +88,6 @@ def _parse_scripts() -> list[tuple[str, str]]:
     return pairs
 
 
-# Cache parsed pairs for the process lifetime; reload when file changes.
 _cache: list[tuple[str, str]] = []
 _cache_mtime: float = 0.0
 

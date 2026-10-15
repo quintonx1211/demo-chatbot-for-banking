@@ -30,10 +30,10 @@ def find_customer(customer_id: str) -> dict | None:
 
 @dataclass
 class Message:
-    role: str  # "customer" | "assistant" | "agent" | "system"
+    role: str
     text: str
     timestamp: float = field(default_factory=time.time)
-    author: str | None = None  # staff display name, on agent messages
+    author: str | None = None
 
 
 @dataclass
@@ -41,13 +41,10 @@ class AuditEntry:
     """One row per turn. This is what a compliance reviewer reads."""
 
     turn: int
-    utterance: str  # redacted
-    route: str  # deterministic | rag | guardrail | escalation | agent
+    utterance: str
+    route: str
     intent: str
     confidence: float
-    # Set when a human, not the assistant, produced this turn. Without it the
-    # audit trail only explains what the bot decided, which stops being the
-    # whole story the moment agents start replying.
     actor: str | None = None
     sources: list[str] = field(default_factory=list)
     grounding: float | None = None
@@ -65,62 +62,31 @@ class Session:
         self.audit: list[AuditEntry] = []
         self.turn_counter = itertools.count(1)
 
-        # Verification state - no account action runs without this.
         self.customer_id: str | None = None
         self.verified = False
 
-        # Slot-filling state for whichever deterministic flow is mid-conversation.
         self.pending_flow: str | None = None
         self.slots: dict[str, str] = {}
-        # Consecutive turns where the flow re-prompted instead of advancing.
         self.flow_misses = 0
 
-        # Which agent in the workforce is currently serving this conversation
-        # (app/agents.py). Set by the router the first time a business intent is
-        # handled and updated on every transfer between agents; None until then.
         self.current_agent_id: str | None = None
 
-        # Escalation state.
         self.escalated = False
         self.escalation_reason: str | None = None
         self.escalation_summary: str | None = None
         self.low_confidence_streak = 0
 
-        # Shadow-routing evidence. Counted per session and aggregated on the
-        # dashboard, so the decision to switch the router is made against
-        # observed traffic rather than against an opinion about model quality.
         self.router_comparisons = 0
         self.router_agreements = 0
         self.router_disagreements: list[dict] = []
-        # A handoff the assistant has offered but the customer has not accepted.
-        # Escalating without asking takes the decision away from the person who
-        # should be making it - plenty of customers would rather rephrase than
-        # wait in a queue.
         self.pending_escalation: str | None = None
 
-        # Set once a human replies. From then on the assistant stops answering
-        # this conversation: two voices replying to the same customer is worse
-        # than a slower single one, and an agent mid-sentence being talked over
-        # by a bot is the failure people actually remember.
         self.handled_by: str | None = None
 
-        # Demo lever: strips away routing, guardrails, retrieval and grounding
-        # and leaves a plain LLM call over the conversation history - the
-        # baseline the rest of the architecture is arguing against. Off by
-        # default and scoped to this session only, so flipping it for a
-        # demonstration never touches anyone else's conversation.
         self.raw_mode = False
 
-        # Demo lever: a named, ordered script (data/demo_scripts.json,
-        # app/demo_script.py) armed for this session only. While set, every
-        # turn returns that script's next reply verbatim instead of being
-        # routed - a safety net for live demos so a flaky provider, a
-        # retrieval miss, or a fixture that has drifted since the script was
-        # written can never surface in front of an audience.
         self.script_name: str | None = None
         self.script_step = 0
-
-    # -- transcript -------------------------------------------------------
 
     def add_message(self, role: str, text: str, author: str | None = None) -> None:
         """Append a turn to the transcript, masking anything sensitive first.
@@ -168,15 +134,11 @@ class Session:
         }
         return "\n".join(f"{labels.get(m.role, m.role)}: {m.text}" for m in messages)
 
-    # -- audit ------------------------------------------------------------
-
     def record(self, **kwargs) -> AuditEntry:
         entry = AuditEntry(turn=next(self.turn_counter), **kwargs)
         entry.utterance = guardrails.redact(entry.utterance)
         self.audit.append(entry)
         return entry
-
-    # -- customer ---------------------------------------------------------
 
     @property
     def customer(self) -> dict | None:
@@ -212,11 +174,6 @@ class SessionStore:
         self._lock = Lock()
 
     def create(self) -> Session:
-        # The customer's browser holds this id and polls with it, so it is a
-        # bearer credential in practice - anyone holding it reads that
-        # conversation. Sized accordingly: `uuid4().hex[:8]` was 32 bits, which
-        # is guessable, and shortening a uuid for looks is a bad trade when the
-        # value is the only thing protecting a transcript.
         session = Session(session_id=f"CHT-{secrets.token_urlsafe(24)}")
         with self._lock:
             self._sessions[session.session_id] = session

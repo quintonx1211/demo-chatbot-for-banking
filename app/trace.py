@@ -22,10 +22,10 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Step:
-    stage: str  # pending_flow | guardrail | nlu | retrieval | generation | ...
-    outcome: str  # what this stage concluded
-    detail: str = ""  # the numbers behind it
-    decisive: bool = False  # True if this stage is why the turn ended up where it did
+    stage: str
+    outcome: str
+    detail: str = ""
+    decisive: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -59,8 +59,6 @@ class Trace:
         return f"{decisive.stage}: {decisive.outcome}" if decisive else ""
 
 
-# Human-readable descriptions of each stage, shown alongside the trace so the
-# rule being applied is legible without reading the source.
 STAGE_RULES = {
     "pending_flow": "Luồng nghiệp vụ đang dở giữ quyền xử lý lượt này, trừ khi "
     "khách hàng rõ ràng đã chuyển sang chủ đề khác.",

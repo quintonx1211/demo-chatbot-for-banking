@@ -24,25 +24,21 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-# Sizes are in characters, not tokens: the retriever is lexical, so characters
-# are the honest unit and avoid pretending to a precision we don't have.
-TARGET_CHARS = 900  # preferred chunk size
-MAX_CHARS = 1400  # hard ceiling before a chunk is split regardless
-MIN_CHARS = 120  # below this a chunk is merged into its neighbour
-OVERLAP_CHARS = 150  # tail of the previous chunk repeated into the next
+TARGET_CHARS = 900
+MAX_CHARS = 1400
+MIN_CHARS = 120
+OVERLAP_CHARS = 150
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*$", re.MULTILINE)
-# Markdown table rows and list bullets are kept intact: splitting a table
-# mid-row loses the column meaning that made the numbers readable.
 _PARA_SPLIT_RE = re.compile(r"\n\s*\n")
 
 
 @dataclass
 class Chunk:
     text: str
-    heading: str  # leaf heading - what gets cited
+    heading: str
     heading_path: list[str] = field(default_factory=list)
-    index: int = 0  # position within the document
+    index: int = 0
 
     @property
     def breadcrumb(self) -> str:
@@ -52,9 +48,7 @@ class Chunk:
 def _normalise(text: str) -> str:
     """Collapse whitespace without destroying paragraph or table structure."""
     text = text.replace("\r\n", "\n").replace("\r", "\n")
-    # Trailing spaces make paragraph detection unreliable.
     text = re.sub(r"[ \t]+\n", "\n", text)
-    # Three or more blank lines add nothing and inflate the character budget.
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
@@ -80,8 +74,6 @@ def _sections(text: str) -> list[tuple[list[str], str]]:
         level = len(match.group(1))
         heading = match.group(2).strip()
 
-        # Pop headings at the same or deeper level; what remains is the parent
-        # path. This is what turns a flat regex scan into a real tree walk.
         while stack and stack[-1][0] >= level:
             stack.pop()
         stack.append((level, heading))
@@ -168,8 +160,6 @@ def _split_oversized(paragraph: str) -> list[str]:
     if current:
         pieces.append(current)
 
-    # A single sentence longer than the ceiling (a dense table row, say) is
-    # cut on width as a last resort rather than dropped.
     output: list[str] = []
     for piece in pieces:
         while len(piece) > MAX_CHARS:
@@ -191,16 +181,6 @@ def _pack(paragraphs: list[str]) -> list[str]:
     for unit in units:
         if current and len(current) + len(unit) + 2 > TARGET_CHARS:
             chunks.append(current)
-            # Carry the tail of the finished chunk into the next one so a fact
-            # split across the boundary is still retrievable from one chunk.
-            # Start the overlap at a LINE boundary, not a word boundary.
-            #
-            # Cutting at the first space landed inside a table row, so a chunk
-            # could open with "hệ thống, viễn thông hoặc sự kiện tương tự |" -
-            # the tail of a row, no header, no way to tell what column it is.
-            # That fragment then became the first line of a customer-facing
-            # answer. Half a word helps nobody; half a table row is worse,
-            # because it looks like content rather than like damage.
             tail = current[-OVERLAP_CHARS:]
             newline = tail.find("\n")
             if newline != -1:
@@ -208,7 +188,6 @@ def _pack(paragraphs: list[str]) -> list[str]:
             else:
                 space = tail.find(" ")
                 tail = tail[space + 1 :] if space != -1 else ""
-            # An overlap that is itself a partial table is not worth carrying.
             if tail.lstrip().startswith("|") and not tail.rstrip().endswith("|"):
                 tail = ""
             current = (tail + "\n\n" + unit).strip() if tail.strip() else unit
@@ -217,7 +196,6 @@ def _pack(paragraphs: list[str]) -> list[str]:
     if current:
         chunks.append(current)
 
-    # Fold a runt trailing chunk back into its predecessor.
     if len(chunks) > 1 and len(chunks[-1]) < MIN_CHARS:
         chunks[-2] = f"{chunks[-2]}\n\n{chunks[-1]}"
         chunks.pop()

@@ -36,7 +36,7 @@
     "false -> chỉ trả lời từ tài liệu đã duyệt; không có nguồn thì mời chuyên viên",
     "         (an toàn nhất, không bao giờ nói ngoài tài liệu)."
   ],
-  "general_fallback": false,
+  "general_fallback": true,
 
   "overrides": {
     "min_grounding": null,

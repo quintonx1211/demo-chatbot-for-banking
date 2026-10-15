@@ -26,8 +26,6 @@ import os
 from . import PROVIDER_ORDER, PROVIDERS
 from .base import TONES
 
-# Settings the console may change. Anything not in here cannot be written
-# through the API - the handler is not a general environment editor.
 _WRITABLE = (
     "LLM_PROVIDER",
     "LLM_MODEL",
@@ -58,8 +56,6 @@ def describe_providers() -> list[dict]:
     catalogue = []
     for provider in PROVIDER_ORDER:
         key_var = provider.ENV_KEYS[0]
-        # Report whichever accepted variable actually holds a value, so a key
-        # supplied as GOOGLE_API_KEY isn't shown as "not set" for Gemini.
         present = next((k for k in provider.ENV_KEYS if os.environ.get(k)), None)
         catalogue.append(
             {
@@ -87,7 +83,6 @@ def _sdk_installed(provider) -> bool:
     import importlib.util
 
     root = provider.PACKAGE.replace("-", "_").split("[")[0]
-    # google-genai installs as the `google.genai` namespace package.
     module = "google.genai" if root == "google_genai" else root
     try:
         return importlib.util.find_spec(module) is not None
@@ -127,10 +122,6 @@ def configure(
 
     if tone is not None:
         name = tone.strip().lower()
-        # Closed set, checked here as well as at the point of use. The console
-        # only ever sends one of these, but the check belongs at the boundary:
-        # this value is concatenated into the system prompt, and "the UI would
-        # never send that" is not a control.
         if name and name not in TONES:
             raise ConfigError(f"Tone must be one of: {', '.join(TONES)}")
         _set("LLM_TONE", name)
@@ -148,8 +139,6 @@ def configure(
                 raise ConfigError("Temperature must be between 0 and 2.")
             _set("LLM_TEMPERATURE", f"{value:g}")
         else:
-            # Cleared, not zeroed. 0.0 is a real setting and an empty box is
-            # the operator asking for the provider's default back.
             _set("LLM_TEMPERATURE", "")
 
     if model is not None:
@@ -173,15 +162,12 @@ def configure(
         if stripped:
             os.environ[key_var] = stripped
         else:
-            # Clearing must remove every accepted variable, or a key left in an
-            # alternate one (GOOGLE_API_KEY) would keep the provider live and
-            # the console would look like it had cleared something it hadn't.
             for var in PROVIDERS[target].ENV_KEYS:
                 os.environ.pop(var, None)
 
 
 def _set(name: str, value: str) -> None:
-    if name not in _WRITABLE:  # pragma: no cover - guards future edits
+    if name not in _WRITABLE:
         raise ConfigError(f"{name} is not settable at runtime")
     if value:
         os.environ[name] = value

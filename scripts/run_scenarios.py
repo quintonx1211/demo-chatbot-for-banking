@@ -13,6 +13,10 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
+from pathlib import Path as _Path
+
+sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+
 from app.router import Router
 
 PASS = "PASS"

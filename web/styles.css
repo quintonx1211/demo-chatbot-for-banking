@@ -1,26 +1,20 @@
-/* Direction 1a - "Calm & trustworthy", from design_handoff_banking_chat.
-   Soft neutrals, one deep teal accent, tabular figures, card-based bubbles.
-   Everything below derives from these tokens, so re-theming the whole UI -
-   customer chat and staff console alike - means changing them and nothing
-   else. Elevation is carried by 1px borders, not shadows. */
 :root {
-  --bg-app: #e9e9e6; /* page behind the shell */
-  --bg-canvas: #f4f5f3; /* transcript background */
-  --bg-surface: #ffffff; /* bars, cards, bubbles */
+  --bg-app: #e9e9e6;
+  --bg-canvas: #f4f5f3;
+  --bg-surface: #ffffff;
   --border: #e7eae7;
-  --border-strong: #cbd6d1; /* chip outline */
+  --border-strong: #cbd6d1;
   --divider: #edf0ee;
-  --tint: #eef2f0; /* active nav, avatar tiles */
+  --tint: #eef2f0;
   --tint-positive: #e6f1ec;
-  --accent: #0e4b45; /* deep teal: user bubble, send, links */
-  --accent-hover: #0b3e39; /* ~6% darker */
+  --accent: #0e4b45;
+  --accent-hover: #0b3e39;
   --positive: #2e8b6f;
   --text: #14201c;
   --text-muted: #6b7a75;
   --text-subtle: #8a968f;
   --text-faint: #97a29c;
 
-  /* Status hues, kept for the console's warn / error / attention states. */
   --amber: #8a6212;
   --amber-tint: #fbf3e4;
   --amber-line: #ebdcbb;
@@ -46,11 +40,6 @@ html {
   height: 100%;
 }
 
-/* The app owns the viewport: the page itself must never scroll, or a phone
-   ends up with two scrollbars - the transcript's and the document's. Sizing
-   the body in dvh rather than chaining height:100% off html (which resolves
-   against the *large* viewport) keeps this correct while a mobile URL bar
-   retracts, and overflow:hidden means the mismatch can never become a scroll. */
 body {
   margin: 0;
   height: 100dvh;
@@ -85,7 +74,6 @@ body {
   }
 }
 
-/* Khung xem tài liệu KB "kéo xuống": trượt từ trên xuống kèm mờ dần khi mở. */
 @keyframes kbReveal {
   from {
     opacity: 0;
@@ -113,11 +101,6 @@ body {
   display: none !important;
 }
 
-/* Screen-reader-only text. It is absolutely positioned, so whatever carries
-   one MUST establish a containing block (see .msg) - otherwise it resolves
-   against the initial containing block, escapes its scroll container's
-   clipping, and adds its offset to the document's scrollable area. That shows
-   up as a second, phantom page scrollbar alongside the transcript's. */
 .vh {
   position: absolute;
   width: 1px;
@@ -136,11 +119,6 @@ body {
   outline-offset: 2px;
 }
 
-/* ============================================================
-   APP SHELL
-   ============================================================ */
-/* Every level from here down is height-constrained and clipped, so the only
-   thing that scrolls in the chat is the transcript. */
 .app-shell {
   display: flex;
   height: 100%;
@@ -164,7 +142,6 @@ body {
   padding: 24px 28px 36px;
 }
 
-/* ---------- left nav ---------- */
 .sidenav {
   width: 236px;
   flex: none;
@@ -272,8 +249,6 @@ button.nav-item:hover {
   width: 100%;
 }
 
-/* Lớp mờ dùng chung cho drawer trái (sidenav) và context rail phải. Fade bằng
-   opacity + visibility thay vì display:none để bật/tắt có hiệu ứng mượt. */
 .nav-scrim {
   position: fixed;
   inset: 0;
@@ -312,9 +287,6 @@ button.nav-item:hover {
   background: var(--amber-tint);
 }
 
-/* ============================================================
-   CHAT SCREEN - centre column + right context rail
-   ============================================================ */
 #screen-customer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 268px;
@@ -332,7 +304,6 @@ button.nav-item:hover {
   background: var(--bg-canvas);
 }
 
-/* ---------- chat header ---------- */
 .chat-header {
   flex: none;
   display: flex;
@@ -358,8 +329,6 @@ button.nav-item:hover {
   text-overflow: ellipsis;
 }
 
-/* Second line is live: what the assistant is doing right now, not static
-   branding. Tone drives the dot so the state reads at a glance. */
 .chat-status {
   display: flex;
   align-items: center;
@@ -432,8 +401,7 @@ button.nav-item:hover {
   background: var(--bg-surface);
   color: var(--text-muted);
 }
-/* Both are mobile-only: the left nav carries navigation on desktop, and the
-   rail is a column there rather than a drawer. */
+
 .back-btn,
 .rail-toggle,
 .nav-toggle {
@@ -446,7 +414,6 @@ button.nav-item:hover {
   transform: scale(0.9);
 }
 
-/* ---------- transcript ---------- */
 .messages {
   flex: 1;
   min-height: 0;
@@ -467,7 +434,7 @@ button.nav-item:hover {
 }
 
 .msg {
-  position: relative; /* containing block for the .vh speaker prefix */
+  position: relative;
   max-width: 640px;
   display: flex;
   flex-direction: column;
@@ -530,7 +497,6 @@ button.nav-item:hover {
   border-color: var(--border-strong);
 }
 
-/* ---------- typing indicator ---------- */
 .msg .typing-bubble {
   display: flex;
   gap: 5px;
@@ -550,7 +516,6 @@ button.nav-item:hover {
   animation-delay: 0.36s;
 }
 
-/* ---------- balance card / transaction list ---------- */
 .data-cards {
   display: flex;
   gap: 12px;
@@ -610,7 +575,7 @@ button.nav-item:hover {
   padding: 11px 14px;
   border-top: 1px solid var(--divider);
 }
-/* Separators sit between rows only - the eyebrow already divides the header. */
+
 .txn-card .eyebrow + .txn-row {
   border-top: none;
 }
@@ -654,7 +619,6 @@ button.nav-item:hover {
   color: var(--positive);
 }
 
-/* ---------- quick replies ---------- */
 .rail-voice-settings {
   display: flex;
   flex-direction: column;
@@ -704,7 +668,6 @@ button.nav-item:hover {
   transform: scale(0.97);
 }
 
-/* ---------- composer ---------- */
 .composer {
   flex: none;
   display: flex;
@@ -716,7 +679,6 @@ button.nav-item:hover {
   border-top: 1px solid var(--border);
 }
 
-/* Bảng chọn emoji nổi trên ô nhập */
 .emoji-panel {
   position: absolute;
   bottom: calc(100% + 8px);
@@ -795,7 +757,6 @@ button.nav-item:hover {
   cursor: default;
 }
 
-/* ---------- inline chat banners ---------- */
 .chat-actions {
   flex: none;
   display: flex;
@@ -884,7 +845,6 @@ button.nav-item:hover {
   flex: none;
 }
 
-/* ---------- right context rail ---------- */
 .context-rail {
   width: 268px;
   flex: none;
@@ -915,7 +875,6 @@ button.nav-item:hover {
   color: var(--text-faint);
 }
 
-/* ---------- decision path ---------- */
 .trace-step {
   border-left: 2px solid var(--divider);
   padding: 6px 0 6px 10px;
@@ -944,9 +903,6 @@ button.nav-item:hover {
   margin-top: 2px;
 }
 
-/* ============================================================
-   SHARED PRIMITIVES - console and sign-in
-   ============================================================ */
 .stack {
   display: flex;
   flex-direction: column;
@@ -1027,7 +983,6 @@ code {
   font-size: 12.5px;
 }
 
-/* ---------- metadata chips ---------- */
 .chip {
   padding: 2px 9px;
   border-radius: var(--radius-pill);
@@ -1072,7 +1027,6 @@ code {
   padding-left: 17px;
 }
 
-/* ---------- form controls ---------- */
 input[type="text"],
 input[type="password"],
 input[type="number"],
@@ -1176,7 +1130,6 @@ button.danger:active {
   margin-bottom: 12px;
 }
 
-/* ---------- key/value rows ---------- */
 .kv {
   display: flex;
   justify-content: space-between;
@@ -1210,7 +1163,6 @@ button.danger:active {
   background: var(--accent);
 }
 
-/* ---------- lists (queue, kb, providers) ---------- */
 .queue {
   display: flex;
   flex-direction: column;
@@ -1251,7 +1203,6 @@ button.danger:active {
   font-size: 12px;
 }
 
-/* ---------- agent console ---------- */
 .summary {
   white-space: pre-wrap;
   font-size: 14px;
@@ -1315,7 +1266,6 @@ button.danger:active {
   flex: 1;
 }
 
-/* ---------- knowledge base ---------- */
 .passages {
   display: flex;
   flex-direction: column;
@@ -1379,7 +1329,6 @@ button.danger:active {
   pointer-events: none;
 }
 
-/* ---------- console layout ---------- */
 #screen-login {
   display: grid;
   gap: 18px;
@@ -1399,7 +1348,6 @@ button.danger:active {
   grid-template-columns: 1fr 1fr;
 }
 
-/* ---------- agent sub-tabs ---------- */
 .subtabs {
   display: flex;
   gap: 2px;
@@ -1427,7 +1375,6 @@ button.danger:active {
   border-bottom-color: var(--accent);
 }
 
-/* Dropdown thay cho dải tab - chỉ hiện trên điện thoại (bật ở media query). */
 .subtab-select {
   display: none;
   box-sizing: border-box;
@@ -1459,8 +1406,6 @@ button.danger:active {
   display: none;
 }
 
-/* ---------- admin console header + bot control ---------- */
-/* Inside the console the customer-app nav entries are noise - hide them. */
 .console-mode .nav-item.muted {
   display: none;
 }
@@ -1539,7 +1484,6 @@ button.danger:active {
   color: var(--text-muted);
 }
 
-/* ---------- dashboard ---------- */
 .stat-grid {
   display: grid;
   gap: 12px;
@@ -1631,7 +1575,7 @@ button.danger:active {
 .topic ul li {
   margin: 3px 0;
 }
-/* One-off unanswered questions: a readable list, not a run-on paragraph. */
+
 .topic-singletons {
   border-top: 1px solid var(--divider);
   margin-top: 10px;
@@ -1652,7 +1596,6 @@ button.danger:active {
   margin: 4px 0;
 }
 
-/* ---------- toggle switch ---------- */
 .switch {
   position: relative;
   display: inline-block;
@@ -1695,9 +1638,6 @@ button.danger:active {
   outline-offset: 2px;
 }
 
-/* ---------- card event log ---------- */
-/* Six columns don't fit a phone; keep the table inside the panel and let it
-   scroll sideways instead of pushing the page wider than the viewport. */
 #card-events {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -1730,14 +1670,6 @@ table.events code {
   font-size: 11.5px;
 }
 
-/* ============================================================
-   RESPONSIVE
-   ============================================================ */
-
-/* Below 1024px the design drops the right rail so it stops competing with the
-   transcript. This demo's whole point is the routing audit, though, so instead
-   of deleting it the rail becomes a drawer behind a header button - the chat
-   column keeps the full-height, pinned-composer layout either way. */
 @media (max-width: 1023px) {
   #screen-customer {
     grid-template-columns: minmax(0, 1fr);
@@ -1771,14 +1703,7 @@ table.events code {
   }
 }
 
-/* < 768px: mobile. There is no left nav at all - a phone session belongs to
-   one customer, the chat keeps no history worth browsing, and a drawer is one
-   more thing to fish for on a small screen. A single back button hands the
-   customer to the surrounding banking app instead. Staff sign-in and the
-   console are desktop-only as a result, which is where they are usable anyway. */
 @media (max-width: 767px) {
-  /* Sidenav thành drawer trượt từ trái, mở bằng nút ☰ - nhờ đó đăng nhập và
-     console truy cập được trên điện thoại (trước đây bị ẩn hẳn). */
   .sidenav {
     display: flex;
     position: fixed;
@@ -1801,8 +1726,7 @@ table.events code {
     padding: 14px 14px 12px;
     gap: 5px;
   }
-  /* Nhiều nút icon + tên dài không vừa một hàng trên điện thoại: thu nhỏ nút và
-     để tên rút gọn bằng ellipsis (đã set ở .chat-name) thay vì xuống dòng dọc. */
+
   .chat-header .icon-btn {
     width: 36px;
     height: 36px;
@@ -1836,8 +1760,7 @@ table.events code {
     font-size: 15px;
     line-height: 1.5;
   }
-  /* One scrolling row rather than five stacked ones - the chips must not eat
-     the transcript on a phone. */
+
   .suggestions {
     padding: 0 18px 10px;
     flex-wrap: nowrap;
@@ -1863,7 +1786,7 @@ table.events code {
   .handoff-banner {
     margin: 10px 18px 0;
   }
-  /* Side by side, the text gets squeezed into a column at this width. */
+
   .handoff-banner {
     flex-wrap: wrap;
   }
@@ -1887,7 +1810,7 @@ table.events code {
   }
   .console-head .hint {
     display: none;
-  } /* mô tả dài, ẩn cho gọn trên mobile */
+  }
   .console-nav-toggle {
     position: absolute;
     top: 0;
@@ -1919,20 +1842,6 @@ table.events code {
   }
 }
 
-/* ============================================================
-   CARRIED FORWARD FROM main
-   ------------------------------------------------------------
-   Everything above is the mobile-first redesign. The bank shipped three things
-   on main that the redesign never saw - per-message avatars and timestamps, the
-   answer-source panel, and the inert composer chrome - so they are re-expressed
-   here in the design's own tokens rather than dropped or left on the old
-   indigo palette. Kept in one block so the next re-theme has a single place to
-   look for anything the handoff did not specify.
-   ============================================================ */
-
-/* ---------- identity in the left nav ---------- */
-/* Replaces the old dark rail's footer. Same job: name whoever the session has
-   verified, so identity is visibly established rather than asserted in prose. */
 .nav-user {
   display: flex;
   align-items: center;
@@ -1956,10 +1865,6 @@ table.events code {
   color: var(--text-subtle);
 }
 
-/* ---------- message avatars and timestamps ---------- */
-/* The redesign stacks a message as a column. An avatar sits beside that column,
-   so `.msg` becomes the row and `.msg-body` takes over the column - every
-   descendant rule above (bubble, cards, author) still applies unchanged. */
 .msg {
   flex-direction: row;
   align-items: flex-end;
@@ -1974,7 +1879,7 @@ table.events code {
 .msg.customer {
   flex-direction: row-reverse;
 }
-/* No avatar on a system notice, so its body carries the full width. */
+
 .msg.system .msg-body {
   width: 100%;
 }
@@ -1999,8 +1904,19 @@ table.events code {
   border-radius: 9px;
 }
 .avatar.bot {
-  background: var(--accent);
+  background: var(--tint);
   color: #fff;
+  padding: 0;
+  overflow: hidden;
+}
+.avatar.bot .bot-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  border-radius: inherit;
+
+  transform: scale(1.35);
 }
 .avatar.me {
   background: var(--tint-positive);
@@ -2010,7 +1926,6 @@ table.events code {
   display: block;
 }
 
-/* Ảnh khách gửi từ thư viện, nằm gọn trong bong bóng tin nhắn. */
 .bubble .chat-image {
   display: block;
   max-width: 240px;
@@ -2025,7 +1940,7 @@ table.events code {
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-top: -4px; /* absorbs the column gap above it */
+  margin-top: -4px;
   font-size: 11px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
@@ -2034,10 +1949,6 @@ table.events code {
   justify-content: flex-end;
 }
 
-/* Sits under the bubble like msg-time, not beside it - a reply can be long
-   enough that anchoring the button to the bubble's top would put it out of
-   view by the time someone finishes reading and decides they want it read
-   aloud instead. */
 .speak-btn {
   width: 26px;
   height: 26px;
@@ -2082,16 +1993,12 @@ table.events code {
   }
 }
 
-/* The label under the dots, which changes at three seconds. Past a couple of
-   seconds people start wondering whether the send worked, and naming what is
-   happening answers that without promising a finish time. */
 .typing-label {
   margin-top: -4px;
   font-size: 11.5px;
   color: var(--text-subtle);
 }
 
-/* ---------- answer-source panel (context rail) ---------- */
 .source-head {
   font-size: 13px;
   font-weight: 500;
@@ -2120,8 +2027,7 @@ table.events code {
 .source-item .ic {
   flex: none;
 }
-/* An unverified market-reference document must not read like the bank's own
-   policy. Same reason the KB-MKT- citation prefix exists. */
+
 .source-item.unverified {
   background: var(--amber-tint);
   border-color: var(--amber-line);
@@ -2142,9 +2048,6 @@ table.events code {
   background: var(--bg-canvas);
 }
 
-/* ---------- composer chrome ---------- */
-/* Attach / emoji / voice. Borderless and smaller than the send button, which is
-   the only control in the row that does anything. */
 .composer .ghost-ic {
   width: 36px;
   height: 36px;
@@ -2161,11 +2064,6 @@ table.events code {
   display: block;
 }
 
-/* ---------- standing notice at the head of the transcript ---------- */
-/* Scrolls away with the conversation rather than occupying a permanent line
-   above the keyboard. Deliberately not a .msg.system bubble: an amber alert
-   as the opening frame of every conversation reads as something having gone
-   wrong before the customer has said anything. */
 .chat-notice {
   align-self: center;
   display: flex;
@@ -2189,10 +2087,6 @@ table.events code {
 }
 
 @media (max-width: 767px) {
-  /* Attach, emoji, voice and send all stay on a phone. Four controls plus the
-     input only fit once the gap and the decorative buttons come down a size -
-     hiding two of them bought the width more cheaply but left the composer
-     looking like a different product on mobile. */
   .composer {
     gap: 5px;
     padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
@@ -2214,16 +2108,13 @@ table.events code {
   }
 }
 
-/* Workforce / agent management (admin) */
 .agents-layout {
   display: grid;
   grid-template-columns: minmax(220px, 300px) 1fr;
   gap: 16px;
   align-items: start;
 }
-/* Điện thoại: xếp dọc thay vì 2 cột. Danh sách agent thành hàng chip cuộn ngang
-   ở trên (tiết kiệm chiều cao), chi tiết agent nằm ngay dưới; skill 1 cột cho
-   dễ chạm. Chỉ áp dụng cho màn hình hẹp - desktop giữ nguyên bố cục 2 cột. */
+
 @media (max-width: 767px) {
   .agents-layout {
     grid-template-columns: 1fr;
@@ -2310,15 +2201,12 @@ table.events code {
   width: auto;
 }
 
-/* Console (staff) panel headings (Điều khiển bot và các ô tương tự): đổi từ
-   eyebrow xám nhạt sang chữ đen, in đậm và to hơn chút cho dễ đọc. */
 #screen-agent .panel h3 {
   color: var(--text);
   font-weight: 700;
   font-size: 14px;
 }
 
-/* Bảng trong các ô console: header lẫn ô nội dung đều dùng chữ đen. */
 #screen-agent .panel th,
 #screen-agent .panel td,
 #screen-agent table th,
@@ -2326,13 +2214,10 @@ table.events code {
   color: var(--text);
 }
 
-/* Bảng key–value (vd "Cấu hình đang dùng"): cả cột nhãn (trái) lẫn cột giá trị
-   (phải) đều chữ đen, thay vì nhãn xám như mặc định. */
 #screen-agent .kv span:first-child {
   color: var(--text);
 }
 
-/* Ô tick trong Quản lý Agent hiển thị dạng công tắc toggle thay vì checkbox. */
 #panel-agents input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
@@ -2364,11 +2249,6 @@ table.events code {
   transform: translateX(16px);
 }
 
-/* ── Điện thoại: cân lại cỡ chữ cho dễ đọc trên mọi màn hình ──────────────────
-   Nhiều chữ tiện ích để 10.5–12.5px (quá nhỏ trên phone) còn số liệu để 27px
-   (quá to). Khối này nâng chữ nhỏ lên mức đọc được và giảm số liệu, đồng thời
-   để base 16px tránh iOS tự phóng to khi chạm ô nhập. Chỉ áp dụng ≤767px nên
-   giao diện máy tính không đổi. */
 @media (max-width: 767px) {
   body {
     font-size: 16px;
@@ -2416,22 +2296,18 @@ table.events code {
     font-size: 16px;
   }
 
-  /* Thanh chọn mục: trên điện thoại thay dải tab bằng một dropdown gọn để
-     không chiếm nhiều chỗ. */
   .subtabs {
     display: none;
   }
   .subtab-select {
     display: block;
   }
-  /* Chặn tràn ngang trên console (dropdown/bảng không lòi sang phải). Cuộn
-     ngang bên trong panel-agents vẫn hoạt động vì nó là container riêng. */
+
   #screen-agent {
     overflow-x: hidden;
   }
 }
 
-/* ── Giao diện "Gọi khách" ──────────────────────────────────────────────────── */
 .call-list {
   display: flex;
   flex-direction: column;
@@ -2481,7 +2357,6 @@ table.events code {
   color: var(--text);
 }
 
-/* Badge trạng thái + chấm */
 .call-badge {
   display: inline-flex;
   align-items: center;
@@ -2517,7 +2392,7 @@ table.events code {
   background: var(--red-tint);
   border-color: var(--red-line);
 }
-/* Chấm nhấp nháy khi đang đổ chuông / đang gọi */
+
 .call-badge.active .call-dot {
   animation: callPulse 1s ease-in-out infinite;
 }
@@ -2535,7 +2410,6 @@ table.events code {
   }
 }
 
-/* Nút Gọi: icon + hiệu ứng nhấn/hover */
 .call-btn-go {
   display: inline-flex;
   align-items: center;
@@ -2548,8 +2422,6 @@ table.events code {
   transform: scale(0.97);
 }
 
-/* Animation "lan" (ripple): sóng tròn lan ra quanh icon điện thoại khi cuộc gọi
-   đang đổ chuông / đang gọi (card có class .active). */
 .call-card.active .call-phone-ic {
   position: relative;
   display: inline-flex;

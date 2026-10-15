@@ -20,11 +20,8 @@ from pathlib import Path
 
 SUPPORTED = (".md", ".txt", ".docx")
 
-# WordprocessingML namespace. Every text-bearing element lives under it.
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
-# Word's built-in heading styles, mapped to markdown levels so a converted
-# document keeps the structure the chunker relies on.
 _HEADING_STYLE_RE = re.compile(r"^Heading([1-6])$", re.IGNORECASE)
 
 
@@ -48,7 +45,6 @@ def decode_upload(filename: str, data: bytes) -> str:
         try:
             return data.decode("utf-8")
         except UnicodeDecodeError:
-            # Word and Excel exports on Windows are frequently cp1252.
             return data.decode("cp1252", errors="replace")
     if suffix == ".docx":
         return docx_to_markdown(data)
@@ -56,9 +52,6 @@ def decode_upload(filename: str, data: bytes) -> str:
         f"Unsupported file type '{suffix or filename}'. "
         f"Accepted: {', '.join(SUPPORTED)}."
     )
-
-
-# -- docx -----------------------------------------------------------------
 
 
 def _paragraph_text(paragraph: ET.Element) -> str:
@@ -140,8 +133,6 @@ def docx_to_markdown(data: bytes) -> str:
         return ""
 
     blocks: list[str] = []
-    # Iterate direct children only: a paragraph inside a table must not also be
-    # emitted on its own, or every cell would appear twice.
     for element in body:
         if element.tag == f"{_W}p":
             text = _paragraph_text(element)

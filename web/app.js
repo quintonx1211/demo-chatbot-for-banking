@@ -1,16 +1,14 @@
 const $ = (id) => document.getElementById(id);
-
-// A 0.05s silent WAV. Playing it through an <audio> element inside a user
-// gesture "blesses" that exact element so later programmatic play() calls
-// (fired after the token stream finishes, outside any gesture) are allowed.
+(() => {
+  const _origFetch = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    const headers = new Headers(init.headers || {});
+    headers.set("ngrok-skip-browser-warning", "true");
+    return _origFetch(input, { ...init, headers: headers });
+  };
+})();
 const SILENT_WAV =
   "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAA=";
-
-// One silent AudioContext buffer play unlocks WebAudio's autoplay policy; the
-// HTML5 <audio> elements we auto-play replies through need their OWN gesture
-// play to unlock in WebKit/Safari, which the AudioContext trick does not cover.
-// Both are primed here, so this MUST be called synchronously inside a
-// user-gesture handler (click/submit).
 let _audioUnlocked = false;
 function _unlockAudio() {
   if (_audioUnlocked) return;
@@ -24,8 +22,6 @@ function _unlockAudio() {
     src.start(0);
     setTimeout(() => ctx.close(), 500);
   } catch (e) {}
-  // ttsPlayer/streamPlayer are defined later at module load; by the time any
-  // gesture fires they exist, so referencing them here is safe.
   [ttsPlayer, streamPlayer].forEach((el) => {
     try {
       el.src = SILENT_WAV;
@@ -38,9 +34,8 @@ function _unlockAudio() {
     } catch (e) {}
   });
 }
-
 let sessionId = null;
-let _simGreeting = ""; // lời chào chờ phát khi khách bấm "Nghe" (gọi mô phỏng)
+let _simGreeting = "";
 let selectedSession = null;
 let selectedDoc = null;
 let staff = null;
@@ -48,31 +43,16 @@ let renderedCount = 0;
 let pollTimer = null;
 let voiceEnabled = localStorage.getItem("voiceEnabled") !== "false";
 let streamController = null;
-
-const KB_TEMPLATE = `# Document title
-
-**doc_id:** KB-XXXX-001
-**owner:** Team name
-
-## First section
-Each "## Section" becomes one retrievable passage. Write the answer a customer
-needs, with the concrete figures and timeframes in the prose - the assistant may
-only state what is written here.
-
-## Second section
-Keep sections focused on a single question. A section covering four topics
-retrieves poorly for all four.
-`;
-
-/* ---------- helpers ---------- */
-
+const KB_TEMPLATE = `# Document title\n\n**doc_id:** KB-XXXX-001\n**owner:** Team name\n\n## First section\nEach "## Section" becomes one retrievable passage. Write the answer a customer\nneeds, with the concrete figures and timeframes in the prose - the assistant may\nonly state what is written here.\n\n## Second section\nKeep sections focused on a single question. A section covering four topics\nretrieves poorly for all four.\n`;
 function escapeHtml(text) {
   return String(text).replace(
     /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
   );
 }
-
 function render(text) {
   return escapeHtml(text)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
@@ -80,7 +60,6 @@ function render(text) {
     .replace(/_([^_]+)_/g, "<em>$1</em>")
     .replace(/\n/g, "<br>");
 }
-
 async function api(path, options) {
   let response;
   try {
@@ -89,23 +68,21 @@ async function api(path, options) {
     throw new Error(
       "Không kết nối được máy chủ - `python server.py` còn đang chạy không? " +
         "API key nhập trong Cấu hình chỉ tồn tại trong tiến trình đó, nên phải " +
-        "nhập lại sau mỗi lần khởi động lại."
+        "nhập lại sau mỗi lần khởi động lại.",
     );
   }
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `${path} → ${response.status}`);
+  if (!response.ok)
+    throw new Error(data.error || `${path} → ${response.status}`);
   return data;
 }
-
 const postJson = (path, body) =>
   api(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-
-// POST có timeout (AbortController) - tránh STT/LLM treo làm kẹt "Đang xử lý".
-async function postJsonTimeout(path, body, ms = 60000) {
+async function postJsonTimeout(path, body, ms = 6e4) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
   try {
@@ -122,7 +99,6 @@ async function postJsonTimeout(path, body, ms = 60000) {
     clearTimeout(timer);
   }
 }
-
 const showError = (box, msg) => {
   box.textContent = msg;
   box.classList.remove("hidden");
@@ -132,24 +108,17 @@ const clearError = (box) => {
   box.classList.add("hidden");
 };
 const pct = (n) => `${Math.round(n * 100)}%`;
-
-/** Build an element in one call - the transcript is assembled node by node so
-    that customer data never travels through innerHTML. */
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
 }
-
-/* ---------- chunk buffer + audio queue ---------- */
-
 class ChunkBuffer {
   constructor(onFlush) {
     this.tokens = [];
     this.onFlush = onFlush;
   }
-
   push(token) {
     this.tokens.push(token);
     const text = this.tokens.join("");
@@ -157,14 +126,12 @@ class ChunkBuffer {
     const hardStop = /[.!?…。！？]\s*$/.test(text.trim());
     if (hardStop || words >= 40) this.flush();
   }
-
   flush() {
     const text = this.tokens.join("").trim();
     this.tokens = [];
     if (text) this.onFlush(text);
   }
 }
-
 class SyncedPlayer {
   constructor() {
     this.pipeline = [];
@@ -174,7 +141,6 @@ class SyncedPlayer {
     this.wordTimers = [];
     this.onAllDone = null;
   }
-
   init() {
     this.pipeline = [];
     this.active = false;
@@ -183,12 +149,14 @@ class SyncedPlayer {
     this.wordTimers = [];
     this.onAllDone = null;
   }
-
   addChunk(chunkText, urlPromise, onPlay) {
-    this.pipeline.push({ chunkText, urlPromise, onPlay });
+    this.pipeline.push({
+      chunkText: chunkText,
+      urlPromise: urlPromise,
+      onPlay: onPlay,
+    });
     if (!this.active) this._advance();
   }
-
   notifyStreamEnd() {
     this.streamEnded = true;
     if (!this.active && !this.pipeline.length && this.onAllDone) {
@@ -197,12 +165,10 @@ class SyncedPlayer {
       cb();
     }
   }
-
   _clearTimers() {
     this.wordTimers.forEach(clearTimeout);
     this.wordTimers = [];
   }
-
   async _advance() {
     if (!this.pipeline.length) {
       this.active = false;
@@ -214,7 +180,7 @@ class SyncedPlayer {
       return;
     }
     this.active = true;
-    const { urlPromise, onPlay } = this.pipeline.shift();
+    const { urlPromise: urlPromise, onPlay: onPlay } = this.pipeline.shift();
     const url = await urlPromise;
     if (!this.active) {
       if (url) URL.revokeObjectURL(url);
@@ -225,7 +191,6 @@ class SyncedPlayer {
       this._advance();
       return;
     }
-
     if (ttsPlayingBtn) {
       ttsPlayer.pause();
       resetSpeakBtn(ttsPlayingBtn);
@@ -233,8 +198,6 @@ class SyncedPlayer {
     }
     const audio = new Audio();
     this.currentAudio = audio;
-
-    // Set handlers BEFORE src to avoid loadedmetadata race condition
     const ready = new Promise((res) => {
       audio.onloadedmetadata = res;
       audio.onerror = res;
@@ -246,7 +209,6 @@ class SyncedPlayer {
       this.currentAudio = null;
       return;
     }
-
     if (onPlay) onPlay();
     audio.play().catch((e) => console.warn("audio.play() blocked:", e.message));
     audio.onended = () => {
@@ -260,7 +222,6 @@ class SyncedPlayer {
       this._advance();
     };
   }
-
   stop() {
     this.active = false;
     this._clearTimers();
@@ -272,65 +233,51 @@ class SyncedPlayer {
       this.currentAudio = null;
     }
   }
-
   get isPlaying() {
     return this.active;
   }
 }
-
 let syncedPlayer = new SyncedPlayer();
-let streamingAudio = null; // current auto-play TTS audio (full response)
-
-/* ---------- screens ---------- */
-
+let streamingAudio = null;
 function showScreen(name) {
   ["customer", "login", "agent"].forEach((s) =>
-    $(`screen-${s}`).classList.toggle("hidden", s !== name)
+    $(`screen-${s}`).classList.toggle("hidden", s !== name),
   );
-  $("brand-sub").textContent = name === "agent" ? "Bảng điều khiển nhân viên" : "Trợ lý ảo";
+  $("brand-sub").textContent =
+    name === "agent" ? "Bảng điều khiển nhân viên" : "Trợ lý ảo";
   $("nav-assistant").classList.toggle("active", name === "customer");
-  // The muted customer-nav entries are chrome for the customer mock; inside
-  // the console they are just noise, so the shell drops them there.
   document.body.classList.toggle("console-mode", name === "agent");
   setRail(false);
-  setNav(false); // đóng drawer trái sau khi điều hướng (mobile)
+  setNav(false);
 }
-
-/* ---------- live assistant status ---------- */
-
-// The header's second line reports what the assistant is doing right now.
-// Derived from state rather than set at each call site, so the three inputs
-// can never disagree about what the line should say.
 let isSending = false;
 let _sendCount = 0;
 let rawMode = false;
-let handoff = null; // { handled_by } once the customer is with a human
-
+let handoff = null;
 function refreshChatStatus() {
   let text = "Trực tuyến";
   let tone = "ok";
-
   if (rawMode) {
     text = "Chế độ LLM thuần";
     tone = "alert";
   } else if (handoff) {
-    text = handoff.handled_by ? `Đang với ${handoff.handled_by}` : "Đang chờ chuyên viên";
+    text = handoff.handled_by
+      ? `Đang với ${handoff.handled_by}`
+      : "Đang chờ chuyên viên";
     tone = "wait";
   }
   if (isSending) text = "Đang trả lời…";
-
   $("chat-status").className = `chat-status ${tone}`;
   $("chat-status-text").textContent = text;
 }
-
 function showPanel(name) {
-  ["dashboard", "queue", "kb", "settings", "voice", "agents", "calls"].forEach((p) =>
-    $(`panel-${p}`).classList.toggle("hidden", p !== name)
+  ["dashboard", "queue", "kb", "settings", "voice", "agents", "calls"].forEach(
+    (p) => $(`panel-${p}`).classList.toggle("hidden", p !== name),
   );
   document
     .querySelectorAll(".subtab")
     .forEach((t) => t.classList.toggle("active", t.dataset.panel === name));
-  $("subtab-select").value = name; // giữ dropdown (mobile) đồng bộ với tab
+  $("subtab-select").value = name;
   const load = {
     dashboard: refreshDashboard,
     queue: refreshQueue,
@@ -345,8 +292,6 @@ function showPanel(name) {
   };
   if (load[name]) load[name]();
 }
-
-// Nhật ký cuộc gọi (panel Gọi khách).
 async function refreshCallList() {
   const box = $("call-list");
   if (!box) return;
@@ -359,43 +304,26 @@ async function refreshCallList() {
     }
     box.innerHTML = calls
       .map(
-        (c) => `
-      <div class="call-item">
-        <div><strong>${escapeHtml(c.phone || "(không SĐT)")}</strong>
-          <span class="hint"> · ${escapeHtml(c.agent_name || c.agent_id || "")}</span></div>
-        <div class="hint">${escapeHtml(c.created_at || "")} · ${escapeHtml(c.status || "")}</div>
-      </div>`
+        (c) =>
+          `\n      <div class="call-item">\n        <div><strong>${escapeHtml(c.phone || "(không SĐT)")}</strong>\n          <span class="hint"> · ${escapeHtml(c.agent_name || c.agent_id || "")}</span></div>\n        <div class="hint">${escapeHtml(c.created_at || "")} · ${escapeHtml(c.status || "")}</div>\n      </div>`,
       )
       .join("");
   } catch (e) {
     box.innerHTML = '<p class="hint">Không tải được nhật ký cuộc gọi.</p>';
   }
 }
-
-/* ---------- voice (TTS/STT) ---------- */
-
-// Read from /api/health on every refresh - the server's TTS/STT providers
-// can go from unavailable to available (or back) without a page reload if
-// an operator changes Settings mid-demo, so this is state, not a constant.
 let ttsAvailable = false;
 let sttAvailable = false;
 const canRecord = Boolean(
-  navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder
+  navigator.mediaDevices &&
+  navigator.mediaDevices.getUserMedia &&
+  window.MediaRecorder,
 );
-
 function updateVoiceUI() {
   const mic = $("mic-btn");
-  // Always shown, like the other composer icons - a browser with no
-  // recording API is the only reason to hide it outright. When the server's
-  // STT provider isn't configured the button stays visible but disabled, so
-  // a customer sees the feature exists instead of wondering why it's gone.
   mic.classList.toggle("hidden", !canRecord);
   mic.disabled = !sttAvailable;
   mic.title = sttAvailable ? "Nhập bằng giọng nói" : "Giọng nói chưa khả dụng";
-  // Reruns already-rendered speak buttons too, so a provider going dark
-  // mid-conversation greys out replies already on screen, not just future
-  // ones - a button that plays nothing on click is worse than one visibly
-  // disabled.
   document.querySelectorAll(".speak-btn").forEach((b) => {
     b.disabled = !ttsAvailable;
   });
@@ -406,42 +334,26 @@ function updateVoiceUI() {
     vt.classList.toggle("active", voiceEnabled);
     vt.disabled = !ttsAvailable;
   }
-  // Call button: visible only when mic recording AND STT are both available
   const cb = $("call-btn");
   if (cb) cb.classList.toggle("hidden", !(canRecord && sttAvailable));
 }
-
-// Played through a single <audio> element rather than one per bubble, so
-// starting a second reply's audio stops the first instead of overlapping it.
 const ttsPlayer = new Audio();
-// Persistent element for auto-play (the read-aloud of each reply). Reused
-// every turn - and primed in _unlockAudio() - so that unlike a fresh
-// `new Audio()` each turn, its play() is not blocked once the token stream
-// pushes it past the browser's user-activation window. See _unlockAudio().
 const streamPlayer = new Audio();
 let ttsPlayingBtn = null;
-
-// WebAudio graph for the voice-call orb: an analyser tapped off streamPlayer so
-// the orb can react to the bot's TTS. Created lazily on the first call (see
-// _ensureTtsAnalyser). IMPORTANT: once createMediaElementSource() runs, ALL
-// streamPlayer audio - including the chat box auto-play - is routed through this
-// context, so if it ever gets suspended, chat playback goes silent. Declared up
-// here (not next to the call code) so the chat auto-play path can resume it.
 let _ttsCtx = null,
   _ttsAnalyser = null,
   _ttsSrcNode = null,
   _ttsData = null;
 function _resumeTtsCtxIfAny() {
-  if (_ttsCtx && _ttsCtx.state === "suspended") _ttsCtx.resume().catch(() => {});
+  if (_ttsCtx && _ttsCtx.state === "suspended")
+    _ttsCtx.resume().catch(() => {});
 }
-
 function resetSpeakBtn(btn) {
   btn.textContent = "🔊";
   btn.classList.remove("playing");
 }
-
 async function playTts(text, btn) {
-  _unlockAudio(); // synchronous, inside click gesture
+  _unlockAudio();
   if (streamingAudio) {
     streamingAudio.pause();
     streamingAudio.src = "";
@@ -455,7 +367,6 @@ async function playTts(text, btn) {
     return;
   }
   if (ttsPlayingBtn) resetSpeakBtn(ttsPlayingBtn);
-
   btn.textContent = "⏳";
   btn.classList.remove("playing");
   try {
@@ -485,9 +396,6 @@ async function playTts(text, btn) {
     addMessage("system", `Không đọc được câu trả lời: ${error.message}`);
   }
 }
-
-/** 16-bit PCM mono WAV, hand-written header - MediaRecorder gives WebM/Opus,
-    but /api/stt expects WAV, so this is the bridge between them. */
 function encodeWav(audioBuffer) {
   const channels = audioBuffer.numberOfChannels;
   const sampleRate = audioBuffer.sampleRate;
@@ -497,11 +405,11 @@ function encodeWav(audioBuffer) {
     const data = audioBuffer.getChannelData(c);
     for (let i = 0; i < length; i++) mono[i] += data[i] / channels;
   }
-
   const buffer = new ArrayBuffer(44 + length * 2);
   const view = new DataView(buffer);
   const writeStr = (offset, str) => {
-    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    for (let i = 0; i < str.length; i++)
+      view.setUint8(offset + i, str.charCodeAt(i));
   };
   writeStr(0, "RIFF");
   view.setUint32(4, 36 + length * 2, true);
@@ -519,11 +427,10 @@ function encodeWav(audioBuffer) {
   let offset = 44;
   for (let i = 0; i < length; i++, offset += 2) {
     const s = Math.max(-1, Math.min(1, mono[i]));
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    view.setInt16(offset, s < 0 ? s * 32768 : s * 32767, true);
   }
   return new Blob([buffer], { type: "audio/wav" });
 }
-
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -532,14 +439,10 @@ function blobToBase64(blob) {
     reader.readAsDataURL(blob);
   });
 }
-
 let mediaRecorder = null;
 let recordedChunks = [];
 let recordingTimer = null;
 const RECORDING_MAX_MS = 9500;
-
-// Convert spoken Vietnamese digit-words to numerals when 4+ appear consecutively.
-// Threshold of 4 avoids false-positives in ordinary sentences ("một người", "năm nay").
 const _VI_DIGIT = {
   không: 0,
   khong: 0,
@@ -562,7 +465,10 @@ const _VI_DIGIT = {
   chín: 9,
   chin: 9,
 };
-const _VI_DIGIT_RE = new RegExp(`(?:(?:${Object.keys(_VI_DIGIT).join("|")})\\s*){4,}`, "gi");
+const _VI_DIGIT_RE = new RegExp(
+  `(?:(?:${Object.keys(_VI_DIGIT).join("|")})\\s*){4,}`,
+  "gi",
+);
 function _viDigitsToNum(text) {
   return text.replace(_VI_DIGIT_RE, (m) =>
     m
@@ -572,74 +478,47 @@ function _viDigitsToNum(text) {
         const d = _VI_DIGIT[w.toLowerCase()];
         return d !== undefined ? String(d) : w;
       })
-      .join("")
+      .join(""),
   );
 }
-
-// Web Speech API tiếng Việt đôi khi transcribe dấu câu thành từ ("phấy" = dấu phẩy)
 function cleanStt(t) {
   return _viDigitsToNum(t)
     .replace(/\b(phấy|phẩy|chấm|dấu phẩy|dấu chấm)\b\.?/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 }
-
-// Strip Markdown formatting before sending to TTS so the voice engine
-// never reads raw symbols like **bold** or # Heading aloud.
 function stripMarkdownForTts(text) {
-  return (
-    text
-      // Fenced code blocks - remove entirely
-      .replace(/```[\s\S]*?```/g, "")
-      // Markdown links → keep label only
-      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-      // Bold + italic combined (***)
-      .replace(/\*{3}([^*]+)\*{3}/g, "$1")
-      // Bold (**)
-      .replace(/\*{2}([^*]+)\*{2}/g, "$1")
-      // Italic (*) - avoid matching stray asterisks inside numbers
-      .replace(/\*([^*\n]+)\*/g, "$1")
-      // Underline bold (__) and italic (_)
-      .replace(/_{2}([^_]+)_{2}/g, "$1")
-      .replace(/_([^_\n]+)_/g, "$1")
-      // Inline code
-      .replace(/`([^`]+)`/g, "$1")
-      // ATX headings (# ## ###…)
-      .replace(/^#{1,6}\s+(.+)$/gm, "$1")
-      // Horizontal rules → natural pause
-      .replace(/^[-*_]{3,}\s*$/gm, ".")
-      // Blockquotes
-      .replace(/^>\s*/gm, "")
-      // Unordered list bullets (-, *, +, •)
-      .replace(/^[ \t]*[-*+•]\s+/gm, "")
-      // Ordered list numbers
-      .replace(/^[ \t]*\d+[.)]\s+/gm, "")
-      // Paragraph breaks → spoken pause
-      .replace(/\n{2,}/g, ". ")
-      // Remaining newlines → space
-      .replace(/\n/g, " ")
-      // A sentence that already ended in punctuation before the paragraph
-      // break just picked up a doubled ".." or ".!" - collapse it back to one.
-      .replace(/([.!?,;:])\.\s/g, "$1 ")
-      // Collapse extra spaces
-      .replace(/ {2,}/g, " ")
-      // Expand Vietnamese banking abbreviations so TTS reads them naturally
-      .replace(/CMND\s*\/\s*CCCD/gi, "chứng minh nhân dân hoặc căn cước công dân")
-      .replace(/CCCD\s*\/\s*CMND/gi, "căn cước công dân hoặc chứng minh nhân dân")
-      .replace(/\bCMND\b/g, "chứng minh nhân dân")
-      .replace(/\bCCCD\b/g, "căn cước công dân")
-      .trim()
-  );
+  return text
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/\*{3}([^*]+)\*{3}/g, "$1")
+    .replace(/\*{2}([^*]+)\*{2}/g, "$1")
+    .replace(/\*([^*\n]+)\*/g, "$1")
+    .replace(/_{2}([^_]+)_{2}/g, "$1")
+    .replace(/_([^_\n]+)_/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#{1,6}\s+(.+)$/gm, "$1")
+    .replace(/^[-*_]{3,}\s*$/gm, ".")
+    .replace(/^>\s*/gm, "")
+    .replace(/^[ \t]*[-*+•]\s+/gm, "")
+    .replace(/^[ \t]*\d+[.)]\s+/gm, "")
+    .replace(/\n{2,}/g, ". ")
+    .replace(/\n/g, " ")
+    .replace(/([.!?,;:])\.\s/g, "$1 ")
+    .replace(/ {2,}/g, " ")
+    .replace(/CMND\s*\/\s*CCCD/gi, "chứng minh nhân dân hoặc căn cước công dân")
+    .replace(/CCCD\s*\/\s*CMND/gi, "căn cước công dân hoặc chứng minh nhân dân")
+    .replace(/\bCMND\b/g, "chứng minh nhân dân")
+    .replace(/\bCCCD\b/g, "căn cước công dân")
+    .trim();
 }
-
 let recognition = null;
 let recognitionFinalText = "";
 let audioCtxForMic = null;
 let waveformAnimId = null;
 let silenceStart = null;
-const SILENCE_THRESHOLD = 8; // RMS amplitude 0-100; below = silence
-const SILENCE_DURATION_MS = 3000; // stop after 3s of silence
-
+const SILENCE_THRESHOLD = 8;
+const SILENCE_DURATION_MS = 3e3;
 function _startWaveform(stream) {
   try {
     audioCtxForMic = new (window.AudioContext || window.webkitAudioContext)();
@@ -648,26 +527,21 @@ function _startWaveform(stream) {
     analyser.fftSize = 512;
     analyser.smoothingTimeConstant = 0.85;
     source.connect(analyser);
-
     const canvas = $("waveform-canvas");
     canvas.width = (canvas.parentElement.clientWidth || 300) - 60;
     const ctx2d = canvas.getContext("2d");
     const bufLen = analyser.frequencyBinCount;
     const data = new Uint8Array(bufLen);
     silenceStart = null;
-    let hasSpoken = false; // đã có tiếng nói thật chưa
-
+    let hasSpoken = false;
     const draw = () => {
       analyser.getByteTimeDomainData(data);
-
-      // RMS for silence detection
       let sum = 0;
       for (let i = 0; i < bufLen; i++) {
         const v = (data[i] - 128) / 128;
         sum += v * v;
       }
       const rms = Math.sqrt(sum / bufLen) * 100;
-
       const dot = $("silence-dot");
       const statusEl = $("stt-status");
       if (rms >= SILENCE_THRESHOLD) {
@@ -676,22 +550,19 @@ function _startWaveform(stream) {
         if (dot) dot.style.background = "#ef4444";
         if (statusEl) statusEl.textContent = "Đang nghe…";
       } else if (hasSpoken) {
-        // Chỉ tính im lặng SAU khi khách đã bắt đầu nói - tránh cắt trên khoảng
-        // lặng đầu (khách chưa kịp mở lời) khiến STT chỉ nhận được im lặng.
         if (!silenceStart) silenceStart = Date.now();
         const elapsed = Date.now() - silenceStart;
         if (statusEl) statusEl.textContent = "Đang nghe…";
         if (dot)
           dot.style.background = `hsl(${Math.round(40 * (1 - elapsed / SILENCE_DURATION_MS))}, 80%, 50%)`;
         if (elapsed >= SILENCE_DURATION_MS) {
-          if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+          if (mediaRecorder && mediaRecorder.state === "recording")
+            mediaRecorder.stop();
           return;
         }
       } else if (statusEl) {
-        statusEl.textContent = "Đang nghe…"; // chờ khách mở lời
+        statusEl.textContent = "Đang nghe…";
       }
-
-      // Draw waveform
       ctx2d.clearRect(0, 0, canvas.width, canvas.height);
       ctx2d.strokeStyle = "#3b82f6";
       ctx2d.lineWidth = 2;
@@ -704,15 +575,11 @@ function _startWaveform(stream) {
         x += sw;
       }
       ctx2d.stroke();
-
       waveformAnimId = requestAnimationFrame(draw);
     };
     draw();
-  } catch (e) {
-    /* AudioContext unavailable */
-  }
+  } catch (e) {}
 }
-
 function _stopWaveform() {
   if (waveformAnimId) {
     cancelAnimationFrame(waveformAnimId);
@@ -725,9 +592,7 @@ function _stopWaveform() {
   silenceStart = null;
   $("waveform-bar").classList.add("hidden");
 }
-
 async function toggleRecording() {
-  // Barge-in: stop bot speech/stream when user presses mic
   if (syncedPlayer.isPlaying || streamController) {
     syncedPlayer.stop();
     if (streamController) {
@@ -750,8 +615,6 @@ async function toggleRecording() {
     addMessage("system", `Không truy cập được micro: ${error.message}`);
     return;
   }
-
-  // Real-time interim display via Web Speech API (Chrome/Edge)
   recognitionFinalText = "";
   $("input").value = "";
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -775,11 +638,8 @@ async function toggleRecording() {
       recognition.start();
     } catch (e) {}
   }
-
-  // Waveform visualizer + silence detection
   _startWaveform(stream);
   $("waveform-bar").classList.remove("hidden");
-
   recordedChunks = [];
   mediaRecorder = new MediaRecorder(stream);
   mediaRecorder.ondataavailable = (e) => {
@@ -801,10 +661,10 @@ async function toggleRecording() {
   mediaRecorder.start();
   $("mic-btn").classList.add("recording");
   recordingTimer = setTimeout(() => {
-    if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+    if (mediaRecorder && mediaRecorder.state === "recording")
+      mediaRecorder.stop();
   }, RECORDING_MAX_MS);
 }
-
 async function handleRecording(blob) {
   const mic = $("mic-btn");
   mic.disabled = true;
@@ -814,27 +674,32 @@ async function handleRecording(blob) {
   try {
     if (!blob.size) {
       if (!$("input").value)
-        addMessage("system", "Không nhận dạng được giọng nói, anh/chị vui lòng gõ câu hỏi giúp.");
+        addMessage(
+          "system",
+          "Không nhận dạng được giọng nói, anh/chị vui lòng gõ câu hỏi giúp.",
+        );
       return;
     }
     let audio_b64, mime_type;
     try {
-      // Try WAV conversion (Chrome/Edge/Firefox)
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       const audioCtx = new AudioCtx();
       await audioCtx.resume();
-      const audioBuffer = await audioCtx.decodeAudioData(await blob.arrayBuffer());
+      const audioBuffer = await audioCtx.decodeAudioData(
+        await blob.arrayBuffer(),
+      );
       const wav = encodeWav(audioBuffer);
       audioCtx.close();
       audio_b64 = await blobToBase64(wav);
       mime_type = "audio/wav";
     } catch {
-      // Fallback for Safari: send raw audio (mp4/aac) directly
       audio_b64 = await blobToBase64(blob);
       mime_type = blob.type || "audio/mp4";
     }
-    const data = await postJson("/api/stt", { audio_b64, mime_type });
-    // Only fill input if user hasn't submitted a message while STT was processing
+    const data = await postJson("/api/stt", {
+      audio_b64: audio_b64,
+      mime_type: mime_type,
+    });
     if (data.text && _sendCount === sendCountSnapshot) {
       $("input").value = data.text;
       $("input").focus();
@@ -849,84 +714,58 @@ async function handleRecording(blob) {
     mic.textContent = original;
   }
 }
-
-/* ---------- customer chat ---------- */
-
-// Screen readers get told who is speaking; sighted users get the bubble side,
-// colour and avatar, which carry the same information.
 const SPEAKER = {
   customer: "Anh/chị nói",
   assistant: "Trợ lý trả lời",
   agent: "Chuyên viên trả lời",
   system: "Hệ thống",
 };
-
-// Never scrollIntoView - it moves the page, not just the transcript.
 const scrollTranscript = () => {
   $("messages").scrollTop = $("messages").scrollHeight;
 };
-
 function bubble(text) {
   const node = el("div", "bubble");
   node.innerHTML = render(text);
   return node;
 }
-
 function clockNow() {
-  return new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  return new Date().toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
-
-// Static, data-free markup, so building the icon via innerHTML is safe here.
-const BOT_ICON =
-  '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" ' +
-  'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
-  'stroke-linejoin="round" aria-hidden="true">' +
-  '<rect x="4" y="8" width="16" height="11" rx="3"/>' +
-  '<path d="M12 8V4"/><circle cx="12" cy="3" r="1.3"/>' +
-  '<circle cx="9" cy="13" r="1.1"/><circle cx="15" cy="13" r="1.1"/>' +
-  '<path d="M9.5 16.5h5"/></svg>';
-
-// Icon hình người cho avatar khách (thay cho chữ "K"). Static, data-free.
+const CALLEE_PERSON_ICON =
+  '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+  '<circle cx="12" cy="8.5" r="4.2"/>' +
+  '<path d="M3.5 20.5c0-4.2 3.8-6.8 8.5-6.8s8.5 2.6 8.5 6.8z"/></svg>';
 const PERSON_ICON =
   '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" ' +
   'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
   'stroke-linejoin="round" aria-hidden="true">' +
   '<circle cx="12" cy="8" r="3.4"/>' +
   '<path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>';
-
 function avatarFor(role) {
-  if (role === "customer") return el("span", "avatar sm me", "B"); // "Bạn"
-  if (role === "agent") return el("span", "avatar sm", "NV"); // nhân viên
-  const bot = el("span", "avatar sm bot"); // trợ lý ảo
-  bot.innerHTML = BOT_ICON;
+  if (role === "customer") return el("span", "avatar sm me", "B");
+  if (role === "agent") return el("span", "avatar sm", "NV");
+  const bot = el("span", "avatar sm bot");
+  const img = el("img", "bot-avatar-img");
+  img.src = "bot-avatar.png";
+  img.alt = "Trợ lý ảo";
+  img.loading = "lazy";
+  bot.appendChild(img);
   bot.setAttribute("aria-label", "Trợ lý ảo");
   return bot;
 }
-
 function addMessage(role, text, meta, author) {
   const wrap = el("div", `msg ${role}`);
   wrap.appendChild(el("span", "vh", `${SPEAKER[role] || role}: `));
-
-  // The avatar sits beside the message; everything else stacks inside `body`.
-  // A system notice is nobody's turn, so it gets neither an avatar nor a time.
   if (role !== "system") wrap.appendChild(avatarFor(role));
   const body = el("div", "msg-body");
   wrap.appendChild(body);
-
   if (author) body.appendChild(el("div", "author", author));
-
-  // Balances and recent transactions are figures, and the design shows figures
-  // as cards rather than prose. The server still returns one markdown string,
-  // so the split is keyed off the flow's own note - an explicit signal from the
-  // deterministic flow that produced it, not a guess about the wording. If any
-  // line fails to parse the whole thing falls back to the plain bubble, so a
-  // change of copy degrades to the old rendering rather than losing content.
-  // A structured `blocks` payload on /api/chat would retire this entirely.
   const note = meta && meta.debug ? meta.debug.note : null;
   const cards = role === "assistant" ? accountCards(text, note) : null;
-
   if (cards) {
-    // Figures get the design's wider measure than prose does.
     wrap.classList.add("has-cards");
     body.appendChild(bubble(cards.intro));
     body.appendChild(cards.node);
@@ -934,18 +773,15 @@ function addMessage(role, text, meta, author) {
   } else {
     body.appendChild(bubble(text));
   }
-
   if (role !== "system") {
-    // A double tick on the customer's own message, which is what every
-    // messaging app uses to mean "delivered". Decorative here - there is no
-    // delivery receipt behind it - but its absence is what makes a chat demo
-    // feel unfinished.
-    body.appendChild(el("div", "msg-time", role === "customer" ? `${clockNow()} ✓✓` : clockNow()));
+    body.appendChild(
+      el(
+        "div",
+        "msg-time",
+        role === "customer" ? `${clockNow()} ✓✓` : clockNow(),
+      ),
+    );
   }
-
-  // Read-aloud is offered per reply, not as a global auto-play toggle: a
-  // customer glancing at their phone in public may not want every answer
-  // spoken, so playback stays an explicit choice made bubble by bubble.
   if (role === "assistant") {
     const speak = el("button", "icon-btn ghost-ic speak-btn", "🔊");
     speak.type = "button";
@@ -954,27 +790,15 @@ function addMessage(role, text, meta, author) {
     speak.onclick = () => playTts(text, speak);
     body.appendChild(speak);
   }
-
-  // Route, intent, confidence, latency and the grounding citations all live in
-  // the routing inspector beside this pane. They were repeated under every
-  // bubble as well, which made the conversation read like a debug log rather
-  // than a bank talking to a customer - and the customer-facing half of the
-  // demo is meant to look like the product, not the instrumentation. The
-  // inspector is the one place that owns them now.
-
   $("messages").appendChild(wrap);
   scrollTranscript();
 }
-
-// Ảnh khách gửi từ thư viện. Hiển thị phía client - server chưa nhận ảnh - nên
-// bong bóng chỉ chứa ảnh, cùng khung tin nhắn như addMessage cho đồng bộ.
 function addImageMessage(dataUrl, name) {
   const wrap = el("div", "msg customer");
   wrap.appendChild(el("span", "vh", `${SPEAKER.customer}: `));
   wrap.appendChild(avatarFor("customer"));
   const body = el("div", "msg-body");
   wrap.appendChild(body);
-
   const bubbleEl = el("div", "bubble");
   const img = el("img", "chat-image");
   img.src = dataUrl;
@@ -982,14 +806,10 @@ function addImageMessage(dataUrl, name) {
   img.loading = "lazy";
   bubbleEl.appendChild(img);
   body.appendChild(bubbleEl);
-
   body.appendChild(el("div", "msg-time", `${clockNow()} ✓✓`));
   $("messages").appendChild(wrap);
   scrollTranscript();
 }
-
-/* ---------- streaming message helpers ---------- */
-
 function addStreamingMessage() {
   const wrap = el("div", "msg assistant");
   wrap.setAttribute("aria-label", "Trợ lý đang trả lời");
@@ -1001,14 +821,12 @@ function addStreamingMessage() {
   body.appendChild(el("div", "msg-time", clockNow()));
   $("messages").appendChild(wrap);
   scrollTranscript();
-  return { wrap, body, bubbleEl };
+  return { wrap: wrap, body: body, bubbleEl: bubbleEl };
 }
-
 function finalizeStreamingMessage(wrap, body, fullText, meta) {
   const note = meta && meta.debug ? meta.debug.note : null;
   const cards = accountCards(fullText, note);
   const bubbleEl = body.querySelector(".bubble");
-
   if (cards) {
     wrap.classList.add("has-cards");
     if (bubbleEl) bubbleEl.innerHTML = render(cards.intro);
@@ -1022,7 +840,6 @@ function finalizeStreamingMessage(wrap, body, fullText, meta) {
   } else if (bubbleEl) {
     bubbleEl.innerHTML = render(fullText);
   }
-
   const speak = el("button", "icon-btn ghost-ic speak-btn", "🔊");
   speak.type = "button";
   speak.title = "Đọc câu trả lời";
@@ -1030,17 +847,12 @@ function finalizeStreamingMessage(wrap, body, fullText, meta) {
   speak.onclick = () => playTts(fullText, speak);
   body.appendChild(speak);
 }
-
-/* ---------- figures as cards ---------- */
-
-/** Read an amount aloud with the currency spelled out. */
 function spokenAmount(amount) {
   const text = amount.trim();
   if (text.startsWith("$")) return `${text.slice(1)} đô la Mỹ`;
   if (text.endsWith(" VND")) return `${text.slice(0, -4)} đồng`;
   return text;
 }
-
 const initials = (name) =>
   name
     .split(/\s+/)
@@ -1048,21 +860,19 @@ const initials = (name) =>
     .slice(0, 2)
     .map((word) => word[0].toUpperCase())
     .join("");
-
-// A flow reached straight away and the same flow reached through the
-// verification sub-flow report different notes, and both render the same
-// figures, so both spellings are listed rather than pattern-matched.
-const BALANCE_NOTES = new Set(["balance_read_from_core", "verified_then_balance_inquiry"]);
-const TXN_NOTES = new Set(["transactions_read_from_core", "verified_then_transaction_history"]);
-
+const BALANCE_NOTES = new Set([
+  "balance_read_from_core",
+  "verified_then_balance_inquiry",
+]);
+const TXN_NOTES = new Set([
+  "transactions_read_from_core",
+  "verified_then_transaction_history",
+]);
 function accountCards(text, note) {
   if (BALANCE_NOTES.has(note)) return balanceCards(text);
   if (TXN_NOTES.has(note)) return transactionCard(text);
   return null;
 }
-
-/** Split a flow's reply into the prose that introduces it and the data lines.
-    Anything before the first line the pattern recognises stays prose. */
 function splitFlowText(text, pattern) {
   const lines = text.split("\n");
   const first = lines.findIndex((line) => pattern.test(line));
@@ -1083,98 +893,64 @@ function splitFlowText(text, pattern) {
       .trim(),
   };
 }
-
-// "- **Tài khoản thanh toán** ····4417 - số dư 41.238.000 VND, khả dụng 40.938.000 VND"
-//
-// Both spellings are matched. `_balance` in app/flows.py speaks Vietnamese now,
-// but the English wording is what the flow shipped with and what any untranslated
-// fixture still produces - and a card that silently stops rendering is worse than
-// one that never rendered, because nothing in the transcript says it was meant to.
 const BALANCE_LINE =
   /^-\s+\*\*(.+?)\*\*\s+(\S+)\s+-\s+(?:số dư|balance)\s+(.+?),\s+(?:khả dụng|available)\s+(.+)$/;
-
 function balanceCards(text) {
   const parsed = splitFlowText(text, BALANCE_LINE);
   if (!parsed) return null;
   const cards = el("div", "data-cards");
-
   for (const match of parsed.rows) {
     const [, type, mask, balance, available] = match;
-
     const card = el("div", "data-card");
     card.appendChild(el("span", "eyebrow", `${type} · ${mask}`));
-
     const amount = el("div", "amount", balance);
     amount.setAttribute("aria-label", `Số dư ${spokenAmount(balance)}`);
     card.appendChild(amount);
-
     const sub = el("div", "sub");
     sub.appendChild(document.createTextNode("khả dụng "));
     sub.appendChild(el("span", "num", available));
     card.appendChild(sub);
-
     cards.appendChild(card);
   }
-
   return { intro: parsed.intro, node: cards, tail: parsed.tail };
 }
-
-// "- 2024-05-31 · Coffee Union · −4.20"
 const TXN_LINE = /^-\s+(.+?)\s+·\s+(.+?)\s+·\s+([+−-])(.+)$/;
-
 function transactionCard(text) {
   const parsed = splitFlowText(text, TXN_LINE);
   if (!parsed) return null;
-
   const card = el("div", "txn-card");
-  card.appendChild(el("div", "eyebrow", `${parsed.rows.length} giao dịch gần nhất`));
-
+  card.appendChild(
+    el("div", "eyebrow", `${parsed.rows.length} giao dịch gần nhất`),
+  );
   for (const match of parsed.rows) {
     const [, date, description, sign, amount] = match;
     const credit = sign === "+";
-
     const row = el("div", `txn-row${credit ? " credit" : ""}`);
     row.appendChild(el("span", "txn-tile", initials(description)));
-
     const body = el("div", "txn-body");
     body.appendChild(el("span", "name", description));
     body.appendChild(el("span", "meta", date));
     row.appendChild(body);
-
     const value = el("span", "txn-amount", `${sign}${amount}`);
-    value.setAttribute("aria-label", `${credit ? "Ghi có" : "Ghi nợ"} ${spokenAmount(amount)}`);
+    value.setAttribute(
+      "aria-label",
+      `${credit ? "Ghi có" : "Ghi nợ"} ${spokenAmount(amount)}`,
+    );
     row.appendChild(value);
-
     card.appendChild(row);
   }
-
   return { intro: parsed.intro, node: card, tail: parsed.tail };
 }
-
-/* ---------- typing indicator ---------- */
-
-// The waiting state, shown as three dots in a bubble where the reply will
-// appear. Retrieval plus a model call is rarely instant, and a chat that sits
-// silent reads as broken rather than busy - the customer's own message is the
-// last thing on screen and nothing acknowledges it.
-//
-// Two guards, at opposite ends. It is held for at least TYPING_MIN_MS so a fast
-// reply does not flash three dots and vanish; and the label changes at
-// TYPING_LABEL_MS, because past a couple of seconds people start wondering
-// whether the send worked, and naming what is happening answers that without
-// promising a finish time.
 const TYPING_MIN_MS = 400;
-const TYPING_LABEL_MS = 3000;
+const TYPING_LABEL_MS = 3e3;
 let typingNode = null;
 let typingShownAt = 0;
 let typingTimer = null;
-
 function showTyping() {
   if (typingNode) return;
   typingNode = el("div", "msg assistant");
   typingNode.setAttribute("aria-label", "Trợ lý đang soạn câu trả lời");
   typingNode.appendChild(avatarFor("assistant"));
-
   const body = el("div", "msg-body");
   const dots = el("div", "bubble typing-bubble");
   dots.append(el("i"), el("i"), el("i"));
@@ -1182,21 +958,16 @@ function showTyping() {
   const label = el("div", "typing-label", "Đang soạn câu trả lời…");
   body.appendChild(label);
   typingNode.appendChild(body);
-
   $("messages").appendChild(typingNode);
   typingShownAt = Date.now();
   scrollTranscript();
-
   typingTimer = setTimeout(() => {
     label.textContent = "Đang tra cứu tài liệu đã thẩm định…";
   }, TYPING_LABEL_MS);
 }
-
 async function hideTyping() {
   if (!typingNode) return;
   clearTimeout(typingTimer);
-  // Captured before the await: a second caller arriving during the minimum-hold
-  // would otherwise remove a node the first one has already detached.
   const node = typingNode;
   typingNode = null;
   const shownFor = Date.now() - typingShownAt;
@@ -1205,21 +976,13 @@ async function hideTyping() {
   }
   node.remove();
 }
-
-// Where the answer came from, and nothing else.
-//
-// This panel used to carry route, intent, confidence, a confidence meter,
-// latency, per-intent scores and the decision path. All of that is real and
-// worth showing - to staff. On the customer screen it turned a bank chat into
-// an instrumentation readout, which was the complaint. The technical view now
-// lives in the agent console, against the session it describes.
 const SOURCE_LABEL = {
-  raw_llm: "LLM thuần - không truy xuất, không guardrail, không kiểm tra dẫn nguồn",
+  raw_llm:
+    "LLM thuần - không truy xuất, không guardrail, không kiểm tra dẫn nguồn",
   deterministic: "Quy trình nghiệp vụ - đọc thẳng từ hồ sơ, không qua model",
   guardrail: "Chặn bởi quy định - từ chối trước khi model nhìn thấy câu hỏi",
   agent: "Nhân viên đang phụ trách hội thoại này",
 };
-
 function updateInspector(data) {
   let source = SOURCE_LABEL[data.route];
   if (!source) {
@@ -1227,49 +990,28 @@ function updateInspector(data) {
       ? "Model trả lời dựa trên tài liệu đã truy xuất"
       : "Trích nguyên văn từ tài liệu đã thẩm định";
   }
-
   let html = `<div class="source-head">${escapeHtml(source)}</div>`;
-
   const sources = data.sources || [];
   if (sources.length) {
-    // The unverified market-reference documents have to be visibly different
-    // here. A competitor fee schedule listed in the same style as the bank's
-    // own policy is the misattribution the KB-MKT- headers exist to prevent.
     html +=
       '<div class="source-list">' +
       sources
         .map((s) => {
           const unverified = (s.citation || "").includes("KB-MKT-");
-          return `<div class="source-item${unverified ? " unverified" : ""}">
-        <span class="ic">${unverified ? "🌐" : "📄"}</span>
-        <span>${escapeHtml(s.breadcrumb || s.citation)}
-          ${unverified ? "<em>Tham khảo thị trường - chưa được ngân hàng thẩm định</em>" : ""}
-        </span></div>`;
+          return `<div class="source-item${unverified ? " unverified" : ""}">\n        <span class="ic">${unverified ? "🌐" : "📄"}</span>\n        <span>${escapeHtml(s.breadcrumb || s.citation)}\n          ${unverified ? "<em>Tham khảo thị trường - chưa được ngân hàng thẩm định</em>" : ""}\n        </span></div>`;
         })
         .join("") +
       "</div>";
   } else if (data.route !== "deterministic" && data.route !== "agent") {
-    html += '<p class="empty">Không có tài liệu nào được dẫn cho câu trả lời này.</p>';
+    html +=
+      '<p class="empty">Không có tài liệu nào được dẫn cho câu trả lời này.</p>';
   }
-
   if (data.escalation_reason) {
-    html += `<div class="source-note">Lý do chuyển nhân viên:
-      ${escapeHtml(data.escalation_reason)}</div>`;
+    html += `<div class="source-note">Lý do chuyển nhân viên:\n      ${escapeHtml(data.escalation_reason)}</div>`;
   }
-
   $("inspector").innerHTML = html;
   renderTrace(data.trace || []);
 }
-
-// The decision path answers the question every prospect asks about a hybrid
-// assistant: how does it decide? Showing the gates beats describing them.
-//
-// main had removed this from the customer screen, on the grounds that a bank
-// chat should not read as an instrumentation readout. That objection is about
-// where it sits, not whether it should exist - and in the redesign it sits in
-// the context rail, which is a column on desktop and an opt-in drawer below
-// 1024px. The transcript itself stays clean either way, and the agent console
-// still owns the same data for the people who read it all day.
 function renderTrace(steps) {
   if (!steps.length) {
     $("trace").innerHTML = '<p class="empty">-</p>';
@@ -1277,24 +1019,17 @@ function renderTrace(steps) {
   }
   $("trace").innerHTML = steps
     .map(
-      (s) => `
-    <div class="trace-step ${s.decisive ? "decisive" : ""}">
-      <div class="trace-head">
-        <span class="trace-stage">${escapeHtml(s.stage)}</span>
-        <span>${escapeHtml(s.outcome)}</span>
-      </div>
-      ${s.detail ? `<div class="trace-detail">${escapeHtml(s.detail)}</div>` : ""}
-    </div>`
+      (s) =>
+        `\n    <div class="trace-step ${s.decisive ? "decisive" : ""}">\n      <div class="trace-head">\n        <span class="trace-stage">${escapeHtml(s.stage)}</span>\n        <span>${escapeHtml(s.outcome)}</span>\n      </div>\n      ${s.detail ? `<div class="trace-detail">${escapeHtml(s.detail)}</div>` : ""}\n    </div>`,
     )
     .join("");
 }
-
-/* ---------- architecture toggle (demo lever) ---------- */
-
 function applyRawMode(enabled) {
   $("raw-toggle").checked = enabled;
   $("arch-toggle-box").classList.toggle("raw", enabled);
-  $("arch-toggle-title").textContent = enabled ? "Chế độ LLM thuần" : "Kiến trúc đầy đủ";
+  $("arch-toggle-title").textContent = enabled
+    ? "Chế độ LLM thuần"
+    : "Kiến trúc đầy đủ";
   $("arch-toggle-hint").textContent = enabled
     ? "Định tuyến, guardrail, truy xuất và kiểm tra dẫn nguồn đang bị bỏ qua trong hội thoại này."
     : "Định tuyến, guardrail, truy xuất và kiểm tra dẫn nguồn đều đang bật.";
@@ -1302,18 +1037,19 @@ function applyRawMode(enabled) {
   rawMode = enabled;
   refreshChatStatus();
 }
-
 async function toggleRawMode(enabled) {
   try {
-    const data = await postJson("/api/session/raw-mode", { session_id: sessionId, enabled });
+    const data = await postJson("/api/session/raw-mode", {
+      session_id: sessionId,
+      enabled: enabled,
+    });
     sessionId = data.session_id;
     applyRawMode(data.raw_mode);
   } catch (error) {
-    applyRawMode(!enabled); // revert the switch - the request didn't take
+    applyRawMode(!enabled);
     addMessage("system", `Could not change mode: ${error.message}`);
   }
 }
-
 async function send(message) {
   if (!message.trim()) return;
   if (voiceEnabled && ttsAvailable) _unlockAudio();
@@ -1324,43 +1060,32 @@ async function send(message) {
   showTyping();
   isSending = true;
   refreshChatStatus();
-
   streamController = new AbortController();
   let streamMsg = null;
   let fullText = "";
   let metaReceived = false;
-
   try {
     const resp = await fetch("/api/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId, message }),
+      body: JSON.stringify({ session_id: sessionId, message: message }),
       signal: streamController.signal,
     });
     if (!resp.ok) {
       const d = await resp.json().catch(() => ({}));
       throw new Error(d.error || `${resp.status}`);
     }
-
     await hideTyping();
     streamMsg = addStreamingMessage();
     const useVoice = voiceEnabled && ttsAvailable;
     if (useVoice)
-      streamMsg.bubbleEl.innerHTML = '<div class="typing-bubble"><i></i><i></i><i></i></div>';
-
-    // Word-by-word text reveal at 250ms/word
-    // Track position in fullText (not a rebuilt string) so newlines and markdown
-    // markers are preserved — the bubble shows a prefix of fullText, which matches
-    // exactly what finalizeStreamingMessage renders for the final state.
+      streamMsg.bubbleEl.innerHTML =
+        '<div class="typing-bubble"><i></i><i></i><i></i></div>';
     let revealedChars = 0;
     let pendingWordCount = 0;
     let wordRevealTimer = null;
     let pendingFinalMeta = null;
-    // ms per word. Default typewriter cadence; in voice mode this is retuned to
-    // the real audio length (see onloadedmetadata) so the caption tracks the
-    // voice instead of finishing seconds ahead of it.
     let wordIntervalMs = 250;
-
     function doFinalizeMsg(m) {
       if (m.route === "agent") {
         streamMsg.wrap.remove();
@@ -1368,13 +1093,12 @@ async function send(message) {
           "system",
           m.handled_by
             ? `Đã gửi đến ${m.handled_by}.`
-            : "Đã gửi vào hàng chờ chuyên viên - sẽ có người tiếp nhận sớm."
+            : "Đã gửi vào hàng chờ chuyên viên - sẽ có người tiếp nhận sớm.",
         );
       } else {
         finalizeStreamingMessage(streamMsg.wrap, streamMsg.body, fullText, m);
       }
     }
-
     function _advanceWord(text, pos) {
       while (pos < text.length && /\s/.test(text[pos])) pos++;
       while (pos < text.length && !/\s/.test(text[pos])) pos++;
@@ -1404,21 +1128,18 @@ async function send(message) {
       pendingWordCount += words.length;
       if (!wordRevealTimer) revealNext();
     }
-
     function finalizeMeta(m) {
       updateInspector(m);
       setRailUser(m.verified);
       renderChatActions(m);
       renderHandoff(m.in_handoff ? { handled_by: m.handled_by || null } : null);
       if (m.in_handoff) startPolling();
-
       if (m.route === "agent") {
         clearTimeout(wordRevealTimer);
         wordRevealTimer = null;
         pendingWordCount = 0;
         doFinalizeMsg(m);
       } else if (useVoice) {
-        // Voice on: text deferred — revealNext calls doFinalizeMsg when words drain
         pendingFinalMeta = m;
       } else if (pendingWordCount || wordRevealTimer) {
         pendingFinalMeta = m;
@@ -1430,18 +1151,16 @@ async function send(message) {
             pendingFinalMeta = null;
             doFinalizeMsg(m);
           }
-        }, 30000);
+        }, 3e4);
       } else {
         doFinalizeMsg(m);
       }
     }
-
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
     let sseBuf = "";
-
     while (true) {
-      const { done, value } = await reader.read();
+      const { done: done, value: value } = await reader.read();
       if (done) break;
       sseBuf += dec.decode(value, { stream: true });
       const parts = sseBuf.split("\n\n");
@@ -1455,7 +1174,6 @@ async function send(message) {
         } catch {
           continue;
         }
-
         if (ev.token !== undefined) {
           fullText += ev.token;
           if (!useVoice) queueText(ev.token);
@@ -1465,7 +1183,6 @@ async function send(message) {
           sessionId = m.session_id;
           applyRawMode(Boolean(m.raw_mode));
           finalizeMeta(m);
-
           if (useVoice && fullText.trim() && m.route !== "agent") {
             if (streamingAudio) {
               streamingAudio.pause();
@@ -1480,7 +1197,9 @@ async function send(message) {
             fetch("/api/tts", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text: stripMarkdownForTts(fullText.trim()) }),
+              body: JSON.stringify({
+                text: stripMarkdownForTts(fullText.trim()),
+              }),
             })
               .then((r) => (r.ok ? r.blob() : null))
               .then((b) => (b ? URL.createObjectURL(b) : null))
@@ -1489,17 +1208,25 @@ async function send(message) {
                   queueText(fullText);
                   return;
                 }
-                const audio = streamPlayer; // persistent, gesture-primed element
+                const audio = streamPlayer;
                 streamingAudio = audio;
                 audio.onloadedmetadata = () => {
-                  _resumeTtsCtxIfAny(); // tránh chat mất tiếng sau cuộc gọi
-                  audio.play().catch((e) => console.warn("audio.play() blocked:", e.message));
-                  // Retune the reveal cadence to the real clip length so the
-                  // caption finishes with the voice, not ~9s before it.
-                  const words = fullText.trim().split(/\s+/).filter(Boolean).length;
+                  _resumeTtsCtxIfAny();
+                  audio
+                    .play()
+                    .catch((e) =>
+                      console.warn("audio.play() blocked:", e.message),
+                    );
+                  const words = fullText
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean).length;
                   const dur = audio.duration;
                   if (words > 0 && isFinite(dur) && dur > 0) {
-                    wordIntervalMs = Math.min(1000, Math.max(60, (dur * 1000) / words));
+                    wordIntervalMs = Math.min(
+                      1e3,
+                      Math.max(60, (dur * 1e3) / words),
+                    );
                   }
                   queueText(fullText);
                 };
@@ -1541,112 +1268,60 @@ async function send(message) {
     $("input").focus();
   }
 }
-
-/** Send is dead while there is nothing to send - the design asks for 50%
-    opacity and no pointer rather than a button that submits an empty turn. */
 function updateSendState() {
   $("send").disabled = !$("input").value.trim();
 }
-
-/* ---------- contextual chat actions ---------- */
-
-// Buttons that mirror what can also be typed. The offer of a handoff is a
-// decision the customer makes, so it gets a button; typing "yes" does the same
-// thing, because a chat that only works by clicking is not a chat.
-// `handoff` (declared with the status state above) is set from the handoff
-// until the customer leaves, and is kept on the client so the banner survives
-// turns that return nothing - every message while queued does.
 function renderHandoff(state) {
   handoff = state;
   refreshChatStatus();
   const box = $("handoff-banner");
   if (!state) {
     box.classList.add("hidden");
-    // Matches the placeholder in the markup, so returning from a handoff puts
-    // the composer back exactly where it started. The @agent / @bot syntax it
-    // used to advertise is explained by the handoff banner instead - which is
-    // the only state where either prefix does anything.
     $("input").placeholder = "Nhập câu hỏi về tài chính của anh/chị…";
     return;
   }
   const who = state.handled_by
     ? `Anh/chị đang trao đổi với <b>${escapeHtml(state.handled_by)}</b>.`
     : "Anh/chị đang trong hàng chờ gặp chuyên viên.";
-  box.innerHTML = `
-    <div>
-      <strong>Đã chuyển cho chuyên viên</strong>
-      <p>${who} Trợ lý ảo đã tạm dừng, nên tin nhắn của anh/chị sẽ tới chuyên
-         viên chứ không tới tôi.</p>
-      <p class="hint">Gõ <code>/leave</code> để quay lại trợ lý ảo, hoặc
-         <code>@bot &lt;câu hỏi&gt;</code> để hỏi tôi mà vẫn giữ chỗ trong
-         hàng chờ.</p>
-    </div>
-    <button class="ghost small" data-say="/leave">Quay lại trợ lý ảo</button>`;
+  box.innerHTML = `\n    <div>\n      <strong>Đã chuyển cho chuyên viên</strong>\n      <p>${who} Trợ lý ảo đã tạm dừng, nên tin nhắn của anh/chị sẽ tới chuyên\n         viên chứ không tới tôi.</p>\n      <p class="hint">Gõ <code>/leave</code> để quay lại trợ lý ảo, hoặc\n         <code>@bot &lt;câu hỏi&gt;</code> để hỏi tôi mà vẫn giữ chỗ trong\n         hàng chờ.</p>\n    </div>\n    <button class="ghost small" data-say="/leave">Quay lại trợ lý ảo</button>`;
   box.classList.remove("hidden");
   box.querySelector("[data-say]").onclick = () => send("/leave");
   $("input").placeholder = state.handled_by
     ? `Nhắn cho ${state.handled_by}…  (/leave để quay lại trợ lý ảo)`
     : "Nhắn cho chuyên viên…  (/leave để quay lại trợ lý ảo)";
 }
-
 function renderChatActions(data) {
   const box = $("chat-actions");
   let html = "";
-
   if (data.offer_escalation) {
-    html = `<span class="action-label">Kết nối anh/chị với chuyên viên nhé?</span>
-      <button class="primary small" data-say="có">Có, kết nối giúp tôi</button>
-      <button class="ghost small" data-say="không, cảm ơn">Không, tiếp tục hỗ trợ</button>`;
+    html = `<span class="action-label">Kết nối anh/chị với chuyên viên nhé?</span>\n      <button class="primary small" data-say="có">Có, kết nối giúp tôi</button>\n      <button class="ghost small" data-say="không, cảm ơn">Không, tiếp tục hỗ trợ</button>`;
   }
-  // No "leave" button here any more - the handoff banner owns that, and owns it
-  // permanently. Two copies of the same escape hatch, one of which vanishes on
-  // the next turn, is worse than one that stays put.
-
   box.innerHTML = html;
   box.classList.toggle("hidden", !html);
   box.querySelectorAll("[data-say]").forEach((b) => {
     b.onclick = () => send(b.dataset.say);
   });
 }
-
-/* ---------- live agent replies (customer side) ---------- */
-
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(pollForAgent, 3000);
+  pollTimer = setInterval(pollForAgent, 3e3);
 }
-
 async function pollForAgent() {
   if (!sessionId) return;
   try {
     const data = await api(
-      `/api/chat/poll?session_id=${encodeURIComponent(sessionId)}&since=${renderedCount}`
+      `/api/chat/poll?session_id=${encodeURIComponent(sessionId)}&since=${renderedCount}`,
     );
     for (const m of data.messages) {
       if (m.role === "agent") addMessage("agent", m.text, null, m.author);
     }
     renderedCount = data.total;
-    // An agent claiming the session changes the banner from "in the queue" to
-    // naming them, without the customer having to send anything.
     if (handoff) renderHandoff({ handled_by: data.handled_by || null });
-  } catch {
-    // A failed poll is not worth interrupting the customer; the next tick retries.
-  }
+  } catch {}
 }
-
-/* ---------- dashboard ---------- */
-
 function statTile(label, value, sub, tone) {
-  return `<div class="stat ${tone || ""}">
-    <div class="stat-value">${escapeHtml(value)}</div>
-    <div class="stat-label">${escapeHtml(label)}</div>
-    ${sub ? `<div class="stat-sub">${escapeHtml(sub)}</div>` : ""}
-  </div>`;
+  return `<div class="stat ${tone || ""}">\n    <div class="stat-value">${escapeHtml(value)}</div>\n    <div class="stat-label">${escapeHtml(label)}</div>\n    ${sub ? `<div class="stat-sub">${escapeHtml(sub)}</div>` : ""}\n  </div>`;
 }
-
-// The bot-control strip reads /api/health so the dashboard leads with what an
-// operator actually controls: whether the bot is answering, on which model,
-// and with which voice - before any of the metrics below.
 async function renderBotControl() {
   const grid = $("bot-status-grid");
   try {
@@ -1658,112 +1333,104 @@ async function renderBotControl() {
         "Trạng thái bot",
         live ? "Đang hoạt động" : "Ngoại tuyến",
         live ? "Trợ lý ảo đang trả lời" : h.detail || "chưa cấu hình model",
-        live ? "ok" : "warn"
+        live ? "ok" : "warn",
       ),
       botStatusTile(
         "Giọng nói (TTS)",
         h.tts_available ? "Sẵn sàng" : "Không khả dụng",
-        h.tts_available ? "bot đọc được câu trả lời" : "bot chỉ trả lời văn bản",
-        h.tts_available ? "ok" : "warn"
+        h.tts_available
+          ? "bot đọc được câu trả lời"
+          : "bot chỉ trả lời văn bản",
+        h.tts_available ? "ok" : "warn",
       ),
       botStatusTile(
         "Nhận giọng nói (STT)",
         h.stt_available ? "Sẵn sàng" : "Không khả dụng",
-        h.stt_available ? "khách nói chuyện trực tiếp được" : "khách chỉ gõ phím",
-        h.stt_available ? "ok" : "warn"
+        h.stt_available
+          ? "khách nói chuyện trực tiếp được"
+          : "khách chỉ gõ phím",
+        h.stt_available ? "ok" : "warn",
       ),
       botStatusTile(
         "Kho tri thức",
         `${kb.documents ?? "-"} tài liệu`,
         `${kb.passages ?? "-"} đoạn trích đang được truy xuất`,
-        "ok"
+        "ok",
       ),
     ].join("");
   } catch {
     grid.innerHTML = '<p class="empty">Không đọc được trạng thái hệ thống.</p>';
   }
 }
-
 function botStatusTile(label, value, sub, tone) {
-  return `<div class="bot-status ${tone}">
-    <span class="bs-label">${escapeHtml(label)}</span>
-    <span class="bs-value"><i class="dot"></i>${escapeHtml(value)}</span>
-    <span class="bs-sub">${escapeHtml(sub)}</span>
-  </div>`;
+  return `<div class="bot-status ${tone}">\n    <span class="bs-label">${escapeHtml(label)}</span>\n    <span class="bs-value"><i class="dot"></i>${escapeHtml(value)}</span>\n    <span class="bs-sub">${escapeHtml(sub)}</span>\n  </div>`;
 }
-
 async function refreshDashboard() {
   renderBotControl();
   const data = await api("/api/dashboard");
   const m = data.metrics;
-
   $("dash-scope").textContent =
     `${m.conversations} hội thoại · ${m.turns} lượt trao đổi - mọi số liệu dưới đây ` +
     `được tính từ chính tiến trình đang chạy`;
-
   const median = m.median_latency_ms;
   const latency =
-    median >= 1000 ? `${(median / 1000).toFixed(1)}s` : median === 0 ? "< 1 ms" : `${median} ms`;
-
+    median >= 1e3
+      ? `${(median / 1e3).toFixed(1)}s`
+      : median === 0
+        ? "< 1 ms"
+        : `${median} ms`;
   $("stat-grid").innerHTML = [
     statTile(
       "Tỷ lệ tự xử lý",
       pct(m.deflection_rate),
       `${m.deflected} được giải quyết không cần nhân viên`,
-      "good"
+      "good",
     ),
     statTile(
       "Thời gian phản hồi trung vị",
       latency,
       `mốc tổng đài truyền thống ${m.baseline_response_seconds}s`,
-      "good"
+      "good",
     ),
     statTile(
       "Câu trả lời có dẫn nguồn",
       pct(m.grounding_rate),
-      `${m.grounded_answers}/${m.knowledge_answers} câu trả lời tra cứu`
+      `${m.grounded_answers}/${m.knowledge_answers} câu trả lời tra cứu`,
     ),
-    statTile("Chuyển cho nhân viên", String(m.escalated), "mỗi ca đều có bản tóm tắt bàn giao"),
+    statTile(
+      "Chuyển cho nhân viên",
+      String(m.escalated),
+      "mỗi ca đều có bản tóm tắt bàn giao",
+    ),
     statTile(
       "Yêu cầu bị chặn theo quy định",
       String(m.guardrail_blocks),
-      "từ chối trước khi model xử lý"
+      "từ chối trước khi model xử lý",
     ),
     statTile(
       "Thời gian nhân viên tiết kiệm được",
       `${(m.estimated_minutes_saved / 60).toFixed(1)} h`,
       `ước tính · ${m.assumptions.handle_minutes_per_deflected_conversation} phút/hội thoại`,
-      "estimate"
+      "estimate",
     ),
   ].join("");
-
   const total = Object.values(m.route_mix).reduce((a, b) => a + b, 0) || 1;
   $("route-bars").innerHTML =
     Object.entries(m.route_mix)
       .map(
-        ([route, n]) => `
-    <div class="bar-row">
-      <span class="bar-label"><span class="chip ${route}">${route}</span></span>
-      <span class="bar"><i class="${route}" style="width:${(n / total) * 100}%"></i></span>
-      <span class="bar-n">${n}</span>
-    </div>`
+        ([route, n]) =>
+          `\n    <div class="bar-row">\n      <span class="bar-label"><span class="chip ${route}">${route}</span></span>\n      <span class="bar"><i class="${route}" style="width:${(n / total) * 100}%"></i></span>\n      <span class="bar-n">${n}</span>\n    </div>`,
       )
-      .join("") + `<p class="hint" style="margin:12px 0 0">${escapeHtml(m.assumptions.note)}</p>`;
-
+      .join("") +
+    `<p class="hint" style="margin:12px 0 0">${escapeHtml(m.assumptions.note)}</p>`;
   $("activity").innerHTML =
     data.activity
       .map(
-        (a) => `
-    <button class="queue-item ${a.escalated ? "alert" : ""}" data-id="${escapeHtml(a.session_id)}">
-      <strong>${escapeHtml(a.last_utterance || "(không có tin nhắn)")}</strong>
-      <small>${escapeHtml(a.customer_name || "chưa xác định")} · ${a.turns} lượt ·
-        route gần nhất <b>${escapeHtml(a.last_route)}</b> · ${a.age_seconds}s trước</small>
-      ${a.escalated ? `<small>đã chuyển nhân viên - ${escapeHtml(a.reason || "")}</small>` : ""}
-    </button>`
+        (a) =>
+          `\n    <button class="queue-item ${a.escalated ? "alert" : ""}" data-id="${escapeHtml(a.session_id)}">\n      <strong>${escapeHtml(a.last_utterance || "(không có tin nhắn)")}</strong>\n      <small>${escapeHtml(a.customer_name || "chưa xác định")} · ${a.turns} lượt ·\n        route gần nhất <b>${escapeHtml(a.last_route)}</b> · ${a.age_seconds}s trước</small>\n      ${a.escalated ? `<small>đã chuyển nhân viên - ${escapeHtml(a.reason || "")}</small>` : ""}\n    </button>`,
       )
       .join("") ||
     '<p class="empty">Chưa có hội thoại nào. Dùng "Nạp dữ liệu demo", hoặc chat thử với vai khách hàng.</p>';
-
   $("activity")
     .querySelectorAll(".queue-item")
     .forEach((b) => {
@@ -1772,10 +1439,8 @@ async function refreshDashboard() {
         openSession(b.dataset.id);
       };
     });
-
   $("queue-count").textContent = data.queue.length;
   $("queue-count").classList.toggle("zero", data.queue.length === 0);
-
   const t = data.topics || { topics: [], singletons: [] };
   $("topic-count").textContent =
     `${t.total_unresolved || 0} lượt chưa trả lời được, ${t.distinct_questions || 0} câu hỏi khác nhau`;
@@ -1783,24 +1448,14 @@ async function refreshDashboard() {
     (t.topics.length
       ? t.topics
           .map(
-            (c) => `
-          <div class="topic">
-            <div class="row-between">
-              <strong>${escapeHtml(c.label)}</strong>
-              <span class="chip escalation">${c.size}x</span>
-            </div>
-            <ul>${c.questions.map((q) => `<li>${escapeHtml(q)}</li>`).join("")}</ul>
-          </div>`
+            (c) =>
+              `\n          <div class="topic">\n            <div class="row-between">\n              <strong>${escapeHtml(c.label)}</strong>\n              <span class="chip escalation">${c.size}x</span>\n            </div>\n            <ul>${c.questions.map((q) => `<li>${escapeHtml(q)}</li>`).join("")}</ul>\n          </div>`,
           )
           .join("")
       : '<p class="empty">Chưa có khoảng trống lặp lại nào - mọi câu chưa trả lời được đến giờ đều là ca đơn lẻ.</p>') +
     (t.singletons.length
-      ? `<div class="topic-singletons">
-          <p class="hint">Và ${t.singletons.length} câu hỏi đơn lẻ khác:</p>
-          <ul>${t.singletons.map((c) => `<li>${escapeHtml(c.questions[0])}</li>`).join("")}</ul>
-         </div>`
+      ? `<div class="topic-singletons">\n          <p class="hint">Và ${t.singletons.length} câu hỏi đơn lẻ khác:</p>\n          <ul>${t.singletons.map((c) => `<li>${escapeHtml(c.questions[0])}</li>`).join("")}</ul>\n         </div>`
       : "");
-
   const p = data.policy || {};
   $("policy-box").innerHTML =
     [
@@ -1810,11 +1465,13 @@ async function refreshDashboard() {
       ["Ngưỡng liên quan", p.min_relevance],
       ["Ngưỡng nhận diện ý định", p.high_confidence],
     ]
-      .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`)
+      .map(
+        ([k, v]) =>
+          `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`,
+      )
       .join("") +
     '<p class="hint" style="margin:10px 0 0">Càng cao thì càng hay từ chối, càng ít sai. ' +
     "Càng thấp thì trả lời nhiều hơn, sai nhiều hơn. Sửa trong config.json; áp dụng khi tải lại.</p>";
-
   const c = data.campaigns || {};
   $("campaign-box").innerHTML =
     [
@@ -1823,11 +1480,13 @@ async function refreshDashboard() {
       ["Nguồn dữ liệu", c.source],
       ["Tuổi dữ liệu", c.age_hours != null ? `${c.age_hours} giờ` : "-"],
     ]
-      .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`)
+      .map(
+        ([k, v]) =>
+          `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`,
+      )
       .join("") +
     '<p class="hint" style="margin:10px 0 0">Trích xuất CRM qua đêm. Điều kiện tham gia được ' +
     "đọc từ dữ liệu, không suy diễn - ngân hàng quyết định ai được nhắm tới.</p>";
-
   const mem = data.memory || {};
   $("memory-box").innerHTML =
     [
@@ -1836,11 +1495,13 @@ async function refreshDashboard() {
       ["Thời hạn lưu", mem.ttl_days != null ? `${mem.ttl_days} ngày` : "-"],
       ["Lưu trữ", mem.retains],
     ]
-      .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`)
+      .map(
+        ([k, v]) =>
+          `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`,
+      )
       .join("") +
     '<p class="hint" style="margin:10px 0 0">Chỉ ghi sau khi đã xác thực, ' +
     "và xoá cùng với các phiên hội thoại.</p>";
-
   const dbs = data.database || {};
   const byStatus = dbs.cards_by_status || {};
   $("db-box").innerHTML =
@@ -1849,139 +1510,105 @@ async function refreshDashboard() {
       ["Thẻ", dbs.cards],
       ["Thay đổi trạng thái thẻ", dbs.card_events],
     ]
-      .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`)
+      .map(
+        ([k, v]) =>
+          `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`,
+      )
       .join("") +
     Object.entries(byStatus)
       .map(
         ([k, v]) =>
-          `<div class="kv"><span>&nbsp;&nbsp;${escapeHtml(k)}</span><span>${v}</span></div>`
+          `<div class="kv"><span>&nbsp;&nbsp;${escapeHtml(k)}</span><span>${v}</span></div>`,
       )
       .join("") +
     '<p class="hint" style="margin:10px 0 0">sqlite, được nạp lại bởi Xoá toàn bộ phiên ' +
     "và Nạp dữ liệu demo.</p>";
-
   const events = data.card_events || [];
   $("card-events").innerHTML = events.length
-    ? `<table class="events"><thead><tr><th>Card</th><th>Transition</th>
-        <th>Action</th><th>By</th><th>Ref</th><th>When</th></tr></thead><tbody>` +
+    ? `<table class="events"><thead><tr><th>Card</th><th>Transition</th>\n        <th>Action</th><th>By</th><th>Ref</th><th>When</th></tr></thead><tbody>` +
       events
         .map(
-          (e) => `<tr>
-          <td><code>${escapeHtml(e.card_id)}</code></td>
-          <td>${escapeHtml(e.from_status || "-")} &rarr; <b>${escapeHtml(e.to_status)}</b></td>
-          <td>${escapeHtml(e.action)}</td>
-          <td>${escapeHtml(e.actor)}</td>
-          <td>${escapeHtml(e.reference || "-")}</td>
-          <td>${escapeHtml((e.at || "").replace("T", " ").replace("+00:00", ""))}</td>
-        </tr>`
+          (e) =>
+            `<tr>\n          <td><code>${escapeHtml(e.card_id)}</code></td>\n          <td>${escapeHtml(e.from_status || "-")} &rarr; <b>${escapeHtml(e.to_status)}</b></td>\n          <td>${escapeHtml(e.action)}</td>\n          <td>${escapeHtml(e.actor)}</td>\n          <td>${escapeHtml(e.reference || "-")}</td>\n          <td>${escapeHtml((e.at || "").replace("T", " ").replace("+00:00", ""))}</td>\n        </tr>`,
         )
         .join("") +
       "</tbody></table>"
     : '<p class="empty">No card actions yet. Block or freeze a card in the customer chat and it appears here.</p>';
 }
-
-/* ---------- queue ---------- */
-
 async function refreshQueue() {
   const data = await api("/api/queue");
   $("queue-count").textContent = data.sessions.length;
   $("queue-count").classList.toggle("zero", data.sessions.length === 0);
-
   $("queue").innerHTML =
     data.sessions
       .map(
-        (s) => `
-    <button class="queue-item alert ${s.session_id === selectedSession ? "active" : ""}"
-            data-id="${escapeHtml(s.session_id)}">
-      <strong>${escapeHtml(s.customer_name || "Khách chưa xác định")}</strong>
-      <small>${s.turns} lượt · ${s.verified ? "đã xác thực" : "chưa xác thực"}</small>
-      <small>${escapeHtml(s.reason || "")}</small>
-    </button>`
+        (s) =>
+          `\n    <button class="queue-item alert ${s.session_id === selectedSession ? "active" : ""}"\n            data-id="${escapeHtml(s.session_id)}">\n      <strong>${escapeHtml(s.customer_name || "Khách chưa xác định")}</strong>\n      <small>${s.turns} lượt · ${s.verified ? "đã xác thực" : "chưa xác thực"}</small>\n      <small>${escapeHtml(s.reason || "")}</small>\n    </button>`,
       )
       .join("") || '<p class="empty">Không có ca nào đang chờ.</p>';
-
   $("queue")
     .querySelectorAll(".queue-item")
     .forEach((b) => {
       b.onclick = () => openSession(b.dataset.id);
     });
 }
-
 async function openSession(id) {
   selectedSession = id;
   $("handover-empty").classList.add("hidden");
   $("handover").classList.remove("hidden");
   $("handover-title").textContent = "Hội thoại";
   $("summary").textContent = "Đang tạo bản tóm tắt bàn giao…";
-
   const data = await postJson("/api/summary", { session_id: id });
   $("summary").innerHTML = render(data.summary);
-  $("summary-source").textContent = data.generated ? `viết bởi ${data.model}` : "mẫu offline";
+  $("summary-source").textContent = data.generated
+    ? `viết bởi ${data.model}`
+    : "mẫu offline";
   $("transcript").textContent = data.transcript;
-  $("handled-by").textContent = data.handled_by ? `đang xử lý bởi ${data.handled_by}` : "";
+  $("handled-by").textContent = data.handled_by
+    ? `đang xử lý bởi ${data.handled_by}`
+    : "";
   $("audit").innerHTML = data.audit
     .map(
-      (row) => `
-    <div class="audit-row">
-      <span class="turn">#${row.turn}</span>
-      <span class="chip ${row.route}">${row.route}</span>
-      <span class="utt" title="${escapeHtml(row.utterance)}">${escapeHtml(row.utterance)}</span>
-      <span class="turn">${row.actor ? escapeHtml(row.actor) + " · " : ""}${row.latency_ms}ms</span>
-    </div>`
+      (row) =>
+        `\n    <div class="audit-row">\n      <span class="turn">#${row.turn}</span>\n      <span class="chip ${row.route}">${row.route}</span>\n      <span class="utt" title="${escapeHtml(row.utterance)}">${escapeHtml(row.utterance)}</span>\n      <span class="turn">${row.actor ? escapeHtml(row.actor) + " · " : ""}${row.latency_ms}ms</span>\n    </div>`,
     )
     .join("");
   refreshQueue();
 }
-
 async function sendAgentReply(event) {
   event.preventDefault();
   clearError($("reply-error"));
   const message = $("reply-input").value.trim();
   if (!message || !selectedSession) return;
   try {
-    await postJson("/api/session/reply", { session_id: selectedSession, message });
+    await postJson("/api/session/reply", {
+      session_id: selectedSession,
+      message: message,
+    });
     $("reply-input").value = "";
     await openSession(selectedSession);
   } catch (error) {
     showError($("reply-error"), error.message);
   }
 }
-
-/* The grounding comparison and the safeguard probes used to live here as two
-   console tabs. They were demonstrations, not operating tools - a contact
-   centre console is where escalations get worked, and an experiment about the
-   architecture sitting beside the live queue invites someone to run it on a
-   real shift. Both are now scripted demo steps: see KICH-BAN-TEST.txt sections
-   B4 and B1/B3/B7/B8, and `python compare_grounding.py` for the side-by-side. */
-
-/* ---------- knowledge base ---------- */
-
 async function refreshKb() {
   const data = await api("/api/kb");
   $("kb-stats").textContent =
     `${data.stats.passages} đoạn trích có thể truy xuất trong ${data.stats.documents} tài liệu`;
-
   $("kb-list").innerHTML =
     data.documents
       .map(
-        (d) => `
-    <button class="queue-item ${d.filename === selectedDoc ? "active" : ""}"
-            data-name="${escapeHtml(d.filename)}">
-      <strong>${escapeHtml(d.title)}</strong>
-      <small>${escapeHtml(d.filename)} · ${escapeHtml(d.format)}</small>
-      <small>${d.passages} đoạn · ${(d.bytes / 1024).toFixed(1)} KB</small>
-    </button>`
+        (d) =>
+          `\n    <button class="queue-item ${d.filename === selectedDoc ? "active" : ""}"\n            data-name="${escapeHtml(d.filename)}">\n      <strong>${escapeHtml(d.title)}</strong>\n      <small>${escapeHtml(d.filename)} · ${escapeHtml(d.format)}</small>\n      <small>${d.passages} đoạn · ${(d.bytes / 1024).toFixed(1)} KB</small>\n    </button>`,
       )
       .join("") ||
     '<p class="empty">Chưa có tài liệu. Mọi câu hỏi về kiến thức sẽ được chuyển tiếp.</p>';
-
   $("kb-list")
     .querySelectorAll(".queue-item")
     .forEach((b) => {
       b.onclick = () => openDoc(b.dataset.name);
     });
 }
-
 async function openDoc(filename) {
   selectedDoc = filename;
   const data = await api(`/api/kb/doc?name=${encodeURIComponent(filename)}`);
@@ -1994,41 +1621,33 @@ async function openDoc(filename) {
   $("kb-raw").textContent = data.content;
   $("kb-passages").innerHTML = data.passages
     .map(
-      (p) => `
-    <div class="passage">
-      <h4>${escapeHtml(p.heading)}</h4>
-      <div class="cite">${escapeHtml(p.breadcrumb || p.citation)}</div>
-      <p>${escapeHtml(p.text.slice(0, 320))}${p.text.length > 320 ? "…" : ""}</p>
-    </div>`
+      (p) =>
+        `\n    <div class="passage">\n      <h4>${escapeHtml(p.heading)}</h4>\n      <div class="cite">${escapeHtml(p.breadcrumb || p.citation)}</div>\n      <p>${escapeHtml(p.text.slice(0, 320))}${p.text.length > 320 ? "…" : ""}</p>\n    </div>`,
     )
     .join("");
   refreshKb();
-
-  // Hiệu ứng "kéo xuống": khung xem trượt từ trên xuống + mờ dần mỗi lần mở.
-  // Xoá rồi gán lại class (sau khi ép reflow) để animation chạy lại từ đầu.
   const view = $("kb-view");
   view.classList.remove("kb-reveal");
   void view.offsetWidth;
   view.classList.add("kb-reveal");
-
-  // Trên điện thoại khung xem/sửa nằm bên dưới danh sách, nên tự cuộn xuống để
-  // thấy tài liệu vừa chọn ngay. Desktop hiển thị cạnh nhau nên bỏ qua.
   if (window.matchMedia("(max-width: 767px)").matches) {
-    requestAnimationFrame(() => view.scrollIntoView({ behavior: "smooth", block: "start" }));
+    requestAnimationFrame(() =>
+      view.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
   }
 }
-
 function openEditor(filename, content) {
   clearError($("kb-error"));
   $("kb-empty").classList.add("hidden");
   $("kb-view").classList.add("hidden");
   $("kb-editor").classList.remove("hidden");
-  $("kb-editor-title").textContent = filename ? `Sửa ${filename}` : "Thêm tài liệu";
+  $("kb-editor-title").textContent = filename
+    ? `Sửa ${filename}`
+    : "Thêm tài liệu";
   $("kb-filename").value = filename || "";
   $("kb-filename").disabled = Boolean(filename);
   $("kb-content").value = content || "";
 }
-
 async function saveDoc() {
   clearError($("kb-error"));
   $("kb-save").disabled = true;
@@ -2046,12 +1665,11 @@ async function saveDoc() {
     $("kb-save").disabled = false;
   }
 }
-
 async function deleteDoc() {
   if (!selectedDoc) return;
   if (
     !confirm(
-      `Xoá ${selectedDoc}? Các đoạn trích từ tài liệu này sẽ ngừng được truy xuất ngay lập tức.`
+      `Xoá ${selectedDoc}? Các đoạn trích từ tài liệu này sẽ ngừng được truy xuất ngay lập tức.`,
     )
   )
     return;
@@ -2061,10 +1679,6 @@ async function deleteDoc() {
   $("kb-empty").classList.remove("hidden");
   refreshKb();
 }
-
-// The browser reads the file and posts it as base64 in JSON. Multipart would
-// need a hand-written parser server-side (Python 3.14 removed `cgi`), and at a
-// 256 KB cap its only real advantage - streaming - does not apply.
 function readAsBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -2076,7 +1690,6 @@ function readAsBase64(file) {
     reader.readAsDataURL(file);
   });
 }
-
 async function uploadFile(file) {
   if (!file) return;
   clearError($("kb-upload-error"));
@@ -2095,13 +1708,9 @@ async function uploadFile(file) {
     $("kb-file").value = "";
   }
 }
-
-/* ---------- settings ---------- */
-
 async function refreshProviders() {
   const data = await api("/api/providers");
   const active = data.active;
-
   $("provider-list").innerHTML = data.providers
     .map((p) => {
       const status = p.available
@@ -2109,15 +1718,9 @@ async function refreshProviders() {
         : !p.sdk_installed
           ? `pip install ${p.package}`
           : "chưa sẵn sàng";
-      return `<button class="queue-item ${active.provider === p.name ? "active" : ""}"
-              data-name="${escapeHtml(p.name)}">
-      <strong>${escapeHtml(p.name)}${active.provider === p.name ? " · đang dùng" : ""}</strong>
-      <small>${escapeHtml(p.default_model)}</small>
-      <small>${escapeHtml(status)}</small>
-    </button>`;
+      return `<button class="queue-item ${active.provider === p.name ? "active" : ""}"\n              data-name="${escapeHtml(p.name)}">\n      <strong>${escapeHtml(p.name)}${active.provider === p.name ? " · đang dùng" : ""}</strong>\n      <small>${escapeHtml(p.default_model)}</small>\n      <small>${escapeHtml(status)}</small>\n    </button>`;
     })
     .join("");
-
   $("provider-list")
     .querySelectorAll(".queue-item")
     .forEach((b) => {
@@ -2126,7 +1729,6 @@ async function refreshProviders() {
         refreshProviders();
       };
     });
-
   const rows = [
     ["Chế độ", active.mode],
     ["Nhà cung cấp", active.provider || "-"],
@@ -2143,20 +1745,23 @@ async function refreshProviders() {
   if (active.endpoint) rows.push(["Điểm cuối", active.endpoint]);
   if (active.detail) rows.push(["Chi tiết", active.detail]);
   $("active-config").innerHTML = rows
-    .map(([k, v]) => `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`)
+    .map(
+      ([k, v]) =>
+        `<div class="kv"><span>${k}</span><span>${escapeHtml(v)}</span></div>`,
+    )
     .join("");
-
   if (active.requested) $("cfg-provider").value = active.requested;
   if (active.effort) $("cfg-effort").value = active.effort;
   if (active.tone) $("cfg-tone").value = active.tone;
-  // Left blank when unset, because blank is what means "provider default" on
-  // the way back in. Writing a number here would silently pin it.
   $("cfg-temp").value =
-    active.temperature === null || active.temperature === undefined ? "" : active.temperature;
-  const selected = data.providers.find((p) => p.name === $("cfg-provider").value);
+    active.temperature === null || active.temperature === undefined
+      ? ""
+      : active.temperature;
+  const selected = data.providers.find(
+    (p) => p.name === $("cfg-provider").value,
+  );
   $("cfg-model").placeholder = selected ? selected.default_model : "";
 }
-
 async function saveConfig() {
   clearError($("cfg-error"));
   $("cfg-save").disabled = true;
@@ -2178,71 +1783,58 @@ async function saveConfig() {
     $("cfg-save").disabled = false;
   }
 }
-
-// ElevenLabs (Voice 2) và VieNeu (Voice 1) đều có nhiều giọng để chọn; gtts thì không.
-const TTS_HAS_VOICES = (p) => p === "ElevenLabs" || p === "VieNeu";
-
+const TTS_HAS_VOICES = (p) => p === "VieNeu";
 function updateTtsVoiceFieldVisibility() {
-  $("tts-voice-field").classList.toggle("hidden", !TTS_HAS_VOICES($("tts-provider").value));
+  $("tts-voice-field").classList.toggle(
+    "hidden",
+    !TTS_HAS_VOICES($("tts-provider").value),
+  );
 }
-
-// The voice list comes from the server, not the markup - so a voice configured
-// outside this UI (e.g. in .env) still shows up selected instead of leaving
-// the dropdown blank.
 function fillVoiceOptions(selectEl, voices, current) {
   const opts = Object.entries(voices || {}).map(
-    ([id, label]) => `<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`
+    ([id, label]) =>
+      `<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`,
   );
   if (current && !(voices || {})[current]) {
-    opts.unshift(`<option value="${escapeHtml(current)}">Giọng hiện tại (tuỳ chỉnh)</option>`);
+    opts.unshift(
+      `<option value="${escapeHtml(current)}">Giọng hiện tại (tuỳ chỉnh)</option>`,
+    );
   }
   selectEl.innerHTML = opts.join("");
   if (current) selectEl.value = current;
 }
-
 let _ttsWarmupRetries = 0;
 async function refreshTtsStatus(_retry) {
-  if (!_retry) _ttsWarmupRetries = 0; // mỗi lần mở panel: bắt đầu lại chuỗi retry
+  if (!_retry) _ttsWarmupRetries = 0;
   const data = await api("/api/tts/provider");
-  // Đồng bộ cả Settings panel lẫn chat bar
   $("tts-provider").value = data.provider;
   fillVoiceOptions($("tts-voice"), data.voices, data.voice);
   updateTtsVoiceFieldVisibility();
-  // Chat bar
   $("tts-bar-provider").value = data.provider;
   $("tts-bar-voice").classList.toggle("hidden", !TTS_HAS_VOICES(data.provider));
   fillVoiceOptions($("tts-bar-voice"), data.voices, data.voice);
-
-  // VieNeu tải model ~10s đầu (lần đầu có thể lâu hơn) -> danh sách giọng rỗng lúc
-  // mới mở. Tự thử lại đến khi service sẵn sàng (~40s), khỏi phải chuyển provider.
   const empty = Object.keys(data.voices || {}).length === 0;
   if (TTS_HAS_VOICES(data.provider) && empty) {
-    // Placeholder cho biết đang chờ, thay vì dropdown trống trơn.
     const hint =
-      data.provider === "VieNeu" ? "Đang khởi động VieNeu, chờ giọng…" : "Chưa có giọng khả dụng";
+      data.provider === "VieNeu"
+        ? "Đang khởi động VieNeu, chờ giọng…"
+        : "Chưa có giọng khả dụng";
     $("tts-voice").innerHTML = `<option disabled selected>${hint}</option>`;
     $("tts-bar-voice").innerHTML = `<option disabled selected>${hint}</option>`;
     if (_ttsWarmupRetries < 20) {
       _ttsWarmupRetries++;
-      setTimeout(() => refreshTtsStatus(true), 2000);
+      setTimeout(() => refreshTtsStatus(true), 2e3);
     }
   }
-
-  // Cùng nhãn với dropdown ở trên: VieNeu = Voice 1, ElevenLabs = Voice 2,
-  // gtts = Voice 3.
   $("tts-status").innerHTML = [
     data.vieneu_available
       ? '<span class="pill live">Voice 1 · sẵn sàng</span>'
       : '<span class="pill offline">Voice 1 · chưa chạy service</span>',
-    data.elevenlabs_available
-      ? '<span class="pill live">Voice 2 · sẵn sàng</span>'
-      : '<span class="pill offline">Voice 2 · chưa có key</span>',
     data.gtts_available
-      ? '<span class="pill live">Voice 3 · sẵn sàng</span>'
-      : '<span class="pill offline">Voice 3 · chưa cài</span>',
+      ? '<span class="pill live">Voice 2 · sẵn sàng</span>'
+      : '<span class="pill offline">Voice 2 · chưa cài</span>',
   ].join(" ");
 }
-
 async function saveTtsFromChatBar() {
   try {
     await postJson("/api/tts/provider", {
@@ -2250,11 +1842,8 @@ async function saveTtsFromChatBar() {
       voice: $("tts-bar-voice").value,
     });
     await refreshTtsStatus();
-  } catch {
-    /* silent — chat bar không có chỗ hiển thị lỗi */
-  }
+  } catch {}
 }
-
 async function saveTtsConfig() {
   clearError($("tts-error"));
   $("tts-save").disabled = true;
@@ -2271,15 +1860,8 @@ async function saveTtsConfig() {
     $("tts-save").disabled = false;
   }
 }
-
-/* ---------- workforce (agents + skillsets) ---------- */
-// Master–detail: a list of agents on the left, and the selected agent's skills
-// + on/off switch on the right. Selection is kept across refreshes so saving
-// does not bounce the admin back to the first agent.
-
 let _agents = [];
 let _selectedAgentId = null;
-
 async function refreshAgents() {
   clearError($("agents-error"));
   try {
@@ -2294,16 +1876,20 @@ async function refreshAgents() {
   renderAgentList();
   renderAgentDetail();
 }
-
 function renderAgentList() {
   const list = $("agents-list");
   list.textContent = "";
   _agents.forEach((agent) => {
     const on = agent.skills.filter((s) => s.on).length;
-    const item = el("button", "agent-list-item" + (agent.id === _selectedAgentId ? " active" : ""));
+    const item = el(
+      "button",
+      "agent-list-item" + (agent.id === _selectedAgentId ? " active" : ""),
+    );
     item.type = "button";
     item.appendChild(el("span", "agent-list-name", agent.name));
-    const meta = agent.enabled ? `${on}/${agent.skills.length} kỹ năng bật` : "đã tắt";
+    const meta = agent.enabled
+      ? `${on}/${agent.skills.length} kỹ năng bật`
+      : "đã tắt";
     item.appendChild(el("span", "agent-list-meta", meta));
     item.onclick = () => {
       _selectedAgentId = agent.id;
@@ -2313,7 +1899,6 @@ function renderAgentList() {
     list.appendChild(item);
   });
 }
-
 function renderAgentDetail() {
   const box = $("agent-detail");
   box.textContent = "";
@@ -2322,15 +1907,11 @@ function renderAgentDetail() {
     box.appendChild(el("p", "hint", "Chọn một agent để cấu hình."));
     return;
   }
-
   const head = el("div", "row-between");
   const title = el("div");
   title.appendChild(el("h3", null, agent.name));
   title.appendChild(el("span", "hint", `Skillset: ${agent.skillset_label}`));
   head.appendChild(title);
-
-  // Whole-agent on/off. An agent switched off owns none of its skills, so the
-  // router falls its intents through to another agent (or to a human).
   const enableLabel = el("label", "field agent-enable");
   const enableCb = el("input");
   enableCb.type = "checkbox";
@@ -2339,8 +1920,9 @@ function renderAgentDetail() {
   enableLabel.appendChild(el("span", null, "Agent hoạt động"));
   head.appendChild(enableLabel);
   box.appendChild(head);
-
-  box.appendChild(el("p", "hint", "Chọn những nghiệp vụ agent này được phép xử lý:"));
+  box.appendChild(
+    el("p", "hint", "Chọn những nghiệp vụ agent này được phép xử lý:"),
+  );
   const skills = el("div", "agent-skills");
   const boxes = agent.skills.map((skill) => {
     const row = el("label", "field");
@@ -2354,24 +1936,23 @@ function renderAgentDetail() {
     return cb;
   });
   box.appendChild(skills);
-
   const foot = el("div", "row-gap");
   const save = el("button", "primary small", "Lưu");
   const status = el("span", "hint");
   foot.appendChild(save);
   foot.appendChild(status);
   box.appendChild(foot);
-
   save.onclick = async () => {
     save.disabled = true;
     status.textContent = "Đang lưu...";
     try {
-      const enabled_skills = boxes.filter((c) => c.checked).map((c) => c.dataset.skill);
+      const enabled_skills = boxes
+        .filter((c) => c.checked)
+        .map((c) => c.dataset.skill);
       const res = await postJson(`/api/agents/${agent.id}`, {
         enabled: enableCb.checked,
-        enabled_skills,
+        enabled_skills: enabled_skills,
       });
-      // Reflect the saved state back into the list (skill counts, on/off badge).
       const idx = _agents.findIndex((a) => a.id === agent.id);
       if (idx >= 0) _agents[idx] = res.agent;
       renderAgentList();
@@ -2384,38 +1965,26 @@ function renderAgentDetail() {
     }
   };
 }
-
-/* ---------- auth ---------- */
-
 function renderStaff() {
   $("staff-pill").classList.toggle("hidden", !staff);
   $("logout").classList.toggle("hidden", !staff);
   $("login-btn").classList.toggle("hidden", Boolean(staff));
-  // The raw-mode switch bypasses every guardrail, so it is an admin control,
-  // not a customer-facing one - it only exists in the DOM at all once staff
-  // has signed in, mirroring how the endpoint behind it is gated server-side.
   $("view-customer-btn").classList.toggle("hidden", !staff);
   $("view-console-btn").classList.toggle("hidden", !staff);
   $("arch-toggle-box").classList.toggle("hidden", !staff);
-  // "Quản lý Agent" is an admin-only surface. Hidden in the DOM for anyone
-  // else, but that is only cosmetic - /api/agents itself returns 403 to a
-  // non-admin, which is the control that actually matters (auth.py:10).
   const isAdmin = Boolean(staff && staff.role === "admin");
   $("subtab-agents").classList.toggle("hidden", !isAdmin);
-  $("subtab-select-agents").hidden = !isAdmin; // mục tương ứng trong dropdown
-  // "Gọi khách" cũng là màn hình chỉ dành cho admin - hiện cùng lúc với "Quản lý Agent".
+  $("subtab-select-agents").hidden = !isAdmin;
   $("subtab-calls").classList.toggle("hidden", !isAdmin);
   $("subtab-select-calls").hidden = !isAdmin;
   if (staff) {
     $("staff-pill").textContent = `${staff.display_name} · ${staff.role}`;
   }
 }
-
 async function refreshStaff() {
   staff = (await api("/api/auth/me")).staff;
   renderStaff();
 }
-
 async function login(event) {
   event.preventDefault();
   clearError($("login-error"));
@@ -2433,57 +2002,40 @@ async function login(event) {
     showError($("login-error"), error.message);
   }
 }
-
 async function logout() {
-  // Leave no live conversation stuck in raw mode behind a sign-out - the
-  // endpoint that turns it off requires staff, so it has to happen first.
   if ($("raw-toggle").checked) await toggleRawMode(false);
   await postJson("/api/auth/logout", {});
   staff = null;
   renderStaff();
   showScreen("customer");
 }
-
-/* ---------- health ---------- */
-
 async function refreshHealth() {
   const h = await api("/api/health");
   const pill = $("mode-pill");
-  // Ẩn tên provider/model khỏi UI - chỉ hiện trạng thái trực tuyến/ngoại tuyến.
   pill.textContent = h.mode === "live" ? "Trực tuyến" : "Ngoại tuyến";
-  pill.title = h.mode === "live" ? "Trợ lý ảo đang hoạt động" : "Trợ lý ảo ngoại tuyến";
+  pill.title =
+    h.mode === "live" ? "Trợ lý ảo đang hoạt động" : "Trợ lý ảo ngoại tuyến";
   pill.className = `pill ${h.mode}`;
-
   ttsAvailable = Boolean(h.tts_available);
   sttAvailable = Boolean(h.stt_available);
   updateVoiceUI();
 }
-
-/* ---------- app shell ---------- */
-
-// The context rail is the only drawer in the app: below 1024px it stops being
-// a column and slides in from the right. Wider than that the CSS keeps it in
-// flow and this is inert.
-// The scrim shows whenever either drawer is open, and fades via its .show class.
 function syncScrim() {
   const anyOpen =
-    $("context-rail").classList.contains("open") || $("sidenav").classList.contains("open");
+    $("context-rail").classList.contains("open") ||
+    $("sidenav").classList.contains("open");
   $("nav-scrim").classList.toggle("show", anyOpen);
 }
-
 function setRail(open) {
   $("context-rail").classList.toggle("open", open);
   syncScrim();
 }
-
-// Left drawer (sidenav) on mobile - opened by the ☰ buttons so login/console
-// are reachable on a phone. Shares the scrim overlay with the context rail.
 function setNav(open) {
   $("sidenav").classList.toggle("open", open);
   syncScrim();
 }
-
-$("rail-toggle").onclick = () => setRail(!$("context-rail").classList.contains("open"));
+$("rail-toggle").onclick = () =>
+  setRail(!$("context-rail").classList.contains("open"));
 document.querySelectorAll(".nav-toggle").forEach((b) => {
   b.onclick = () => setNav(!$("sidenav").classList.contains("open"));
 });
@@ -2498,30 +2050,14 @@ document.addEventListener("keydown", (e) => {
     setNav(false);
   }
 });
-
-// A mock, by request: the banking app this chat sits inside owns the
-// destination, so the control is real and focusable but goes nowhere.
 $("back-btn").onclick = () => {};
-
-// The same request a customer can type. A button for it because asking for a
-// human is a decision, not a phrasing exercise.
-// Phrased to hit the `human_agent` anchor in app/nlu.py rather than to read
-// well in isolation - the button has to take the same route a typed request
-// would, or it is demonstrating a code path the customer cannot reach.
 $("talk-to-person").onclick = () => send("Tôi muốn gặp nhân viên");
-
-/* ---------- wiring ---------- */
-
 $("raw-toggle").onchange = (e) => toggleRawMode(e.target.checked);
-
 $("composer").onsubmit = (e) => {
   e.preventDefault();
   send($("input").value);
 };
 $("input").oninput = updateSendState;
-
-/* ---------- bảng emoji ---------- */
-// Bộ emoji phổ biến, chia nhóm. Chèn vào ô nhập tại vị trí con trỏ.
 const EMOJI_GROUPS = [
   [
     "Cảm xúc",
@@ -2624,7 +2160,6 @@ const EMOJI_GROUPS = [
     ],
   ],
 ];
-
 let _emojiBuilt = false;
 function buildEmojiPanel() {
   if (_emojiBuilt) return;
@@ -2645,7 +2180,6 @@ function buildEmojiPanel() {
   });
   _emojiBuilt = true;
 }
-
 function insertAtCursor(input, text) {
   const start = input.selectionStart ?? input.value.length;
   const end = input.selectionEnd ?? input.value.length;
@@ -2655,7 +2189,6 @@ function insertAtCursor(input, text) {
   input.focus();
   updateSendState();
 }
-
 function toggleEmojiPanel(show) {
   const panel = $("emoji-panel");
   const next = show ?? panel.classList.contains("hidden");
@@ -2663,30 +2196,26 @@ function toggleEmojiPanel(show) {
   panel.classList.toggle("hidden", !next);
   $("emoji-btn").setAttribute("aria-expanded", String(next));
 }
-
 $("emoji-btn").addEventListener("click", (e) => {
   e.stopPropagation();
   toggleEmojiPanel();
 });
-// Bấm ra ngoài thì đóng bảng.
 document.addEventListener("click", (e) => {
   const panel = $("emoji-panel");
   if (panel.classList.contains("hidden")) return;
-  if (!panel.contains(e.target) && e.target !== $("emoji-btn")) toggleEmojiPanel(false);
+  if (!panel.contains(e.target) && e.target !== $("emoji-btn"))
+    toggleEmojiPanel(false);
 });
-
-/* ---------- gửi ảnh từ thư viện ---------- */
-// Xử lý phía client: đọc ảnh thành data URL rồi hiện trong khung chat.
 $("image-btn").addEventListener("click", () => $("image-file").click());
 $("image-file").addEventListener("change", (e) => {
   const file = e.target.files && e.target.files[0];
-  e.target.value = ""; // cho phép chọn lại cùng một ảnh
+  e.target.value = "";
   if (!file) return;
   if (!file.type.startsWith("image/")) {
     addMessage("system", "Chỉ hỗ trợ gửi tệp ảnh.");
     return;
   }
-  const MAX = 8 * 1024 * 1024; // 8MB
+  const MAX = 8 * 1024 * 1024;
   if (file.size > MAX) {
     addMessage("system", "Ảnh quá lớn (tối đa 8MB).");
     return;
@@ -2696,10 +2225,6 @@ $("image-file").addEventListener("change", (e) => {
   reader.onerror = () => addMessage("system", "Không đọc được ảnh đã chọn.");
   reader.readAsDataURL(file);
 });
-
-// Starting over drops the server-side session too. Clearing only the visible
-// transcript would leave the customer talking to a conversation they cannot
-// see - including any pending verification or handoff.
 function newConversation() {
   syncedPlayer.stop();
   if (streamController) {
@@ -2716,21 +2241,20 @@ function newConversation() {
   $("messages").innerHTML = "";
   renderChatActions({});
   renderHandoff(null);
-  $("inspector").innerHTML = '<p class="empty">Gửi một câu hỏi để xem nguồn.</p>';
+  $("inspector").innerHTML =
+    '<p class="empty">Gửi một câu hỏi để xem nguồn.</p>';
   $("trace").innerHTML = '<p class="empty">-</p>';
   setRailUser(false);
   startTranscript();
   $("input").focus();
 }
 $("new-chat").onclick = newConversation;
-
-// Decorative controls are inert by design. Saying so out loud beats a silent
-// no-op that leaves someone clicking a dead button during a demo.
 document.querySelectorAll("[data-demo]").forEach((node) => {
-  node.title = (node.title ? node.title + " - " : "") + "minh hoạ giao diện, chưa hoạt động";
+  node.title =
+    (node.title ? node.title + " - " : "") +
+    "minh hoạ giao diện, chưa hoạt động";
   node.addEventListener("click", (e) => e.preventDefault());
 });
-
 $("login-btn").onclick = () => {
   showScreen("login");
   $("login-pass").focus();
@@ -2743,18 +2267,13 @@ $("view-console-btn").onclick = () => {
   showScreen("agent");
   showPanel("dashboard");
 };
-
 document.querySelectorAll(".subtab").forEach((t) => {
   t.onclick = () => showPanel(t.dataset.panel);
 });
 $("subtab-select").onchange = () => showPanel($("subtab-select").value);
-
 $("dash-refresh").onclick = refreshDashboard;
 $("bc-goto-settings").onclick = () => showPanel("settings");
 $("bc-goto-voice").onclick = () => showPanel("voice");
-
-// Preview plays through the same /api/tts endpoint customers hear, so it
-// applies the selected voice first - what the operator hears is what ships.
 $("tts-preview").onclick = async () => {
   const btn = $("tts-preview");
   btn.disabled = true;
@@ -2786,7 +2305,7 @@ $("clear-btn").onclick = async () => {
   if (
     !confirm(
       "Xoá toàn bộ hội thoại trong tiến trình này? " +
-        "Bảng điều khiển sẽ về 0 và các bản ghi hội thoại sẽ mất."
+        "Bảng điều khiển sẽ về 0 và các bản ghi hội thoại sẽ mất.",
     )
   )
     return;
@@ -2808,10 +2327,8 @@ $("seed-btn").onclick = async () => {
     $("seed-btn").disabled = false;
   }
 };
-
 $("regen").onclick = () => selectedSession && openSession(selectedSession);
 $("reply-form").onsubmit = sendAgentReply;
-
 $("kb-upload-btn").onclick = () => $("kb-file").click();
 $("kb-file").onchange = (e) => uploadFile(e.target.files[0]);
 $("kb-new").onclick = () => openEditor(null, "");
@@ -2828,30 +2345,30 @@ $("kb-edit").onclick = async () => {
   const d = await api(`/api/kb/doc?name=${encodeURIComponent(selectedDoc)}`);
   openEditor(selectedDoc, d.content);
 };
-
 const drop = $("kb-drop");
 ["dragenter", "dragover"].forEach((n) =>
   drop.addEventListener(n, (e) => {
     e.preventDefault();
     drop.classList.add("over");
-  })
+  }),
 );
 ["dragleave", "drop"].forEach((n) =>
   drop.addEventListener(n, (e) => {
     e.preventDefault();
     drop.classList.remove("over");
-  })
+  }),
 );
 drop.addEventListener("drop", (e) => uploadFile(e.dataTransfer.files[0]));
 drop.onclick = () => $("kb-file").click();
-
 $("cfg-save").onclick = () => saveConfig();
 $("cfg-provider").onchange = refreshProviders;
-
 $("tts-save").onclick = saveTtsConfig;
 $("tts-provider").onchange = updateTtsVoiceFieldVisibility;
 $("tts-bar-provider").onchange = () => {
-  $("tts-bar-voice").classList.toggle("hidden", !TTS_HAS_VOICES($("tts-bar-provider").value));
+  $("tts-bar-voice").classList.toggle(
+    "hidden",
+    !TTS_HAS_VOICES($("tts-bar-provider").value),
+  );
   saveTtsFromChatBar();
 };
 $("tts-bar-voice").onchange = saveTtsFromChatBar;
@@ -2863,17 +2380,7 @@ $("voice-toggle").onclick = () => {
   else syncedPlayer.stop();
   updateVoiceUI();
 };
-
-/** Open a transcript: the standing notice, the day divider the design asks for,
-    then the greeting. One function so "new conversation" and first load cannot
-    drift apart - the divider went missing from the reset path when they were
-    two. */
 function startTranscript() {
-  // The OTP/PIN warning used to sit under the composer as fine print, where a
-  // phone gave it a whole line of permanent chrome above the keyboard for
-  // something nobody reads twice. At the head of the transcript it is the
-  // first thing in the conversation instead - read once, then scrolled past -
-  // and it reappears with every new conversation, which fine print never did.
   const notice = el("div", "chat-notice");
   notice.appendChild(el("span", "ic", "🔒"));
   notice.appendChild(
@@ -2881,42 +2388,25 @@ function startTranscript() {
       "p",
       null,
       "Trợ lý chỉ trả lời dựa trên tài liệu đã được ngân hàng thẩm định. " +
-        "Không bao giờ cung cấp mã OTP, mã PIN hay số thẻ đầy đủ cho bất kỳ ai."
-    )
+        "Không bao giờ cung cấp mã OTP, mã PIN hay số thẻ đầy đủ cho bất kỳ ai.",
+    ),
   );
   $("messages").appendChild(notice);
-
   $("messages").appendChild(el("div", "day-divider", "Hôm nay"));
   addMessage(
     "assistant",
     "**Trợ lý ảo ABC Bank** hân hạnh được phục vụ quý khách. Tôi có thể hỗ trợ " +
       "quý khách kiểm tra số dư và giao dịch, khóa hoặc mở khóa thẻ, tra cứu hồ sơ " +
       "vay, và giải đáp về sản phẩm, biểu phí của ngân hàng.\n\n" +
-      "Quý khách cần hỗ trợ gì ạ?"
+      "Quý khách cần hỗ trợ gì ạ?",
   );
 }
-
-// Whether this session has passed the identity check, so the demo shows
-// identity being established rather than just asserted in a chat bubble.
-//
-// main drove this from a customer record and had nowhere to get one - only the
-// null branch was ever reached, which was invisible in the old dark rail but
-// not in the left nav, where the line now sits in view for the whole session.
-// /api/chat returns `verified` and deliberately not the record, so this reports
-// the state and never the name.
 function setRailUser(verified) {
   $("rail-user").textContent = verified ? "Khách hàng" : "Khách";
   $("rail-user-sub").textContent = verified ? "Đã xác thực" : "Chưa xác thực";
   if (verified) $("rail-avatar").textContent = "✓";
   else $("rail-avatar").innerHTML = PERSON_ICON;
 }
-
-/* ================================================================
-   CALL MODE — liên tục nói chuyện bằng giọng nói với chatbot.
-   Vòng lặp: Nghe → STT → gửi chat → TTS → Nghe lại.
-   Text vẫn cập nhật đầy đủ trong khung chat bình thường.
-   ================================================================ */
-
 let callModeActive = false;
 let callState = "idle";
 let callTimer = null;
@@ -2926,10 +2416,8 @@ let callChunks = [];
 let callSilenceAnimId = null;
 let callAudioCtx = null;
 let callMuted = false;
-
-const CALL_SILENCE_MS = 1500; // dừng thu âm sau 1.5s im lặng (ngắn hơn chế độ thủ công 3s)
-const CALL_MAX_MS = 10000; // giới hạn an toàn tối đa mỗi lượt ghi
-
+const CALL_SILENCE_MS = 1500;
+const CALL_MAX_MS = 1e4;
 function _setCallState(state) {
   callState = state;
   const wrap = $("call-avatar-wrap");
@@ -2953,7 +2441,6 @@ function _setCallState(state) {
       };
   label.textContent = labels[state] || "";
 }
-
 function _callTimerStart() {
   callSeconds = 0;
   $("call-timer").textContent = "00:00";
@@ -2962,63 +2449,18 @@ function _callTimerStart() {
     const m = String(Math.floor(callSeconds / 60)).padStart(2, "0");
     const s = String(callSeconds % 60).padStart(2, "0");
     $("call-timer").textContent = `${m}:${s}`;
-  }, 1000);
+  }, 1e3);
 }
 function _callTimerStop() {
   clearInterval(callTimer);
   callTimer = null;
 }
-
-// ORB WEBGL kiểu ElevenLabs: cầu gradient noise + fresnel, nảy theo âm thanh
-// (orbLevel 0..1). WebGL thuần; lỗi -> fallback CSS orb.
-let orbGL = null; // context + shader, khởi tạo 1 lần rồi giữ lại
+let orbGL = null;
 let orbRaf = 0;
 let orbRunning = false;
-let orbLevel = 0; // mức âm, đặt từ VAD (nghe) + TTS analyser (nói)
-
+let orbLevel = 0;
 const _ORB_VERT = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.0,1.0); }`;
-const _ORB_FRAG = `
-precision highp float;
-uniform vec2  uRes;
-uniform float uTime;
-uniform float uLevel;   // âm lượng 0..1
-uniform float uActive;  // 0 idle .. 1 đang nghe/nói
-float hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
-float noise(vec2 p){
-  vec2 i=floor(p), f=fract(p);
-  float a=hash(i), b=hash(i+vec2(1.0,0.0)), c=hash(i+vec2(0.0,1.0)), d=hash(i+vec2(1.0,1.0));
-  vec2 u=f*f*(3.0-2.0*f);
-  return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);
-}
-float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.0; a*=0.5; } return v; }
-void main(){
-  vec2 uv=(gl_FragCoord.xy - 0.5*uRes)/min(uRes.x,uRes.y);
-  float r=length(uv);
-  float radius=0.40 + uLevel*0.05;
-  float core=smoothstep(radius, radius-0.03, r);      // đĩa cầu (mềm mép)
-  float z=sqrt(max(0.0, radius*radius - r*r));
-  vec3  n=normalize(vec3(uv, z+1e-4));
-  float t=uTime*0.15 + uActive*uTime*0.12;
-  float f =fbm(uv*2.4 + vec2(t,-t) + uLevel*1.4);
-  float f2=fbm(uv*3.7 - vec2(t*0.7,t*0.5) + f);
-  vec3 cA=vec3(0.10,0.46,0.42);    // teal sáng
-  vec3 cB=vec3(0.16,0.72,0.58);    // teal-green
-  vec3 cC=vec3(0.34,0.96,0.86);    // aqua rực
-  vec3 cD=vec3(0.42,0.72,0.98);    // xanh dương sáng
-  vec3 col=mix(cA,cB,smoothstep(0.15,0.6,f));
-  col=mix(col,cC,smoothstep(0.4,0.95,f2));
-  col=mix(col,cD,smoothstep(0.6,1.0,f*f2)*0.7);
-  float light=clamp(dot(n, normalize(vec3(-0.35,0.55,0.78))),0.0,1.0);
-  col*=0.72+0.5*light;                                 // ánh sáng cầu (nhiều ambient hơn)
-  col+=vec3(0.10,0.20,0.20)*(1.0-r/radius);            // luminosity lõi mềm
-  float fres=pow(1.0-clamp(z/radius,0.0,1.0),2.2);
-  col+=fres*vec3(0.55,0.95,0.95)*(0.45+uLevel*0.5);    // viền bóng fresnel
-  col*=1.05+uLevel*0.4;                                 // sáng theo âm
-  float glow=smoothstep(radius+0.16, radius, r);       // quầng sáng ngoài
-  float alpha=max(core, glow*0.30);
-  gl_FragColor=vec4(col*alpha, alpha);                 // premultiplied
-}`;
-
+const _ORB_FRAG = `\nprecision highp float;\nuniform vec2  uRes;\nuniform float uTime;\nuniform float uLevel;   // âm lượng 0..1\nuniform float uActive;  // 0 idle .. 1 đang nghe/nói\nfloat hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }\nfloat noise(vec2 p){\n  vec2 i=floor(p), f=fract(p);\n  float a=hash(i), b=hash(i+vec2(1.0,0.0)), c=hash(i+vec2(0.0,1.0)), d=hash(i+vec2(1.0,1.0));\n  vec2 u=f*f*(3.0-2.0*f);\n  return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);\n}\nfloat fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.0; a*=0.5; } return v; }\nvoid main(){\n  vec2 uv=(gl_FragCoord.xy - 0.5*uRes)/min(uRes.x,uRes.y);\n  float r=length(uv);\n  float radius=0.40 + uLevel*0.05;\n  float core=smoothstep(radius, radius-0.03, r);      // đĩa cầu (mềm mép)\n  float z=sqrt(max(0.0, radius*radius - r*r));\n  vec3  n=normalize(vec3(uv, z+1e-4));\n  float t=uTime*0.15 + uActive*uTime*0.12;\n  float f =fbm(uv*2.4 + vec2(t,-t) + uLevel*1.4);\n  float f2=fbm(uv*3.7 - vec2(t*0.7,t*0.5) + f);\n  vec3 cA=vec3(0.10,0.46,0.42);    // teal sáng\n  vec3 cB=vec3(0.16,0.72,0.58);    // teal-green\n  vec3 cC=vec3(0.34,0.96,0.86);    // aqua rực\n  vec3 cD=vec3(0.42,0.72,0.98);    // xanh dương sáng\n  vec3 col=mix(cA,cB,smoothstep(0.15,0.6,f));\n  col=mix(col,cC,smoothstep(0.4,0.95,f2));\n  col=mix(col,cD,smoothstep(0.6,1.0,f*f2)*0.7);\n  float light=clamp(dot(n, normalize(vec3(-0.35,0.55,0.78))),0.0,1.0);\n  col*=0.72+0.5*light;                                 // ánh sáng cầu (nhiều ambient hơn)\n  col+=vec3(0.10,0.20,0.20)*(1.0-r/radius);            // luminosity lõi mềm\n  float fres=pow(1.0-clamp(z/radius,0.0,1.0),2.2);\n  col+=fres*vec3(0.55,0.95,0.95)*(0.45+uLevel*0.5);    // viền bóng fresnel\n  col*=1.05+uLevel*0.4;                                 // sáng theo âm\n  float glow=smoothstep(radius+0.16, radius, r);       // quầng sáng ngoài\n  float alpha=max(core, glow*0.30);\n  gl_FragColor=vec4(col*alpha, alpha);                 // premultiplied\n}`;
 function _orbCompile(gl, type, src) {
   const s = gl.createShader(type);
   gl.shaderSource(s, src);
@@ -3029,9 +2471,6 @@ function _orbCompile(gl, type, src) {
   }
   return s;
 }
-
-// Khởi tạo context + shader 1 lần rồi giữ lại (KHÔNG loseContext, để mở lại không
-// rơi về CSS orb). Trả false nếu WebGL không dùng được.
 function _orbInit() {
   if (orbGL) return true;
   const canvas = $("vs-orb-canvas");
@@ -3044,7 +2483,6 @@ function _orbInit() {
     console.warn("[orb] không có WebGL → dùng CSS orb");
     return false;
   }
-
   const vs = _orbCompile(gl, gl.VERTEX_SHADER, _ORB_VERT);
   const fs = _orbCompile(gl, gl.FRAGMENT_SHADER, _ORB_FRAG);
   if (!vs || !fs) return false;
@@ -3057,25 +2495,26 @@ function _orbInit() {
     return false;
   }
   gl.useProgram(prog);
-
   const buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([-1, -1, 3, -1, -1, 3]),
+    gl.STATIC_DRAW,
+  );
   const loc = gl.getAttribLocation(prog, "p");
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   gl.enable(gl.BLEND);
-  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // premultiplied alpha
-
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const size = 208;
   canvas.width = size * dpr;
   canvas.height = size * dpr;
   gl.viewport(0, 0, canvas.width, canvas.height);
-
   orbGL = {
-    gl,
-    canvas,
+    gl: gl,
+    canvas: canvas,
     t0: performance.now(),
     smooth: 0,
     U: {
@@ -3087,17 +2526,15 @@ function _orbInit() {
   };
   return true;
 }
-
 function _orbStart() {
   const wrap = $("call-avatar-wrap");
   if (!wrap) return;
-  if (!_orbInit()) return; // WebGL fail -> giữ CSS orb (không gl-active)
-  wrap.classList.add("gl-active"); // ẩn CSS orb, hiện canvas
-  if (orbRunning) return; // đã chạy rồi thì thôi
+  if (!_orbInit()) return;
+  wrap.classList.add("gl-active");
+  if (orbRunning) return;
   orbRunning = true;
   orbGL.smooth = 0;
-
-  const { gl, canvas, U } = orbGL;
+  const { gl: gl, canvas: canvas, U: U } = orbGL;
   const render = () => {
     if (!orbRunning || !orbGL) return;
     orbGL.smooth += (orbLevel - orbGL.smooth) * 0.18;
@@ -3106,7 +2543,7 @@ function _orbStart() {
     const now = performance.now() - orbGL.t0;
     const breathe = 0.06 * (0.5 + 0.5 * Math.sin(now / 900));
     gl.uniform2f(U.res, canvas.width, canvas.height);
-    gl.uniform1f(U.time, now / 1000);
+    gl.uniform1f(U.time, now / 1e3);
     gl.uniform1f(U.level, Math.min(orbGL.smooth + breathe * active + 0.02, 1));
     gl.uniform1f(U.active, active);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -3114,7 +2551,6 @@ function _orbStart() {
   };
   render();
 }
-
 function _orbStop() {
   orbRunning = false;
   if (orbRaf) {
@@ -3124,29 +2560,27 @@ function _orbStop() {
   const wrap = $("call-avatar-wrap");
   if (wrap) wrap.classList.remove("gl-active");
   orbLevel = 0;
-  // KHÔNG loseContext: giữ context để lần mở lại dùng lại được ngay.
 }
-
-// ---- public: start / stop ----
-
 async function startCall() {
   if (!sttAvailable || !canRecord || callModeActive) return;
   _unlockAudio();
+  _ensureTtsAnalyser();
+  if (_ttsCtx && _ttsCtx.state === "suspended")
+    _ttsCtx.resume().catch(() => {});
   callModeActive = true;
   callMuted = false;
-
-  // Ensure TTS auto-plays during call
   if (!voiceEnabled) {
     voiceEnabled = true;
     localStorage.setItem("voiceEnabled", "true");
     updateVoiceUI();
   }
-
-  $("call-mute-btn").querySelector(".vs-icon-active").classList.remove("hidden");
+  $("call-mute-btn")
+    .querySelector(".vs-icon-active")
+    .classList.remove("hidden");
   $("call-mute-btn").querySelector(".vs-icon-muted").classList.add("hidden");
   $("call-mute-btn").classList.remove("muted");
   const w = $("call-avatar-wrap");
-  if (w) w.dataset.mode = "voice"; // chế độ orb (khách bấm 📞), không phải phone
+  if (w) w.dataset.mode = "voice";
   $("call-overlay").classList.remove("phone");
   $("call-overlay").classList.remove("hidden");
   const lmEl = $("call-last-msg");
@@ -3156,20 +2590,16 @@ async function startCall() {
   }
   _setCallState("connecting");
   _callTimerStart();
-  _orbStart(); // orb WebGL kiểu ElevenLabs
-
-  await new Promise((r) => setTimeout(r, 350)); // let overlay render
+  _orbStart();
+  await new Promise((r) => setTimeout(r, 350));
   if (callModeActive) _callStartListening();
 }
-
 function stopCall() {
   callModeActive = false;
   callMuted = false;
-
   if (callRecorder && callRecorder.state === "recording") callRecorder.stop();
   callRecorder = null;
   callChunks = [];
-
   if (callSilenceAnimId) {
     cancelAnimationFrame(callSilenceAnimId);
     callSilenceAnimId = null;
@@ -3178,19 +2608,14 @@ function stopCall() {
     callAudioCtx.close().catch(() => {});
     callAudioCtx = null;
   }
-
-  // Stop any TTS that was playing for the call
   if (streamingAudio) {
     streamingAudio.pause();
     streamingAudio.src = "";
     streamingAudio = null;
   }
-
-  // Reset mức âm để orb thu về mức nghỉ (phòng khi cắt giữa lúc bot đang nói).
   const wrap = $("call-avatar-wrap");
   if (wrap) wrap.style.setProperty("--vs-level", 0);
   _orbStop();
-
   _callTimerStop();
   const ca = $("call-actions");
   if (ca) {
@@ -3201,10 +2626,6 @@ function stopCall() {
   $("call-overlay").classList.remove("phone");
   _setCallState("idle");
 }
-
-// Cuộc gọi cross-sell MÔ PHỎNG (demo): admin nhập danh xưng + tên + dòng thẻ ->
-// mở màn hình gọi ngay trên máy này, bot chào theo tên rồi cross-sell. Không
-// quay số thật - dùng lại đúng pipeline voice + core bot.
 async function startSimCall() {
   if (callModeActive) return;
   const phone = $("call-phone").value.trim();
@@ -3220,25 +2641,27 @@ async function startSimCall() {
   if (!sttAvailable || !canRecord) {
     showError(
       $("call-error"),
-      "Cần micro + STT để hội thoại giọng nói. Kiểm tra quyền micro trên trình duyệt."
+      "Cần micro + STT để hội thoại giọng nói. Kiểm tra quyền micro trên trình duyệt.",
     );
     return;
   }
-
   let data;
   try {
-    data = await postJson("/api/voice/call/sim", { phone, title, name, card_id: card });
+    data = await postJson("/api/voice/call/sim", {
+      phone: phone,
+      title: title,
+      name: name,
+      card_id: card,
+    });
   } catch (e) {
     showError($("call-error"), "Không tạo được cuộc gọi: " + (e.message || e));
     return;
   }
-
   sessionId = data.session_id;
   _simGreeting = data.greeting;
-  refreshCallList(); // cập nhật nhật ký cuộc gọi vừa tạo
+  refreshCallList();
   showScreen("customer");
   $("messages").innerHTML = "";
-
   _unlockAudio();
   callModeActive = true;
   callMuted = false;
@@ -3247,19 +2670,18 @@ async function startSimCall() {
     localStorage.setItem("voiceEnabled", "true");
     updateVoiceUI();
   }
-  $("call-mute-btn").querySelector(".vs-icon-active").classList.remove("hidden");
+  $("call-mute-btn")
+    .querySelector(".vs-icon-active")
+    .classList.remove("hidden");
   $("call-mute-btn").querySelector(".vs-icon-muted").classList.add("hidden");
   $("call-mute-btn").classList.remove("muted");
-
-  // Giao diện GỌI ĐẾN kiểu iPhone: NGÂN HÀNG gọi đến khách. Chỉ đổ chuông với nút
-  // Nghe/Từ chối; bấm Nghe (answerSimCall) mới kết nối + bot chào + cross-sell.
   const wrap = $("call-avatar-wrap");
   if (wrap) wrap.dataset.mode = "phone";
   $("call-overlay").classList.add("phone");
   $("call-callee-name").textContent = "Ngân hàng ABC";
   $("call-callee-phone").textContent = "";
   $("call-callee-phone").classList.add("hidden");
-  $("call-callee-avatar").textContent = "🏦";
+  $("call-callee-avatar").innerHTML = CALLEE_PERSON_ICON;
   const lm0 = $("call-last-msg");
   if (lm0) {
     lm0.textContent = "";
@@ -3267,16 +2689,10 @@ async function startSimCall() {
   }
   $("call-timer").textContent = "00:00";
   $("call-overlay").classList.remove("hidden");
-  _setCallState("ringing"); // đổ chuông: hiện nút Nghe / Từ chối
+  _setCallState("ringing");
 }
-
-// Bấm NGHE: kết nối -> bot chào (giọng) -> nghe khách trả lời -> cross-sell.
 async function answerSimCall() {
   if (!callModeActive || callState !== "ringing") return;
-  // Mở khoá audio NGAY trong cử chỉ bấm "Nghe": phát 1 file lặng trên chính phần
-  // tử sẽ dùng để đọc TTS. Sau vài await (kết nối + tải audio) thì "user gesture"
-  // đã hết hiệu lực, nên phải "kích hoạt" phần tử audio tại đây, nếu không trình
-  // duyệt chặn play() -> không nghe thấy tiếng bot.
   try {
     streamPlayer.src = SILENT_WAV;
     const pr = streamPlayer.play();
@@ -3285,12 +2701,14 @@ async function answerSimCall() {
         streamPlayer.pause();
         streamPlayer.currentTime = 0;
       }).catch(() => {});
+    _ensureTtsAnalyser();
+    if (_ttsCtx && _ttsCtx.state === "suspended")
+      _ttsCtx.resume().catch(() => {});
   } catch (e) {}
   _setCallState("connecting");
   _callTimerStart();
   await new Promise((r) => setTimeout(r, 400));
   if (!callModeActive) return;
-
   addMessage("assistant", _simGreeting);
   const lm = $("call-last-msg");
   if (lm) {
@@ -3307,19 +2725,13 @@ async function answerSimCall() {
     _callStartListening();
   }
 }
-
-// Bấm TỪ CHỐI: kết thúc cuộc gọi ngay.
 function declineSimCall() {
   stopCall();
 }
-
-// ---- recording loop ----
-
 async function _callStartListening() {
   if (!callModeActive || callMuted) return;
   _setCallState("listening");
-
-  let maxRms = 0; // đỉnh âm lượng để chẩn đoán "mic có bắt được tiếng không"
+  let maxRms = 0;
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -3330,8 +2742,6 @@ async function _callStartListening() {
     addMessage("system", "Không truy cập được micro — cuộc gọi kết thúc.");
     return;
   }
-
-  // Voice-activity detection (silence → auto-stop)
   try {
     callAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const source = callAudioCtx.createMediaStreamSource(stream);
@@ -3342,8 +2752,7 @@ async function _callStartListening() {
     const bufLen = analyser.frequencyBinCount;
     const data = new Uint8Array(bufLen);
     let localSilence = null;
-    let hasSpoken = false; // đã có tiếng nói thật chưa
-
+    let hasSpoken = false;
     const tick = () => {
       if (!callModeActive) return;
       analyser.getByteTimeDomainData(data);
@@ -3354,31 +2763,24 @@ async function _callStartListening() {
       }
       const rms = Math.sqrt(sum / bufLen) * 100;
       if (rms > maxRms) maxRms = rms;
-
-      // Orb nảy theo âm lượng giọng nói khách (CSS orb + WebGL orb).
       const wrap = $("call-avatar-wrap");
       orbLevel = Math.min(rms / 70, 1);
       if (wrap) wrap.style.setProperty("--vs-level", orbLevel);
-
       if (rms >= SILENCE_THRESHOLD) {
         hasSpoken = true;
         localSilence = null;
       } else if (hasSpoken) {
-        // Chỉ đếm im lặng SAU khi khách đã nói (tránh cắt trên khoảng lặng đầu).
         if (!localSilence) localSilence = Date.now();
         if (Date.now() - localSilence >= CALL_SILENCE_MS) {
-          if (callRecorder && callRecorder.state === "recording") callRecorder.stop();
+          if (callRecorder && callRecorder.state === "recording")
+            callRecorder.stop();
           return;
         }
       }
-      // Chưa nói: không đếm im lặng, để CALL_MAX_MS làm chốt an toàn.
       callSilenceAnimId = requestAnimationFrame(tick);
     };
     callSilenceAnimId = requestAnimationFrame(tick);
-  } catch (_) {
-    /* no VAD — rely on max-duration timeout */
-  }
-
+  } catch (_) {}
   callChunks = [];
   callRecorder = new MediaRecorder(stream);
   callRecorder.ondataavailable = (e) => {
@@ -3396,13 +2798,12 @@ async function _callStartListening() {
     }
     const inner = document.querySelector(".call-avatar-circle");
     if (inner) inner.style.transform = "";
-
-    if (!callModeActive || callMuted) return; // stopped intentionally
+    if (!callModeActive || callMuted) return;
     const blob = new Blob(callChunks, { type: callRecorder.mimeType });
     console.log(
       `[voice] ghi âm xong — blob ${blob.size} bytes (${blob.type || "?"}), ` +
         `đỉnh âm lượng maxRms=${maxRms.toFixed(1)} (ngưỡng nói=${SILENCE_THRESHOLD})` +
-        (maxRms < SILENCE_THRESHOLD ? " ⚠️ MIC KHÔNG BẮT ĐƯỢC TIẾNG" : "")
+        (maxRms < SILENCE_THRESHOLD ? " ⚠️ MIC KHÔNG BẮT ĐƯỢC TIẾNG" : ""),
     );
     _callHandleBlob(blob);
   };
@@ -3411,62 +2812,66 @@ async function _callStartListening() {
     if (callRecorder && callRecorder.state === "recording") callRecorder.stop();
   }, CALL_MAX_MS);
 }
-
 async function _callHandleBlob(blob) {
   if (!callModeActive) return;
   _setCallState("processing");
-
   try {
     let audio_b64, mime_type;
     let ctx = null;
     try {
-      // Mã hoá WAV ở client; decodeAudioData có thể treo -> đua timeout 5s.
       const Ctx = window.AudioContext || window.webkitAudioContext;
       ctx = new Ctx();
       await ctx.resume();
       const decoded = await Promise.race([
         ctx.decodeAudioData(await blob.arrayBuffer()),
-        new Promise((_, rej) => setTimeout(() => rej(new Error("decode timeout 5s")), 5000)),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error("decode timeout 5s")), 5e3),
+        ),
       ]);
       const wav = encodeWav(decoded);
       audio_b64 = await blobToBase64(wav);
       mime_type = "audio/wav";
       console.log("[voice] mã hoá WAV client OK");
     } catch (e) {
-      // Dự phòng bình thường: gửi blob thô, server giải mã bằng ffmpeg. STT vẫn đúng.
       audio_b64 = await blobToBase64(blob);
       mime_type = blob.type || "audio/mp4";
       console.log(
         "[voice] gửi blob thô cho server giải mã:",
         mime_type,
         "(client không decode được:",
-        (e && e.message) + ")"
+        (e && e.message) + ")",
       );
     } finally {
       if (ctx) {
         try {
           ctx.close();
         } catch (_) {}
-      } // đóng, tránh rò AudioContext
+      }
     }
-
     const _t0 = performance.now();
     console.log(
       "[voice] gửi STT… (audio",
       Math.round((audio_b64.length * 0.75) / 1024),
       "KB,",
       mime_type,
-      ")"
+      ")",
     );
     let sttData;
     try {
-      sttData = await postJsonTimeout("/api/stt", { audio_b64, mime_type }, 45000);
+      sttData = await postJsonTimeout(
+        "/api/stt",
+        { audio_b64: audio_b64, mime_type: mime_type },
+        45e3,
+      );
     } catch (e) {
       console.error(
-        `[voice] ❌ STT treo/lỗi sau ${((performance.now() - _t0) / 1000).toFixed(1)}s:`,
-        e.message
+        `[voice] ❌ STT treo/lỗi sau ${((performance.now() - _t0) / 1e3).toFixed(1)}s:`,
+        e.message,
       );
-      addMessage("system", "Nhận diện giọng nói quá lâu hoặc lỗi — đang nghe lại.");
+      addMessage(
+        "system",
+        "Nhận diện giọng nói quá lâu hoặc lỗi — đang nghe lại.",
+      );
       if (callModeActive) {
         _setCallState("listening");
         _callStartListening();
@@ -3475,17 +2880,14 @@ async function _callHandleBlob(blob) {
     }
     const text = cleanStt(sttData.text || "");
     console.log(
-      `[voice] STT xong sau ${((performance.now() - _t0) / 1000).toFixed(1)}s →`,
+      `[voice] STT xong sau ${((performance.now() - _t0) / 1e3).toFixed(1)}s →`,
       JSON.stringify(sttData.text || ""),
-      text ? "✅ nhận được" : "⚠️ RỖNG (im lặng/không giải mã được)"
+      text ? "✅ nhận được" : "⚠️ RỖNG (im lặng/không giải mã được)",
     );
-
     if (!text || !callModeActive) {
-      // Silence or empty — restart listening immediately (no chat bubble)
       if (callModeActive) _callStartListening();
       return;
     }
-
     await _callSendMessage(text);
   } catch (err) {
     console.error("[voice] ❌ lỗi xử lý lượt nói:", err && err.message);
@@ -3495,24 +2897,21 @@ async function _callHandleBlob(blob) {
     }
   }
 }
-
 async function _callSendMessage(text) {
   if (!text.trim() || !callModeActive) return;
   const ca = $("call-actions");
   if (ca) {
     ca.classList.add("hidden");
     ca.innerHTML = "";
-  } // xoá nút của lượt trước
+  }
   addMessage("customer", text);
   showTyping();
-
   let fullText = "";
   let meta = null;
-
   const _tc = performance.now();
   console.log("[voice] gửi câu hỏi tới bot (LLM)…");
   const _ctrl = new AbortController();
-  const _timer = setTimeout(() => _ctrl.abort(), 60000); // bot trả lời quá 60s -> huỷ
+  const _timer = setTimeout(() => _ctrl.abort(), 6e4);
   try {
     const resp = await fetch("/api/chat/stream", {
       method: "POST",
@@ -3521,13 +2920,11 @@ async function _callSendMessage(text) {
       signal: _ctrl.signal,
     });
     if (!resp.ok) throw new Error(`${resp.status}`);
-
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buf = "";
-
     while (true) {
-      const { done, value } = await reader.read();
+      const { done: done, value: value } = await reader.read();
       if (done) break;
       buf += decoder.decode(value, { stream: true });
       const lines = buf.split("\n");
@@ -3544,7 +2941,9 @@ async function _callSendMessage(text) {
             applyRawMode(Boolean(meta.raw_mode));
             setRailUser(meta.verified);
             renderChatActions(meta);
-            renderHandoff(meta.in_handoff ? { handled_by: meta.handled_by || null } : null);
+            renderHandoff(
+              meta.in_handoff ? { handled_by: meta.handled_by || null } : null,
+            );
             if (meta.in_handoff) startPolling();
           } else if (ev.error) {
             throw new Error(ev.error);
@@ -3555,8 +2954,8 @@ async function _callSendMessage(text) {
   } catch (err) {
     clearTimeout(_timer);
     console.error(
-      `[voice] ❌ bot treo/lỗi sau ${((performance.now() - _tc) / 1000).toFixed(1)}s:`,
-      err && (err.name === "AbortError" ? "quá 60s - đã huỷ" : err.message)
+      `[voice] ❌ bot treo/lỗi sau ${((performance.now() - _tc) / 1e3).toFixed(1)}s:`,
+      err && (err.name === "AbortError" ? "quá 60s - đã huỷ" : err.message),
     );
     await hideTyping();
     addMessage("system", "Bot phản hồi quá lâu — đang nghe lại.");
@@ -3568,41 +2967,31 @@ async function _callSendMessage(text) {
   }
   clearTimeout(_timer);
   console.log(
-    `[voice] bot trả lời xong sau ${((performance.now() - _tc) / 1000).toFixed(1)}s`,
-    fullText.trim() ? `(${fullText.trim().length} ký tự)` : "(RỖNG)"
+    `[voice] bot trả lời xong sau ${((performance.now() - _tc) / 1e3).toFixed(1)}s`,
+    fullText.trim() ? `(${fullText.trim().length} ký tự)` : "(RỖNG)",
   );
-
   await hideTyping();
-
   if (fullText.trim()) {
     addMessage("assistant", fullText.trim(), meta);
     updateInspector(meta);
-
-    // Show a short preview of the reply inside the voice overlay
     const lmEl = $("call-last-msg");
     if (lmEl) {
       const preview = fullText.trim().replace(/\s+/g, " ");
-      lmEl.textContent = preview.slice(0, 160) + (preview.length > 160 ? "…" : "");
+      lmEl.textContent =
+        preview.slice(0, 160) + (preview.length > 160 ? "…" : "");
       lmEl.classList.remove("hidden");
     }
-
     if (ttsAvailable && callModeActive) {
       _setCallState("speaking");
       await _playTtsForCall(stripMarkdownForTts(fullText.trim()));
     }
   }
-
-  // Bot vừa đề nghị kết nối chuyên viên -> hiện 2 nút Có/Không ngay trên màn gọi.
   renderCallActions(meta);
-
   if (callModeActive) {
     _setCallState("listening");
     _callStartListening();
   }
 }
-
-// Nút hành động trong cuộc gọi (hiện tại: đề nghị kết nối chuyên viên). Khách có
-// thể BẤM hoặc trả lời bằng giọng - cả hai đều gửi qua _callSendMessage.
 function renderCallActions(meta) {
   const box = $("call-actions");
   if (!box) return;
@@ -3616,9 +3005,9 @@ function renderCallActions(meta) {
       b.onclick = () => {
         box.classList.add("hidden");
         box.innerHTML = "";
-        // Dừng ghi âm đang chờ để khỏi gửi trùng, rồi gửi lựa chọn.
         callMuted = true;
-        if (callRecorder && callRecorder.state === "recording") callRecorder.stop();
+        if (callRecorder && callRecorder.state === "recording")
+          callRecorder.stop();
         callMuted = false;
         _callSendMessage(b.dataset.say);
       };
@@ -3628,9 +3017,6 @@ function renderCallActions(meta) {
     box.innerHTML = "";
   }
 }
-
-// Analyser cho tiếng bot để orb nảy theo. Tạo 1 lần (createMediaElementSource chỉ
-// gọi được 1 lần/phần tử); nối source → analyser → loa để vẫn nghe được.
 function _ensureTtsAnalyser() {
   if (_ttsAnalyser) return true;
   try {
@@ -3647,8 +3033,6 @@ function _ensureTtsAnalyser() {
     return false;
   }
 }
-
-// Returns a promise that resolves only after TTS audio has finished playing.
 async function _playTtsForCall(text) {
   return new Promise((resolve) => {
     if (streamingAudio) {
@@ -3659,7 +3043,7 @@ async function _playTtsForCall(text) {
     fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text: text }),
     })
       .then((r) => (r.ok ? r.blob() : null))
       .then((b) => (b ? URL.createObjectURL(b) : null))
@@ -3668,10 +3052,8 @@ async function _playTtsForCall(text) {
           resolve();
           return;
         }
-        const audio = streamPlayer; // persistent, gesture-primed element
+        const audio = streamPlayer;
         streamingAudio = audio;
-
-        // Quả cầu nảy theo âm lượng tiếng bot (kiểu ChatGPT voice).
         let orbAnimId = null;
         const driveOrb = () => {
           if (!streamingAudio || !callModeActive || !_ttsAnalyser) return;
@@ -3687,7 +3069,6 @@ async function _playTtsForCall(text) {
           if (wrap) wrap.style.setProperty("--vs-level", orbLevel);
           orbAnimId = requestAnimationFrame(driveOrb);
         };
-
         const finish = () => {
           URL.revokeObjectURL(url);
           if (streamingAudio === audio) streamingAudio = null;
@@ -3697,7 +3078,7 @@ async function _playTtsForCall(text) {
           }
           const wrap = $("call-avatar-wrap");
           orbLevel = 0;
-          if (wrap) wrap.style.setProperty("--vs-level", 0); // cầu thu về mức nghỉ
+          if (wrap) wrap.style.setProperty("--vs-level", 0);
           resolve();
         };
         audio.onplay = () => {
@@ -3714,9 +3095,6 @@ async function _playTtsForCall(text) {
       .catch(() => resolve());
   });
 }
-
-// ---- mute toggle ----
-
 function _callToggleMute() {
   callMuted = !callMuted;
   const btn = $("call-mute-btn");
@@ -3727,31 +3105,26 @@ function _callToggleMute() {
   btn.classList.toggle("muted", callMuted);
   const lbl = $("call-mute-label");
   if (lbl) lbl.textContent = callMuted ? "Bật tiếng" : "Tắt tiếng";
-
   if (callMuted) {
-    // Stop current recording — onstop will skip re-start because callMuted=true
     if (callRecorder && callRecorder.state === "recording") callRecorder.stop();
-    _setCallState("listening"); // keep visual state coherent
+    _setCallState("listening");
   } else if (callModeActive && callState === "listening") {
     _callStartListening();
   }
 }
-
-// ---- wire up buttons ----
 $("call-btn").addEventListener("click", startCall);
 $("call-end-btn").addEventListener("click", stopCall);
 $("call-mute-btn").addEventListener("click", _callToggleMute);
 $("call-start").addEventListener("click", startSimCall);
 $("call-accept-btn").addEventListener("click", answerSimCall);
 $("call-decline-btn").addEventListener("click", declineSimCall);
-
 (async function init() {
   updateSendState();
   refreshChatStatus();
   await refreshHealth();
   await refreshStaff();
   startTranscript();
-  refreshTtsStatus(); // nạp danh sách giọng (thanh chat) ngay khi mở web, không đợi mở Cấu hình
+  refreshTtsStatus();
   if (staff) {
     showScreen("agent");
     showPanel("dashboard");

@@ -8,9 +8,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Inter carries a full Vietnamese subset, so every diacritic (ề, ộ, ữ, ẳ…)
-       renders in one typeface instead of falling back per-glyph to the system
-       font - what made accented letters look mismatched/oversized before. -->
+
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
@@ -58,13 +56,6 @@
         text-align: right;
       }
 
-      /* ============================================================
-       VOICE SESSION — hội thoại giọng nói kiểu "voice mode".
-       Hero là MỘT khối cầu lỏng (liquid orb) morph ở giữa, phản ứng
-       theo --vs-level (0..1, JS đặt trên #call-avatar-wrap). Màu lấy từ
-       token thương hiệu: --accent #0E4B45, --positive #2E8B6F.
-       Trạng thái sống trong data-state trên .vs-session.
-       ============================================================ */
       .call-overlay {
         position: fixed;
         inset: 0;
@@ -115,7 +106,6 @@
         --siri-blue: #4a7fe0;
       }
 
-      /* ── Top bar: brand trái, timer phải — cả hai đều nhẹ ── */
       .vs-topbar {
         width: 100%;
         max-width: 560px;
@@ -146,7 +136,6 @@
         font-variant-numeric: tabular-nums;
       }
 
-      /* ── Main: khối cầu là nhân vật chính ── */
       .vs-main {
         flex: 1;
         width: 100%;
@@ -166,7 +155,6 @@
         margin-bottom: 34px;
       }
 
-      /* --- Kiểu gọi điện thoại (data-mode="phone"): ẩn orb, hiện avatar+tên+số --- */
       .vs-callee {
         display: none;
         flex-direction: column;
@@ -185,15 +173,16 @@
         width: 128px;
         height: 128px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #35c4e8, var(--teal-b) 55%, var(--teal-a));
+
+        background: linear-gradient(135deg, #b9c2cc, #8a94a0);
         color: #fff;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 52px;
-        font-weight: 600;
-        box-shadow: 0 14px 44px rgba(14, 75, 69, 0.32);
-        animation: vsCalleePulse 2.2s ease-in-out infinite;
+      }
+      .vs-callee-avatar svg {
+        width: 70px;
+        height: 70px;
       }
       .vs-callee-name {
         font-size: 25px;
@@ -205,32 +194,11 @@
         color: var(--text-muted, #6b7a76);
         letter-spacing: 0.6px;
       }
-      /* Đổ chuông: vòng sáng nhấp nháy quanh avatar khi đang gọi/nói */
-      @keyframes vsCalleePulse {
-        0%,
-        100% {
-          box-shadow:
-            0 14px 44px rgba(14, 75, 69, 0.3),
-            0 0 0 0 rgba(53, 196, 232, 0.45);
-        }
-        50% {
-          box-shadow:
-            0 14px 54px rgba(46, 139, 111, 0.4),
-            0 0 0 16px rgba(53, 196, 232, 0);
-        }
-      }
-      /* Khi đã kết nối (đang nghe/nói) thì avatar bớt "đổ chuông", dịu lại */
-      [data-state="listening"] .vs-callee-avatar,
-      [data-state="speaking"] .vs-callee-avatar {
-        animation-duration: 3.4s;
-      }
 
-      /* Màn hình gọi điện thoại: KHÔNG hiện chữ bot đang nói - chỉ hội thoại giọng nói. */
       .call-overlay.phone .vs-last-msg {
         display: none !important;
       }
 
-      /* Nút Nghe / Từ chối - chỉ hiện khi đổ chuông (data-state="ringing") */
       .vs-incoming {
         display: none;
         width: 100%;
@@ -272,7 +240,6 @@
         }
       }
 
-      /* Nút hành động trong cuộc gọi (vd kết nối chuyên viên) */
       .vs-actions {
         display: flex;
         flex-direction: column;
@@ -311,7 +278,6 @@
         border: 1px solid rgba(0, 0, 0, 0.12);
       }
 
-      /* Halo lan ra — khoảnh khắc nhấn duy nhất, chỉ khi đang trả lời */
       .vs-halo {
         position: absolute;
         inset: 0;
@@ -330,7 +296,7 @@
         filter: blur(8px);
         animation: vsGlow 4.5s ease-in-out infinite;
       }
-      /* Glow luôn "sống" - quầng sáng thở nhẹ quanh orb (chất Siri). */
+
       @keyframes vsGlow {
         0%,
         100% {
@@ -342,7 +308,7 @@
           transform: scale(1.08);
         }
       }
-      /* Khi đang đọc trả lời: quầng bung ra thành gợn sóng lan toả. */
+
       [data-state="speaking"] .vs-halo {
         animation: vsHalo 2.2s ease-out infinite;
       }
@@ -357,7 +323,6 @@
         }
       }
 
-      /* Khối cầu lỏng: nở theo âm lượng thật (nghe/nói) */
       .vs-orb {
         position: relative;
         width: 152px;
@@ -366,9 +331,7 @@
         transition: transform 0.08s ease-out;
         filter: drop-shadow(0 20px 42px rgba(14, 75, 69, 0.24));
       }
-      /* Lớp xoay chậm: cầm hai lớp gradient và quay quanh tâm để các "bướu" của
-       khối méo di chuyển vòng quanh — đây là thứ tạo cảm giác giọt nước lỏng,
-       không chỉ phồng/xẹp. */
+
       .vs-orb-fluid {
         position: absolute;
         inset: 0;
@@ -376,8 +339,7 @@
           vsFluid 14s ease-in-out infinite,
           vsHue 10s ease-in-out infinite;
       }
-      /* Trôi sắc nhẹ quanh teal↔cyan↔xanh lá - orb "thở màu" như Siri, không đổi
-       hẳn sang tông khác nên vẫn đúng thương hiệu. */
+
       @keyframes vsHue {
         0%,
         100% {
@@ -387,8 +349,7 @@
           filter: hue-rotate(20deg) saturate(1.18);
         }
       }
-      /* Xoay chậm + bóp giãn nhẹ (squash/stretch kiểu thạch) — toàn transform nên
-       luôn mượt, không răng cưa. Kết hợp morph bo góc bên dưới tạo cảm giác lỏng. */
+
       @keyframes vsFluid {
         0% {
           transform: rotate(0deg) scale(1, 1);
@@ -422,8 +383,7 @@
         );
         animation: vsMorph 6s ease-in-out infinite;
       }
-      /* Lớp nhấn màu kiểu Siri: aqua → cyan → chút xanh dương, hoà bằng screen nên
-       chỉ làm sáng/đổi sắc chứ không phủ mất tông teal chủ đạo. */
+
       .vs-orb-b {
         background: radial-gradient(
           circle at 68% 72%,
@@ -469,8 +429,6 @@
         }
       }
 
-      /* Orb WebGL kiểu ElevenLabs: canvas vuông giữa khung, phủ lên vị trí orb.
-       Khi WebGL chạy (.gl-active trên .vs-session) thì ẩn CSS orb cũ. */
       .vs-orb-canvas {
         position: absolute;
         inset: 0;
@@ -487,7 +445,6 @@
         display: none;
       }
 
-      /* Nhịp/sắc theo trạng thái */
       [data-state="connecting"] .vs-orb,
       [data-state="idle"] .vs-orb {
         animation: vsBreathe 3.4s ease-in-out infinite;
@@ -545,7 +502,6 @@
         opacity: 0.85;
       }
 
-      /* ── State + preview câu trả lời ── */
       .vs-state {
         display: inline-flex;
         align-items: center;
@@ -612,7 +568,6 @@
         pointer-events: none;
       }
 
-      /* ── Controls ── */
       .vs-controls {
         width: 100%;
         padding: 0 0 clamp(40px, 8vh, 64px);
@@ -683,7 +638,6 @@
         box-shadow: 0 5px 16px rgba(140, 58, 43, 0.28);
       }
 
-      /* Nút mở voice session trong header chat — xám mặc định như icon khác. */
       #call-btn {
         color: var(--text-muted);
       }
@@ -710,9 +664,6 @@
         }
       }
 
-      /* Giảm chuyển động: bỏ các chuyển động mạnh (vòng halo lan, chấm nhấp nháy)
-       và làm mọi thứ chậm lại, nhưng VẪN giữ orb "thở" + morph rất chậm để nó
-       còn dấu hiệu đang sống thay vì đứng hình hoàn toàn. */
       @media (prefers-reduced-motion: reduce) {
         .vs-halo {
           animation: none !important;
@@ -737,7 +688,6 @@
         }
       }
 
-      /* ── Ô chọn dòng thẻ cross-sell (thay dropdown) trong panel Gọi khách ── */
       .card-tiles {
         display: flex;
         flex-direction: column;
@@ -794,7 +744,7 @@
         color: var(--text-muted, #6b7a76);
         margin-top: 3px;
       }
-      /* Trạng thái được chọn */
+
       .card-tile:has(input:checked) {
         border-color: var(--teal-a, #0e4b45);
         box-shadow: 0 0 0 2px rgba(14, 75, 69, 0.14);
@@ -809,7 +759,6 @@
         outline-offset: 2px;
       }
 
-      /* Nhật ký cuộc gọi */
       .call-list {
         display: flex;
         flex-direction: column;
@@ -829,9 +778,6 @@
     </style>
   </head>
   <body>
-    <!-- ============================================================
-     APP SHELL - left nav (chrome) + the active screen.
-     ============================================================ -->
     <div class="app-shell">
       <div class="nav-scrim" id="nav-scrim"></div>
 
@@ -846,8 +792,7 @@
 
         <nav class="nav-list" aria-label="Điều hướng chính">
           <button type="button" class="nav-item active" id="nav-assistant">Trợ lý ảo</button>
-          <!-- The design's remaining sections have nothing behind them in this
-           demo. They stay as inert chrome rather than buttons that lie. -->
+
           <span class="nav-item muted" aria-disabled="true">Tài khoản</span>
           <span class="nav-item muted" aria-disabled="true">Thanh toán</span>
           <span class="nav-item muted" aria-disabled="true">Thẻ</span>
@@ -860,8 +805,7 @@
             <span id="mode-pill" class="pill">đang kiểm tra…</span>
             <span id="staff-pill" class="pill hidden"></span>
           </div>
-          <!-- Names whoever the session has verified, so the demo shows identity
-           being established rather than just asserted in a chat bubble. -->
+
           <div class="nav-user">
             <span class="avatar sm" id="rail-avatar" aria-label="Khách">
               <svg
@@ -898,13 +842,9 @@
       </aside>
 
       <div class="app-main">
-        <!-- ============================================================
-       KHÁCH HÀNG - mặc định. Không cần đăng nhập, chỉ có khung chat.
-       ============================================================ -->
         <main id="screen-customer" class="screen screen-chat">
           <section class="chat-panel">
             <header class="chat-header">
-              <!-- Nút mở menu trái (chỉ hiện trên điện thoại) để tới đăng nhập/console. -->
               <button type="button" class="icon-btn nav-toggle" aria-label="Mở menu">
                 <svg
                   width="18"
@@ -919,9 +859,7 @@
                   <path d="M3 6h18M3 12h18M3 18h18" />
                 </svg>
               </button>
-              <!-- Mock only: the surrounding banking app owns where "back" goes, so
-             here it is a real, focusable control that deliberately navigates
-             nowhere. Replace the handler when this is embedded. -->
+
               <button type="button" class="icon-btn back-btn" id="back-btn" aria-label="Quay lại">
                 <svg
                   width="18"
@@ -950,7 +888,6 @@
                 aria-label="Gặp chuyên viên"
                 title="Gặp chuyên viên (nhân viên hỗ trợ)"
               >
-                <!-- Headset + mic icon — nhân viên hỗ trợ -->
                 <svg
                   width="18"
                   height="18"
@@ -974,7 +911,6 @@
                 aria-label="Hội thoại giọng nói"
                 title="Hội thoại giọng nói với trợ lý ảo"
               >
-                <!-- Phone icon — mở hội thoại giọng nói -->
                 <svg
                   width="18"
                   height="18"
@@ -990,10 +926,7 @@
                   />
                 </svg>
               </button>
-              <!-- The old left rail carried this as a full-width "Cuộc trò chuyện
-             mới" button and repeated it as a bin icon in the header. The rail
-             is gone with the mobile-first layout, so the two collapse into one
-             control here - the header is the only chrome a phone gets. -->
+
               <button
                 type="button"
                 class="icon-btn"
@@ -1078,9 +1011,6 @@
             </div>
 
             <form id="composer" class="composer" autocomplete="off">
-              <!-- Gửi ảnh từ thư viện: mở hộp chọn ảnh rồi hiển thị ảnh trong khung
-             chat (xử lý phía client). Emoji và mic là thật - wired trong app.js;
-             mic ẩn/disable khi server không có STT. -->
               <button
                 type="button"
                 id="image-btn"
@@ -1121,7 +1051,7 @@
               >
                 😊
               </button>
-              <!-- Bảng chọn emoji (đổ nội dung bằng JS) -->
+
               <div id="emoji-panel" class="emoji-panel hidden" aria-label="Bảng biểu tượng"></div>
               <button
                 type="button"
@@ -1156,10 +1086,6 @@
             </form>
           </section>
 
-          <!-- Off-canvas below 1024px, behind the ⓘ button in the header. That is
-         what settles the old objection to putting instrumentation on the
-         customer screen: the technical view is opt-in here, and the agent
-         console still owns it for the people who read it all day. -->
           <aside class="context-rail" id="context-rail">
             <div class="rail-block">
               <span class="rail-eyebrow">Nguồn câu trả lời</span>
@@ -1182,8 +1108,7 @@
               <div class="rail-voice-settings">
                 <select id="tts-bar-provider">
                   <option value="VieNeu">Voice 1</option>
-                  <option value="ElevenLabs">Voice 2</option>
-                  <option value="gtts">Voice 3</option>
+                  <option value="gtts">Voice 2</option>
                 </select>
                 <select id="tts-bar-voice"></select>
               </div>
@@ -1195,9 +1120,6 @@
           </aside>
         </main>
 
-        <!-- ============================================================
-       ĐĂNG NHẬP NHÂN VIÊN
-       ============================================================ -->
         <main id="screen-login" class="screen screen-doc hidden">
           <section class="panel">
             <h2>Đăng nhập</h2>
@@ -1241,9 +1163,6 @@
           </section>
         </main>
 
-        <!-- ============================================================
-       NHÂN VIÊN - màn hình riêng, không phải tab trong giao diện khách.
-       ============================================================ -->
         <main id="screen-agent" class="screen screen-doc hidden">
           <div class="console-head">
             <button
@@ -1283,7 +1202,7 @@
             </button>
             <button class="subtab hidden" id="subtab-calls" data-panel="calls">Gọi khách</button>
           </nav>
-          <!-- Trên điện thoại thay dải tab bằng một dropdown gọn (xem styles.css). -->
+
           <select id="subtab-select" class="subtab-select" aria-label="Chọn mục">
             <option value="dashboard">Tổng quan &amp; vận hành</option>
             <option value="queue">Hàng chờ</option>
@@ -1294,7 +1213,6 @@
             <option value="calls" id="subtab-select-calls" hidden>Gọi khách</option>
           </select>
 
-          <!-- ---------- OVERVIEW ---------- -->
           <section id="panel-dashboard" class="agent-panel">
             <div class="row-between">
               <div>
@@ -1308,9 +1226,6 @@
               </div>
             </div>
 
-            <!-- Bot control strip: live operational state + shortcuts to the two
-           control panels. Reads /api/health so it reflects the running
-           process, not a cached snapshot. -->
             <div class="panel bot-control" id="bot-control">
               <div class="row-between" style="align-items: flex-start; flex-wrap: wrap; gap: 10px">
                 <div>
@@ -1373,7 +1288,6 @@
             </div>
           </section>
 
-          <!-- ---------- QUEUE ---------- -->
           <section id="panel-queue" class="agent-panel hidden">
             <div class="split">
               <div class="panel">
@@ -1423,7 +1337,6 @@
             </div>
           </section>
 
-          <!-- ---------- KNOWLEDGE BASE ---------- -->
           <section id="panel-kb" class="agent-panel hidden">
             <div class="split">
               <div class="panel">
@@ -1499,7 +1412,6 @@
             </div>
           </section>
 
-          <!-- ---------- SETTINGS ---------- -->
           <section id="panel-settings" class="agent-panel hidden">
             <div class="split">
               <div class="panel">
@@ -1582,7 +1494,6 @@
             </div>
           </section>
 
-          <!-- ---------- VOICE ---------- -->
           <section id="panel-voice" class="agent-panel hidden">
             <h2>Giọng nói của bot</h2>
             <p class="hint">
@@ -1597,8 +1508,7 @@
                     <span>Nhà cung cấp</span>
                     <select id="tts-provider">
                       <option value="VieNeu">Voice 1</option>
-                      <option value="ElevenLabs">Voice 2</option>
-                      <option value="gtts">Voice 3</option>
+                      <option value="gtts">Voice 2</option>
                     </select>
                   </label>
                   <label class="field" id="tts-voice-field">
@@ -1628,7 +1538,6 @@
             </div>
           </section>
 
-          <!-- ---------- WORKFORCE (admin only) ---------- -->
           <section id="panel-agents" class="agent-panel hidden">
             <h2>Quản lý Agent</h2>
             <div id="agents-error" class="error hidden"></div>
@@ -1638,7 +1547,6 @@
             </div>
           </section>
 
-          <!-- ---------- GỌI KHÁCH (admin only) ---------- -->
           <section id="panel-calls" class="agent-panel hidden">
             <h2>Gọi khách</h2>
             <div class="split">
@@ -1707,14 +1615,8 @@
           </section>
         </main>
       </div>
-      <!-- /app-main -->
     </div>
-    <!-- /app-shell -->
 
-    <!-- ============================================================
-       VOICE SESSION OVERLAY — AI voice conversation mode.
-       Not a call to a human agent — labelled and styled differently.
-       ============================================================ -->
     <div
       id="call-overlay"
       class="call-overlay hidden"
@@ -1722,10 +1624,7 @@
       aria-modal="true"
       aria-label="Hội thoại giọng nói với Trợ lý ảo ABC Bank"
     >
-      <!-- data-state (idle|connecting|listening|processing|speaking) + --vs-level
-         do app.js đặt trên phần tử này; toàn bộ animation đọc từ đây. -->
       <div class="vs-session" id="call-avatar-wrap" data-state="idle">
-        <!-- Top bar: brand + timer, giữ nhẹ để khối cầu là tâm điểm -->
         <div class="vs-topbar">
           <span class="vs-brand"
             ><span class="vs-brand-dot" aria-hidden="true"></span>ABC Bank</span
@@ -1733,24 +1632,12 @@
           <span class="vs-timer" id="call-timer">00:00</span>
         </div>
 
-        <!-- Main: khối cầu lỏng + trạng thái + câu trả lời gần nhất -->
         <div class="vs-main">
-          <!-- Kiểu gọi điện thoại (chỉ hiện khi data-mode="phone"): avatar + tên + số -->
           <div class="vs-callee" id="call-callee">
-            <div class="vs-callee-avatar" id="call-callee-avatar" aria-label="Khách">
-              <svg
-                viewBox="0 0 24 24"
-                width="28"
-                height="28"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="8" r="3.4" />
-                <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+            <div class="vs-callee-avatar" id="call-callee-avatar" aria-label="Người gọi">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <circle cx="12" cy="8.5" r="4.2" />
+                <path d="M3.5 20.5c0-4.2 3.8-6.8 8.5-6.8s8.5 2.6 8.5 6.8z" />
               </svg>
             </div>
             <div class="vs-callee-name" id="call-callee-name">Khách</div>
@@ -1759,8 +1646,7 @@
 
           <div class="vs-orb-wrap">
             <div class="vs-halo" aria-hidden="true"></div>
-            <!-- Orb WebGL kiểu ElevenLabs: quả cầu gradient noise chảy, phản ứng âm
-               thanh. Nếu WebGL không dùng được, JS ẩn canvas và hiện lại CSS orb. -->
+
             <canvas id="vs-orb-canvas" class="vs-orb-canvas" aria-hidden="true"></canvas>
             <div class="vs-orb" aria-hidden="true">
               <div class="vs-orb-fluid">
@@ -1773,11 +1659,10 @@
 
           <div class="vs-state" id="call-state-label" aria-live="polite">Đang kết nối…</div>
           <div class="vs-last-msg hidden" id="call-last-msg"></div>
-          <!-- Nút hành động trong cuộc gọi (vd đề nghị kết nối chuyên viên) -->
+
           <div class="vs-actions hidden" id="call-actions"></div>
         </div>
 
-        <!-- Controls: tắt tiếng + kết thúc -->
         <div class="vs-controls">
           <div class="vs-ctrl-item">
             <button
@@ -1786,7 +1671,6 @@
               title="Tắt tiếng"
               aria-label="Tắt tiếng"
             >
-              <!-- Mic-on icon (mặc định) -->
               <svg
                 class="vs-icon-active"
                 width="24"
@@ -1803,7 +1687,7 @@
                 <line x1="12" y1="19" x2="12" y2="22" />
                 <line x1="8" y1="22" x2="16" y2="22" />
               </svg>
-              <!-- Mic-off icon (khi đã tắt tiếng) -->
+
               <svg
                 class="vs-icon-muted hidden"
                 width="24"
@@ -1850,7 +1734,6 @@
           </div>
         </div>
 
-        <!-- Nút NGHE / TỪ CHỐI kiểu iPhone - chỉ hiện khi đang đổ chuông (ringing) -->
         <div class="vs-incoming">
           <div class="vs-ctrl-item">
             <button
@@ -1884,7 +1767,6 @@
           </div>
         </div>
       </div>
-      <!-- /vs-session -->
     </div>
 
     <script src="/app.js?v=17"></script>

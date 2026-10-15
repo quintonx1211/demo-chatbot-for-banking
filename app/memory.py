@@ -28,19 +28,15 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-# How long a remembered fact stays relevant. Short enough that the demo can show
-# expiry, long enough to span the "called yesterday" case the client described.
 TTL = timedelta(days=30)
 
-# Per customer. A memory that grows without bound becomes a profile, which is a
-# different thing from a continuity aid and carries different obligations.
 MAX_ENTRIES = 12
 
 
 @dataclass
 class Note:
-    kind: str  # "topic" | "outcome" | "campaign"
-    label: str  # a topic or offer name, never a raw utterance
+    kind: str
+    label: str
     detail: str = ""
     channel: str = "chat"
     at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -81,9 +77,6 @@ class CustomerMemory:
             return
         with self._lock:
             notes = [n for n in self._notes.get(customer_id, []) if not n.expired]
-            # Re-asking the same thing refreshes the note rather than stacking
-            # duplicates - otherwise a persistent customer looks like twelve
-            # distinct concerns instead of one unresolved one.
             for note in notes:
                 if note.kind == kind and note.label == label:
                     note.at = datetime.now(timezone.utc)
@@ -156,5 +149,4 @@ class CustomerMemory:
             }
 
 
-# One store for the process, mirroring the single CRM it stands in for.
 store = CustomerMemory()

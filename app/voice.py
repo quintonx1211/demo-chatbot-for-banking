@@ -1,7 +1,7 @@
 """Outbound voice-call layer: tools for a voice agent + a call log.
 
 The bot's dialog brain (router.py / flows.py) is turn-based text. A real-time
-voice agent - ElevenLabs Conversational AI, FPT.AI, etc. - runs the *conversation*
+voice agent (e.g. FPT.AI or another telephony provider) runs the *conversation*
 itself and reaches back into the bank only for facts and actions. This module is
 that reach-back surface:
 
@@ -12,9 +12,9 @@ that reach-back surface:
   * `CallStore` records every outbound call an admin places, so the console has
     a call log independent of whichever telephony provider actually dials.
 
-Nothing here dials a phone. Placing the call is the provider's job (see
-docs/ELEVENLABS-CALLBOT.md); server.py::/api/voice/call creates the record and
-is where the provider's outbound API gets invoked once one is wired in.
+Nothing here dials a phone. Placing the call is the telephony provider's job;
+server.py::/api/voice/call creates the record and is where the provider's
+outbound API gets invoked once one is wired in.
 """
 
 from __future__ import annotations
@@ -31,9 +31,6 @@ from .campaigns import CampaignBook
 CALL_LOG_PATH = Path(__file__).resolve().parent.parent / "data" / "call_log.json"
 
 _campaigns = CampaignBook()
-
-
-# ---------- tools the voice agent calls mid-conversation ----------
 
 
 def tool_verify_customer(phone: str, national_id: str) -> dict:
@@ -90,8 +87,6 @@ def tool_offers(customer_id: str) -> dict:
     }
 
 
-# Registry so server.py can dispatch by name and the docs/tool schema stay in
-# one place. Each entry: (function, required arg names).
 TOOLS = {
     "verify_customer": (tool_verify_customer, ("phone", "national_id")),
     "account_snapshot": (tool_account_snapshot, ("customer_id",)),
@@ -110,9 +105,6 @@ def call_tool(name: str, payload: dict) -> tuple[dict | None, str | None]:
     if missing:
         return None, f"missing args: {', '.join(missing)}"
     return fn(**{a: payload[a] for a in required}), None
-
-
-# ---------- outbound call log ----------
 
 
 class CallStore:
@@ -159,7 +151,7 @@ class CallStore:
             "summary": None,
         }
         with self._lock:
-            self._calls.insert(0, record)  # newest first
+            self._calls.insert(0, record)
             self._flush_locked()
         return record
 

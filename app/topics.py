@@ -28,16 +28,10 @@ from dataclasses import dataclass
 from .session import Session
 from .textmodel import tokenize
 
-# Share of distinct content words two questions must have in common to be the
-# same topic. Measured on the demo traffic: genuinely-similar questions score
-# 0.35-0.60, while a question sharing only a generic noun scores below 0.2.
 SIMILARITY_THRESHOLD = 0.30
 
-# Below this a cluster is a one-off, not a topic. Shown separately rather than
-# hidden - a single question can still be the important one.
 MIN_CLUSTER_SIZE = 2
 
-# Routes that mean "the assistant did not answer this".
 _UNRESOLVED = {"escalation", "escalation_offered"}
 
 
@@ -78,14 +72,12 @@ def _label(questions: list[str]) -> str:
 
 def cluster_unresolved(sessions: list[Session]) -> dict:
     """Group everything the assistant failed to answer, most common first."""
-    entries: list[tuple[str, str]] = []  # (utterance, reason)
+    entries: list[tuple[str, str]] = []
     for session in sessions:
         for entry in session.audit:
             if entry.route in _UNRESOLVED and entry.utterance.strip():
                 entries.append((entry.utterance.strip(), entry.note or entry.route))
 
-    # De-duplicate identical questions but keep the count - a question asked
-    # ten times is a bigger gap than ten different ones.
     tally: dict[str, list[str]] = {}
     for text, reason in entries:
         tally.setdefault(text.lower(), []).append(reason)
@@ -114,7 +106,6 @@ def cluster_unresolved(sessions: list[Session]) -> dict:
     topics, singletons = [], []
     for members in clusters:
         questions = [unique[j] for j in members]
-        # Weight by how often each was actually asked, not by distinct wordings.
         size = sum(len(tally[q]) for q in questions)
         reasons = sorted({r for q in questions for r in tally[q]})
         topic = Topic(

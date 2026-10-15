@@ -159,11 +159,12 @@ python3 server.py          # chạy tại http://127.0.0.1:8000
 
 | #   | Bước                                 | Kỳ vọng                                                                     |
 | --- | ------------------------------------ | --------------------------------------------------------------------------- |
-| D1  | Bấm nút loa 🔊 trên một câu trả lời  | Nghe được audio (gTTS tiếng Việt)                                           |
-| D2  | Đổi nhà cung cấp sang **ElevenLabs** | Cần key hợp lệ + voice tài khoản cho phép, nếu không → cảnh báo, tự về gTTS |
-| D3  | Đổi sang **Voice 1 (Vbee)**          | Cần gói Vbee còn hạn + ngrok; hết hạn → lỗi 1004                            |
+| D1  | Bấm nút loa 🔊 trên một câu trả lời  | Nghe được audio                                                             |
+| D2  | Chọn **Voice 1 (VieNeu)**            | Service VieNeu local chạy → giọng Việt bản địa; service tắt → tự về Voice 2 |
+| D3  | Chọn **Voice 2 (gTTS)**              | Luôn chạy (không cần key), giọng Việt cơ bản                                |
 
-> gTTS là mặc định vì luôn chạy. Vbee cho giọng Việt bản địa nhưng cần gói còn hạn.
+> Voice 1 = VieNeu (local, offline, giọng tự nhiên) là mặc định; nếu service chưa
+> lên thì tự rớt về Voice 2 = gTTS để luôn có tiếng.
 
 ---
 

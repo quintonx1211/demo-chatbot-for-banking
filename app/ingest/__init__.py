@@ -25,7 +25,7 @@ UnsupportedDocument = extract_mod.UnsupportedDocument
 class IngestResult:
     doc_id: str
     title: str
-    text: str  # cleaned, chunked-from text
+    text: str
     chunks: list[chunker.Chunk]
     warnings: list[str] = field(default_factory=list)
 
